@@ -1,4 +1,18 @@
 {
+  "welcome": {
+    "title": "YNAB4",
+    "subtitle": "A modern client for your YNAB4 budgets"
+  },
+  "dropbox": {
+    "connect": "Connect Dropbox",
+    "disconnect": "Disconnect",
+    "selectBudget": "Select Budget",
+    "connected": "Connected"
+  },
+  "localFiles": {
+    "open": "Open Local Budget",
+    "desktopOnly": "Desktop app only"
+  },
   "common": {
     "all": "Alles",
     "search": "Zoeken...",
@@ -36,6 +50,7 @@
     "expandSidebar": "Zijbalk uitklappen"
   },
   "budget": {
+    "recent": "Recent",
     "selectBudget": "Selecteer een budget",
     "loadFromDropbox": "Laden van Dropbox",
     "loadLocal": "Lokaal Budget Laden",
@@ -229,8 +244,34 @@
     "closed": "Gesloten"
   },
   "months": {
-    "short": ["Jan", "Feb", "Mrt", "Apr", "Mei", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dec"],
-    "long": ["Januari", "Februari", "Maart", "April", "Mei", "Juni", "Juli", "Augustus", "September", "Oktober", "November", "December"]
+    "short": [
+      "Jan",
+      "Feb",
+      "Mrt",
+      "Apr",
+      "Mei",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Okt",
+      "Nov",
+      "Dec"
+    ],
+    "long": [
+      "Januari",
+      "Februari",
+      "Maart",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Augustus",
+      "September",
+      "Oktober",
+      "November",
+      "December"
+    ]
   },
   "dateNav": {
     "prevMonth": "Vorige maand",
@@ -413,4 +454,3 @@
     "unknown": "Onbekende Begunstigde"
   }
 }
-

@@ -1,4 +1,18 @@
 {
+  "welcome": {
+    "title": "YNAB4",
+    "subtitle": "A modern client for your YNAB4 budgets"
+  },
+  "dropbox": {
+    "connect": "Connect Dropbox",
+    "disconnect": "Disconnect",
+    "selectBudget": "Select Budget",
+    "connected": "Connected"
+  },
+  "localFiles": {
+    "open": "Open Local Budget",
+    "desktopOnly": "Desktop app only"
+  },
   "common": {
     "all": "すべて",
     "search": "検索...",
@@ -36,6 +50,7 @@
     "expandSidebar": "サイドバーを開く"
   },
   "budget": {
+    "recent": "Recent",
     "selectBudget": "予算を選択",
     "loadFromDropbox": "Dropboxから読み込む",
     "loadLocal": "ローカルから読み込む",
@@ -229,8 +244,34 @@
     "closed": "閉鎖"
   },
   "months": {
-    "short": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
-    "long": ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"]
+    "short": [
+      "1月",
+      "2月",
+      "3月",
+      "4月",
+      "5月",
+      "6月",
+      "7月",
+      "8月",
+      "9月",
+      "10月",
+      "11月",
+      "12月"
+    ],
+    "long": [
+      "1月",
+      "2月",
+      "3月",
+      "4月",
+      "5月",
+      "6月",
+      "7月",
+      "8月",
+      "9月",
+      "10月",
+      "11月",
+      "12月"
+    ]
   },
   "dateNav": {
     "prevMonth": "前月",
@@ -413,5 +454,3 @@
     "unknown": "不明な受取人"
   }
 }
-
-

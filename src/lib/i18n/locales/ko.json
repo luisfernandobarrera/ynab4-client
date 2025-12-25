@@ -1,4 +1,18 @@
 {
+  "welcome": {
+    "title": "YNAB4",
+    "subtitle": "A modern client for your YNAB4 budgets"
+  },
+  "dropbox": {
+    "connect": "Connect Dropbox",
+    "disconnect": "Disconnect",
+    "selectBudget": "Select Budget",
+    "connected": "Connected"
+  },
+  "localFiles": {
+    "open": "Open Local Budget",
+    "desktopOnly": "Desktop app only"
+  },
   "common": {
     "all": "전체",
     "search": "검색...",
@@ -36,6 +50,7 @@
     "expandSidebar": "사이드바 펼치기"
   },
   "budget": {
+    "recent": "Recent",
     "selectBudget": "예산 선택",
     "loadFromDropbox": "Dropbox에서 불러오기",
     "loadLocal": "로컬에서 불러오기",
@@ -229,8 +244,34 @@
     "closed": "폐쇄"
   },
   "months": {
-    "short": ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"],
-    "long": ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"]
+    "short": [
+      "1월",
+      "2월",
+      "3월",
+      "4월",
+      "5월",
+      "6월",
+      "7월",
+      "8월",
+      "9월",
+      "10월",
+      "11월",
+      "12월"
+    ],
+    "long": [
+      "1월",
+      "2월",
+      "3월",
+      "4월",
+      "5월",
+      "6월",
+      "7월",
+      "8월",
+      "9월",
+      "10월",
+      "11월",
+      "12월"
+    ]
   },
   "dateNav": {
     "prevMonth": "이전 달",
@@ -413,5 +454,3 @@
     "unknown": "알 수 없는 수취인"
   }
 }
-
-

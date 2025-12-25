@@ -1,4 +1,18 @@
 {
+  "welcome": {
+    "title": "YNAB4",
+    "subtitle": "A modern client for your YNAB4 budgets"
+  },
+  "dropbox": {
+    "connect": "Connect Dropbox",
+    "disconnect": "Disconnect",
+    "selectBudget": "Select Budget",
+    "connected": "Connected"
+  },
+  "localFiles": {
+    "open": "Open Local Budget",
+    "desktopOnly": "Desktop app only"
+  },
   "common": {
     "all": "Все",
     "search": "Поиск...",
@@ -31,6 +45,7 @@
     "settings": "Настройки"
   },
   "budget": {
+    "recent": "Recent",
     "selectBudget": "Выберите бюджет",
     "loadFromDropbox": "Загрузить из Dropbox",
     "loadLocal": "Загрузить Локальный Бюджет",
