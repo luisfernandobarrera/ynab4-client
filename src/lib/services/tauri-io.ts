@@ -150,3 +150,49 @@ export async function findLocalBudgets(): Promise<Array<{ name: string; path: st
   return budgets;
 }
 
+/**
+ * Check if running in Tauri
+ */
+export function isTauri(): boolean {
+  return browser && typeof (window as { __TAURI__?: unknown }).__TAURI__ !== 'undefined';
+}
+
+/**
+ * Open folder picker dialog to select a .ynab4 budget folder
+ */
+export async function openBudgetFolderDialog(): Promise<string | null> {
+  if (!isTauri()) {
+    console.warn('[TauriIO] Folder dialog requires Tauri runtime');
+    return null;
+  }
+
+  try {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: 'Select YNAB4 Budget Folder',
+      filters: [{
+        name: 'YNAB4 Budget',
+        extensions: ['ynab4']
+      }]
+    });
+
+    if (selected && typeof selected === 'string') {
+      // Verify it's a .ynab4 folder
+      if (selected.endsWith('.ynab4')) {
+        return selected;
+      } else {
+        console.warn('[TauriIO] Selected folder is not a .ynab4 budget');
+        return null;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[TauriIO] Error opening folder dialog:', error);
+    return null;
+  }
+}
+

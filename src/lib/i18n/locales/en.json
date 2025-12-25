@@ -65,6 +65,13 @@
     "open": "Open Local Budget",
     "description": "Open a .ynab4 budget folder from your local device."
   },
+  "localFiles": {
+    "title": "Local Files",
+    "subtitle": "Open budgets from your device",
+    "open": "Open Local Budget",
+    "description": "Open a .ynab4 budget folder from your local device.",
+    "desktopOnly": "Desktop only"
+  },
   "features": {
     "title": "Features",
     "compatibility": "Full YNAB4 compatibility",

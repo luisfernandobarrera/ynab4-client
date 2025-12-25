@@ -8,15 +8,22 @@
   import { TransactionEntrySheet } from '$lib/components/entry';
   import { ScheduledList } from '$lib/components/scheduled';
   import { ReportsView } from '$lib/components/reports';
-  import { budgetInfo, currentView, isLoading } from '$lib/stores/budget';
+  import { budgetInfo, currentView, isLoading, loadFromLocal } from '$lib/stores/budget';
   import { activeModal, openModal, closeModal, modalData } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
+  import { isTauri, openBudgetFolderDialog } from '$lib/services';
+  import { t, locale, locales, setLocale } from '$lib/i18n';
 
   let isDropboxConnected = $state(false);
   let accessToken = $state<string | null>(null);
   let showTransactionEntry = $state(false);
+  let isDesktop = $state(false);
+  let loadingLocal = $state(false);
 
   onMount(async () => {
+    // Check if running in Tauri (desktop)
+    isDesktop = isTauri();
+    
     // Check Dropbox connection
     isDropboxConnected = DropboxAuth.isAuthenticated();
     
@@ -42,6 +49,22 @@
 
   function openBudgetPicker() {
     openModal('budget-picker', { accessToken });
+  }
+
+  async function openLocalBudget() {
+    if (!isDesktop) return;
+    
+    loadingLocal = true;
+    try {
+      const path = await openBudgetFolderDialog();
+      if (path) {
+        await loadFromLocal(path);
+      }
+    } catch (error) {
+      console.error('Error loading local budget:', error);
+    } finally {
+      loadingLocal = false;
+    }
   }
 
   function handleAddTransaction() {
@@ -116,22 +139,46 @@
                   <HardDrive class="h-6 w-6 text-orange-500" />
                 </div>
                 <div>
-                  <CardTitle>Local Files</CardTitle>
-                  <CardDescription>Open budgets from your device</CardDescription>
+                  <CardTitle>{$t('localFiles.title')}</CardTitle>
+                  <CardDescription>{$t('localFiles.subtitle')}</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent class="space-y-4">
               <p class="text-sm text-muted-foreground">
-                Open a .ynab4 budget folder from your local device.
+                {$t('localFiles.description')}
               </p>
-              <Button variant="outline" class="w-full" disabled>
-                <FolderOpen class="mr-2 h-4 w-4" />
-                Open Local Budget
-                <span class="ml-2 text-xs">(Desktop only)</span>
+              <Button 
+                variant="outline" 
+                class="w-full" 
+                disabled={!isDesktop || loadingLocal}
+                onclick={openLocalBudget}
+              >
+                {#if loadingLocal}
+                  <Loader2 class="mr-2 h-4 w-4 animate-spin" />
+                {:else}
+                  <FolderOpen class="mr-2 h-4 w-4" />
+                {/if}
+                {$t('localFiles.open')}
+                {#if !isDesktop}
+                  <span class="ml-2 text-xs">({$t('localFiles.desktopOnly')})</span>
+                {/if}
               </Button>
             </CardContent>
           </Card>
+        </div>
+
+        <!-- Language Selector -->
+        <div class="flex justify-center">
+          <select 
+            class="bg-card border rounded px-3 py-1.5 text-sm"
+            value={$locale}
+            onchange={(e) => setLocale(e.currentTarget.value)}
+          >
+            {#each $locales as loc}
+              <option value={loc}>{loc.toUpperCase()}</option>
+            {/each}
+          </select>
         </div>
 
         <!-- Features -->

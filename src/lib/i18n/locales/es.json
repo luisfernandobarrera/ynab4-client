@@ -65,6 +65,13 @@
     "open": "Abrir Presupuesto Local",
     "description": "Abre una carpeta .ynab4 desde tu dispositivo local."
   },
+  "localFiles": {
+    "title": "Archivos Locales",
+    "subtitle": "Abrir presupuestos desde tu dispositivo",
+    "open": "Abrir Presupuesto Local",
+    "description": "Abre una carpeta .ynab4 desde tu dispositivo local.",
+    "desktopOnly": "Solo escritorio"
+  },
   "features": {
     "title": "Características",
     "compatibility": "Compatibilidad total con YNAB4",

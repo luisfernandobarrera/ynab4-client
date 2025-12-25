@@ -1,9 +1,12 @@
 import { browser } from '$app/environment';
-import { writable, derived } from 'svelte/store';
+import { writable, derived, readable } from 'svelte/store';
 
 // Supported locales
-export const locales = ['en', 'es', 'ja', 'ko'] as const;
-export type Locale = (typeof locales)[number];
+export const supportedLocales = ['en', 'es', 'ja', 'ko'] as const;
+export type Locale = (typeof supportedLocales)[number];
+
+// Locales as a readable store for reactivity
+export const locales = readable(supportedLocales);
 
 // Default locale
 export const defaultLocale: Locale = 'en';
@@ -27,6 +30,13 @@ function createLocaleStore() {
 }
 
 export const locale = createLocaleStore();
+
+// Helper to set locale
+export function setLocale(newLocale: string): void {
+  if (supportedLocales.includes(newLocale as Locale)) {
+    locale.set(newLocale as Locale);
+  }
+}
 
 // Translations
 import en from './locales/en.json';
