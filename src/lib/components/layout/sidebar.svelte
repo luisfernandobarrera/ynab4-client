@@ -38,7 +38,7 @@
     onkeydown={(e) => e.key === 'Escape' && sidebarOpen.set(false)}
     role="button"
     tabindex="-1"
-  />
+  ></div>
 {/if}
 
 <!-- Sidebar -->
