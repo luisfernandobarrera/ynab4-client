@@ -9,7 +9,6 @@
   import { ScheduledList } from '$lib/components/scheduled';
   import { ReportsView } from '$lib/components/reports';
   import { SettingsView, ThemeToggle } from '$lib/components/settings';
-  import { Sidebar, MobileHeader } from '$lib/components/layout';
   import { budgetInfo, currentView, isLoading, loadFromLocal, loadFromDropbox } from '$lib/stores/budget';
   import { activeModal, openModal, closeModal, isMobile } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
@@ -21,7 +20,6 @@
   let accessToken = $state<string | null>(null);
   let showTransactionEntry = $state(false);
   let isDesktop = $state(false);
-  let sidebarOpen = $state(true);
   
   // Budget lists
   let localBudgets = $state<Array<{name: string, path: string}>>([]);
@@ -44,8 +42,6 @@
     isDesktop = checkTauri();
     console.log('[Page] isDesktop:', isDesktop);
     
-    // Set sidebar state based on mobile
-    sidebarOpen = window.innerWidth > 768;
     
     // Find local budgets if desktop
     if (isDesktop) {
@@ -304,62 +300,46 @@
     </main>
   </div>
 {:else}
-  <!-- Budget loaded - show app with sidebar -->
-  <div class="app-container">
-    <!-- Mobile Header -->
-    <MobileHeader
-      onMenuClick={() => sidebarOpen = !sidebarOpen}
+  <!-- Budget loaded - content only (layout handles sidebar) -->
+  {#if $isLoading}
+    <div class="flex items-center justify-center h-full">
+      <Loader2 class="h-8 w-8 animate-spin text-[var(--muted-foreground)]" />
+    </div>
+  {:else if $currentView === 'transactions'}
+    <TransactionList
+      onAddTransaction={handleAddTransaction}
+      onEditTransaction={(id) => console.log('Edit:', id)}
     />
-    
-    <!-- Sidebar -->
-    <Sidebar
-      open={sidebarOpen}
-      onToggle={() => sidebarOpen = !sidebarOpen}
+  {:else if $currentView === 'budget'}
+    <BudgetView />
+  {:else if $currentView === 'reconciliation'}
+    <div class="p-4 text-center text-[var(--muted-foreground)]">
+      <p>{$t('common.comingSoon')}</p>
+    </div>
+  {:else if $currentView === 'scheduled'}
+    <ScheduledList />
+  {:else if $currentView === 'cashflow'}
+    <div class="p-4 text-center text-[var(--muted-foreground)]">
+      <p>{$t('common.comingSoon')}</p>
+    </div>
+  {:else if $currentView === 'reports'}
+    <ReportsView />
+  {:else if $currentView === 'payees'}
+    <div class="p-4 text-center text-[var(--muted-foreground)]">
+      <p>{$t('common.comingSoon')}</p>
+    </div>
+  {:else if $currentView === 'import'}
+    <div class="p-4 text-center text-[var(--muted-foreground)]">
+      <p>{$t('common.comingSoon')}</p>
+    </div>
+  {:else if $currentView === 'settings'}
+    <SettingsView />
+  {:else}
+    <TransactionList
+      onAddTransaction={handleAddTransaction}
+      onEditTransaction={(id) => console.log('Edit:', id)}
     />
-    
-    <!-- Main Content -->
-    <main class="main-content">
-      {#if $isLoading}
-        <div class="flex items-center justify-center h-full">
-          <Loader2 class="h-8 w-8 animate-spin text-[var(--muted-foreground)]" />
-        </div>
-      {:else if $currentView === 'transactions'}
-        <TransactionList
-          onAddTransaction={handleAddTransaction}
-          onEditTransaction={(id) => console.log('Edit:', id)}
-        />
-      {:else if $currentView === 'budget'}
-        <BudgetView />
-      {:else if $currentView === 'reconciliation'}
-        <div class="p-4 text-center text-[var(--muted-foreground)]">
-          <p>{$t('common.comingSoon')}</p>
-        </div>
-      {:else if $currentView === 'scheduled'}
-        <ScheduledList />
-      {:else if $currentView === 'cashflow'}
-        <div class="p-4 text-center text-[var(--muted-foreground)]">
-          <p>{$t('common.comingSoon')}</p>
-        </div>
-      {:else if $currentView === 'reports'}
-        <ReportsView />
-      {:else if $currentView === 'payees'}
-        <div class="p-4 text-center text-[var(--muted-foreground)]">
-          <p>{$t('common.comingSoon')}</p>
-        </div>
-      {:else if $currentView === 'import'}
-        <div class="p-4 text-center text-[var(--muted-foreground)]">
-          <p>{$t('common.comingSoon')}</p>
-        </div>
-      {:else if $currentView === 'settings'}
-        <SettingsView />
-      {:else}
-        <TransactionList
-          onAddTransaction={handleAddTransaction}
-          onEditTransaction={(id) => console.log('Edit:', id)}
-        />
-      {/if}
-    </main>
-  </div>
+  {/if}
 {/if}
 
 <!-- Modals -->
@@ -464,29 +444,3 @@
   onSave={handleSaveTransaction}
 />
 
-<style>
-  .app-container {
-    display: flex;
-    height: 100vh;
-    background: var(--background);
-    overflow: hidden;
-  }
-
-  .main-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  @media (max-width: 768px) {
-    .app-container {
-      flex-direction: column;
-    }
-
-    .main-content {
-      padding-top: 0; /* MobileHeader is part of main content now */
-    }
-  }
-</style>
