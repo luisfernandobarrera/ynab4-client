@@ -157,42 +157,13 @@
 
 {#if !$budgetInfo.client}
   <!-- Welcome screen -->
-  <div class="min-h-screen flex flex-col bg-background">
-    <!-- Top bar with actions -->
-    <header class="flex items-center justify-between px-4 py-3 border-b border-border">
-      <h1 class="text-xl font-heading font-bold">YNAB4</h1>
-      <div class="flex items-center gap-1">
-        {#if isDesktop}
-          <button
-            class="p-2 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-            onclick={openLocalBudget}
-            title={$t('localFiles.open')}
-          >
-            <FolderOpen class="h-5 w-5" />
-          </button>
-        {/if}
-        {#if !isDropboxConnected}
-          <button
-            class="p-2 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-            onclick={connectDropbox}
-            disabled={loadingDropbox}
-            title={$t('dropbox.connect')}
-          >
-            {#if loadingDropbox}
-              <Loader2 class="h-5 w-5 animate-spin" />
-            {:else}
-              <Cloud class="h-5 w-5" />
-            {/if}
-          </button>
-        {:else}
-          <span class="flex items-center gap-1 px-2 text-xs text-green-600">
-            <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
-            Dropbox
-          </span>
-        {/if}
-        <div class="w-px h-5 bg-border mx-1"></div>
+  <div class="min-h-screen flex flex-col" style="background-color: hsl(var(--background));">
+    <!-- Top bar -->
+    <header class="flex items-center justify-between px-4 py-3 border-b border-border" style="background-color: hsl(var(--card));">
+      <h1 class="text-xl font-heading font-bold">YNAB4 Client</h1>
+      <div class="flex items-center gap-2">
         <select 
-          class="bg-transparent text-sm cursor-pointer focus:outline-none text-muted-foreground hover:text-foreground"
+          class="bg-card border border-border rounded-md px-2 py-1 text-sm cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
           value={$locale}
           onchange={(e) => setLocale(e.currentTarget.value)}
         >
@@ -201,7 +172,7 @@
           {/each}
         </select>
         <button
-          class="p-2 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+          class="p-2 rounded-lg hover:bg-accent transition-colors"
           onclick={() => openModal('settings')}
           title={$t('settings.title')}
         >
@@ -211,85 +182,122 @@
     </header>
 
     <!-- Main content -->
-    <main class="flex-1 overflow-y-auto p-4">
-      <div class="max-w-lg mx-auto">
-        <!-- Budget list -->
-        {#if loadingBudgetList}
-          <div class="flex items-center justify-center py-20">
-            <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        {:else}
-          {@const allBudgets = isDesktop ? localBudgets : dropboxBudgets}
-          
-          {#if allBudgets.length === 0}
-            <div class="text-center py-16">
-              <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
-                <FolderOpen class="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h2 class="text-lg font-medium mb-2">{$t('budget.noBudgetsFound')}</h2>
-              <p class="text-sm text-muted-foreground mb-6">
-                {$t('welcome.getStarted') || 'Create a new budget or connect to Dropbox'}
-              </p>
-              <div class="flex flex-col gap-2 max-w-xs mx-auto">
-                <Button onclick={createNewBudget} class="w-full">
-                  <Plus class="mr-2 h-4 w-4" />
-                  {$t('budget.createNew')}
-                </Button>
-                {#if !isDropboxConnected}
-                  <Button variant="outline" onclick={connectDropbox} class="w-full">
-                    <Cloud class="mr-2 h-4 w-4" />
-                    {$t('dropbox.connect')}
-                  </Button>
-                {/if}
-              </div>
+    <main class="flex-1 overflow-y-auto p-4" style="background-color: hsl(var(--background));">
+      <div class="max-w-lg mx-auto space-y-6">
+        
+        <!-- Dropbox Section -->
+        <section class="rounded-lg border border-border p-4" style="background-color: hsl(var(--card));">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <Cloud class="h-5 w-5 text-blue-500" />
+              <h2 class="font-semibold">Dropbox</h2>
             </div>
-          {:else}
-            <div class="space-y-2">
-              {#each allBudgets as budget}
-                {@const isDropboxBudget = budget.path.toLowerCase().includes('dropbox')}
-                <button
-                  class="group w-full flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent hover:border-primary/30 transition-all text-left"
-                  onclick={() => isDesktop ? selectLocalBudget(budget.path) : selectDropboxBudget(budget.path)}
-                  disabled={loadingLocal || loadingDropbox}
+            {#if isDropboxConnected}
+              <div class="flex items-center gap-2">
+                <span class="flex items-center gap-1.5 text-xs text-green-600 bg-green-500/10 px-2 py-1 rounded-full">
+                  <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+                  {$t('settings.connected')}
+                </span>
+                <button 
+                  class="text-xs text-muted-foreground hover:text-foreground"
+                  onclick={disconnectDropbox}
                 >
-                  <div class="p-2 rounded-md {isDropboxBudget ? 'bg-blue-500/10' : 'bg-orange-500/10'}">
-                    {#if isDropboxBudget}
-                      <Cloud class="h-4 w-4 text-blue-500" />
-                    {:else}
-                      <HardDrive class="h-4 w-4 text-orange-500" />
-                    {/if}
-                  </div>
-                  <span class="flex-1 font-medium truncate">{budget.name}</span>
-                  {#if loadingLocal || loadingDropbox}
-                    <Loader2 class="h-4 w-4 animate-spin shrink-0" />
-                  {:else}
+                  {$t('dropbox.disconnect')}
+                </button>
+              </div>
+            {:else}
+              <Button size="sm" variant="outline" onclick={connectDropbox} disabled={loadingDropbox}>
+                {#if loadingDropbox}
+                  <Loader2 class="mr-2 h-3 w-3 animate-spin" />
+                {/if}
+                {$t('dropbox.connect')}
+              </Button>
+            {/if}
+          </div>
+          
+          {#if isDropboxConnected}
+            {#if loadingDropbox}
+              <div class="flex items-center justify-center py-6">
+                <Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            {:else if dropboxBudgets.length === 0}
+              <p class="text-sm text-muted-foreground py-4 text-center">
+                {$t('budget.noBudgetsFound')}
+              </p>
+            {:else}
+              <div class="space-y-1.5">
+                {#each dropboxBudgets as budget}
+                  <button
+                    class="group w-full flex items-center gap-3 p-3 rounded-md hover:bg-accent transition-colors text-left"
+                    onclick={() => selectDropboxBudget(budget.path)}
+                    disabled={loadingDropbox}
+                  >
+                    <span class="flex-1 font-medium truncate">{budget.name}</span>
                     <svg class="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
-                  {/if}
-                </button>
-              {/each}
-            </div>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          {:else}
+            <p class="text-sm text-muted-foreground">
+              {$t('budget.dropboxDescription')}
+            </p>
           {/if}
+        </section>
+
+        <!-- Local Files Section (Desktop only) -->
+        {#if isDesktop}
+          <section class="rounded-lg border border-border p-4" style="background-color: hsl(var(--card));">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <HardDrive class="h-5 w-5 text-[--color-terracota]" />
+                <h2 class="font-semibold">{$t('localFiles.title')}</h2>
+              </div>
+              <Button size="sm" variant="outline" onclick={openLocalBudget}>
+                <FolderOpen class="mr-2 h-3 w-3" />
+                {$t('common.browse')}
+              </Button>
+            </div>
+            
+            {#if loadingLocal}
+              <div class="flex items-center justify-center py-6">
+                <Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            {:else if localBudgets.length === 0}
+              <p class="text-sm text-muted-foreground py-4 text-center">
+                {$t('budget.noBudgetsFound')}
+              </p>
+            {:else}
+              <div class="space-y-1.5">
+                {#each localBudgets as budget}
+                  <button
+                    class="group w-full flex items-center gap-3 p-3 rounded-md hover:bg-accent transition-colors text-left"
+                    onclick={() => selectLocalBudget(budget.path)}
+                    disabled={loadingLocal}
+                  >
+                    <span class="flex-1 font-medium truncate">{budget.name}</span>
+                    <svg class="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </section>
         {/if}
+
+        <!-- Create New Budget -->
+        <Button 
+          class="w-full bg-[--color-terracota] hover:bg-[--color-terracota-dark] text-white"
+          onclick={createNewBudget}
+        >
+          <Plus class="mr-2 h-4 w-4" />
+          {$t('budget.createNew')}
+        </Button>
       </div>
     </main>
-
-    <!-- Bottom action bar (only when budgets exist) -->
-    {#if (isDesktop ? localBudgets : dropboxBudgets).length > 0}
-      <footer class="border-t border-border p-3">
-        <div class="max-w-lg mx-auto">
-          <Button 
-            variant="outline" 
-            class="w-full"
-            onclick={createNewBudget}
-          >
-            <Plus class="mr-2 h-4 w-4" />
-            {$t('budget.createNew')}
-          </Button>
-        </div>
-      </footer>
-    {/if}
   </div>
 {:else}
   <!-- Budget loaded - show current view -->

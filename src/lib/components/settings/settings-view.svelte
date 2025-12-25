@@ -121,21 +121,17 @@
   }
 </script>
 
-<div class="container mx-auto max-w-2xl p-6 space-y-8">
-  <div class="flex items-center gap-3">
-    <Settings class="h-6 w-6" />
-    <h1 class="text-2xl font-heading font-bold">{$t('settings.title')}</h1>
-  </div>
-
+<div class="p-6 space-y-6" style="background-color: hsl(var(--background));">
   <!-- Language -->
-  <section class="space-y-4">
+  <section class="space-y-3 p-4 rounded-lg border border-border" style="background-color: hsl(var(--card));">
     <div class="flex items-center gap-2">
       <Globe class="h-5 w-5 text-muted-foreground" />
-      <h2 class="text-lg font-semibold">{$t('settings.language')}</h2>
+      <h2 class="font-semibold">{$t('settings.language')}</h2>
     </div>
     <p class="text-sm text-muted-foreground">{$t('settings.languageDescription')}</p>
     <select 
-      class="w-full bg-card border border-border rounded-md px-3 py-2 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+      class="w-full border border-border rounded-md px-3 py-2 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+      style="background-color: hsl(var(--background));"
       value={$locale}
       onchange={(e) => setLocale(e.currentTarget.value)}
     >
@@ -145,18 +141,16 @@
     </select>
   </section>
 
-  <Separator />
-
   <!-- Dropbox -->
-  <section class="space-y-4">
+  <section class="space-y-3 p-4 rounded-lg border border-border" style="background-color: hsl(var(--card));">
     <div class="flex items-center gap-2">
       <Cloud class="h-5 w-5 text-blue-500" />
-      <h2 class="text-lg font-semibold">Dropbox</h2>
+      <h2 class="font-semibold">Dropbox</h2>
     </div>
     <p class="text-sm text-muted-foreground">{$t('settings.dropboxDescription')}</p>
     
     {#if isDropboxConnected}
-      <div class="flex items-center justify-between p-3 rounded-lg bg-accent/50">
+      <div class="flex items-center justify-between p-3 rounded-lg border border-green-500/30" style="background-color: hsl(var(--background));">
         <div class="flex items-center gap-2">
           <span class="h-2 w-2 rounded-full bg-green-500"></span>
           <span class="text-sm font-medium">{$t('settings.connected')}</span>
@@ -173,28 +167,26 @@
     {/if}
   </section>
 
-  <Separator />
-
   <!-- Search Folders (Desktop only) -->
   {#if isDesktop}
-    <section class="space-y-4">
+    <section class="space-y-3 p-4 rounded-lg border border-border" style="background-color: hsl(var(--card));">
       <div class="flex items-center gap-2">
-        <HardDrive class="h-5 w-5 text-orange-500" />
-        <h2 class="text-lg font-semibold">{$t('settings.searchFolders') || 'Search Folders'}</h2>
+        <HardDrive class="h-5 w-5 text-[--color-terracota]" />
+        <h2 class="font-semibold">{$t('settings.searchFolders') || 'Carpetas de Búsqueda'}</h2>
       </div>
       <p class="text-sm text-muted-foreground">
-        {$t('settings.searchFoldersDescription') || 'Folders where YNAB4 budgets will be searched'}
+        {$t('settings.searchFoldersDescription') || 'Carpetas donde se buscarán presupuestos YNAB4'}
       </p>
 
       <!-- List of folders -->
       <div class="space-y-2">
         {#if searchFolders.length === 0}
           <p class="text-sm text-muted-foreground italic">
-            {$t('settings.noSearchFolders') || 'No folders configured'}
+            {$t('settings.noSearchFolders') || 'No hay carpetas configuradas'}
           </p>
         {:else}
           {#each searchFolders as folder, i}
-            <div class="flex items-center gap-2 p-2 rounded-lg bg-accent/30 group">
+            <div class="flex items-center gap-2 p-2 rounded-lg border border-border group" style="background-color: hsl(var(--background));">
               <FolderOpen class="h-4 w-4 text-muted-foreground shrink-0" />
               <span class="text-sm flex-1 truncate" title={folder}>{folder}</span>
               <button
@@ -212,31 +204,29 @@
       <!-- Add folder button -->
       <Button variant="outline" onclick={addFolder}>
         <Plus class="mr-2 h-4 w-4" />
-        {$t('settings.addFolder') || 'Add Folder'}
+        {$t('settings.addFolder') || 'Añadir Carpeta'}
       </Button>
     </section>
-
-    <Separator />
   {/if}
 
   <!-- Device Info -->
-  <section class="space-y-4">
+  <section class="space-y-3 p-4 rounded-lg border border-border" style="background-color: hsl(var(--card));">
     <div class="flex items-center gap-2">
       <Fingerprint class="h-5 w-5 text-purple-500" />
-      <h2 class="text-lg font-semibold">{$t('settings.device') || 'Device'}</h2>
+      <h2 class="font-semibold">{$t('settings.device') || 'Dispositivo'}</h2>
     </div>
     <p class="text-sm text-muted-foreground">
-      {$t('settings.deviceDescription') || 'Unique identifier for this device when syncing changes'}
+      {$t('settings.deviceDescription') || 'Identificador único de este dispositivo para sincronizar cambios'}
     </p>
     
-    <div class="space-y-3 p-4 rounded-lg bg-accent/30">
+    <div class="space-y-3 p-3 rounded-lg border border-border" style="background-color: hsl(var(--background));">
       <div class="flex items-center justify-between">
         <div>
           <p class="text-xs text-muted-foreground uppercase tracking-wide">Device GUID</p>
-          <p class="font-mono text-sm select-all">{deviceGUID || '—'}</p>
+          <p class="font-mono text-xs select-all break-all">{deviceGUID || '—'}</p>
         </div>
         <button 
-          class="p-2 rounded-lg hover:bg-accent transition-colors"
+          class="p-2 rounded-lg hover:bg-accent transition-colors shrink-0"
           onclick={copyDeviceGUID}
           aria-label="Copy"
         >
@@ -252,16 +242,11 @@
         <p class="font-mono text-lg font-bold">{shortDeviceId || '—'}</p>
       </div>
     </div>
-    <p class="text-xs text-muted-foreground">
-      {$t('settings.deviceReadOnly') || 'This identifier is read-only and used for sequential writes to the budget.'}
-    </p>
   </section>
 
-  <Separator />
-
   <!-- About -->
-  <section class="space-y-4">
-    <h2 class="text-lg font-semibold">{$t('settings.about')}</h2>
+  <section class="space-y-3 p-4 rounded-lg border border-border" style="background-color: hsl(var(--card));">
+    <h2 class="font-semibold">{$t('settings.about')}</h2>
     <p class="text-sm text-muted-foreground">
       {$t('settings.aboutDescription')}
     </p>
