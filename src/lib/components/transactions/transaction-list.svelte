@@ -33,6 +33,10 @@
   let entryMemo = $state('');
   let entryOutflow = $state('');
   let entryInflow = $state('');
+  
+  // Pagination for performance
+  const PAGE_SIZE = 100;
+  let visibleCount = $state(PAGE_SIZE);
 
   const selectedAccount = $derived(
     $selectedAccountId ? $accounts.find((a) => a.id === $selectedAccountId) : null
@@ -86,11 +90,11 @@
     return { working, cleared, reconciled, count: filteredTransactions.length };
   });
 
-  // Group transactions by date for mobile view
+  // Group transactions by date for mobile view (uses visibleTransactions for performance)
   const groupedTransactions = $derived.by(() => {
-    const groups: Map<string, typeof filteredTransactions> = new Map();
+    const groups: Map<string, typeof visibleTransactions> = new Map();
     
-    for (const tx of filteredTransactions) {
+    for (const tx of visibleTransactions) {
       const date = tx.date || 'No date';
       if (!groups.has(date)) {
         groups.set(date, []);
@@ -146,6 +150,26 @@
       ...tx,
       runningBalance: balanceMap.get(tx.id) || 0
     }));
+  });
+
+  // Visible transactions (limited for performance)
+  const visibleTransactions = $derived(transactionsWithBalance.slice(0, visibleCount));
+  const hasMore = $derived(visibleCount < transactionsWithBalance.length);
+  
+  function loadMore() {
+    visibleCount += PAGE_SIZE;
+  }
+  
+  // Reset visible count when filters change
+  $effect(() => {
+    // Track filter dependencies
+    searchQuery;
+    hideReconciled;
+    dateFrom;
+    dateTo;
+    $selectedAccountId;
+    // Reset
+    visibleCount = PAGE_SIZE;
   });
 
   function startEntry() {
@@ -321,7 +345,8 @@
             {/if}
             <th class="col-status"></th>
           </tr>
-          
+        </thead>
+        <tbody>
           <!-- Inline entry row -->
           {#if isEditing}
             <tr class="tx-entry-row">
@@ -411,18 +436,30 @@
             </tr>
           {:else}
             <!-- Add transaction row (discrete) -->
-            <tr class="tx-add-row" onclick={startEntry}>
+            <tr class="tx-add-row">
               <td class="col-flag">
-                <Plus class="h-3.5 w-3.5 add-icon" />
+                <button class="add-btn" onclick={startEntry}>
+                  <Plus class="h-3.5 w-3.5" />
+                </button>
               </td>
-              <td colspan={selectedAccount ? 7 : 8} class="add-cell">
-                <span class="add-text">{$t('transactions.addTransaction')}</span>
+              <td class="col-date">
+                <button class="add-btn add-text" onclick={startEntry}>{$t('transactions.addTransaction')}</button>
               </td>
+              {#if !selectedAccount}
+                <td class="col-account"></td>
+              {/if}
+              <td class="col-payee"></td>
+              <td class="col-category"></td>
+              <td class="col-outflow"></td>
+              <td class="col-inflow"></td>
+              {#if selectedAccount}
+                <td class="col-balance"></td>
+              {/if}
+              <td class="col-status"></td>
             </tr>
           {/if}
-        </thead>
-        <tbody>
-          {#each transactionsWithBalance as tx (tx.id)}
+          
+          {#each visibleTransactions as tx (tx.id)}
             {@const isOutflow = tx.amount < 0}
             {@const isInflow = tx.amount > 0}
             <tr 
@@ -477,6 +514,17 @@
               </td>
             </tr>
           {/each}
+          
+          <!-- Load More Row -->
+          {#if hasMore}
+            <tr class="tx-load-more-row">
+              <td colspan={selectedAccount ? 9 : 9}>
+                <button class="load-more-btn" onclick={loadMore}>
+                  {$t('common.loadMore')} ({transactionsWithBalance.length - visibleCount} {$t('common.remaining')})
+                </button>
+              </td>
+            </tr>
+          {/if}
         </tbody>
       </table>
     </div>
@@ -905,35 +953,61 @@
 
   /* Add Transaction Row */
   .tx-add-row {
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-
-  .tx-add-row:hover {
-    background: var(--accent);
+    background: var(--muted);
   }
 
   .tx-add-row td {
     padding: 0.375rem;
-    border-bottom: 2px solid var(--border);
+    border-bottom: 1px solid var(--border);
   }
 
-  .add-icon {
+  .add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: transparent;
     color: var(--muted-foreground);
+    cursor: pointer;
+    transition: color 0.15s;
   }
 
-  .add-cell {
-    color: var(--muted-foreground);
+  .add-btn:hover {
+    color: var(--primary);
   }
 
   .add-text {
     font-size: 0.75rem;
     font-style: italic;
+    justify-content: flex-start;
   }
 
-  .tx-add-row:hover .add-icon,
-  .tx-add-row:hover .add-text {
-    color: var(--primary);
+  /* Load More Row */
+  .tx-load-more-row td {
+    padding: 0.75rem;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .load-more-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--background);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .load-more-btn:hover {
+    background: var(--accent);
+    color: var(--foreground);
+    border-color: var(--primary);
   }
 
   /* Inline Entry Row */

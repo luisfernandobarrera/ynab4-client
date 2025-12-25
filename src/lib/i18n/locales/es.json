@@ -39,7 +39,9 @@
     "options": "Opciones",
     "hidePanel": "Ocultar panel",
     "showPanel": "Mostrar panel",
-    "clear": "Limpiar"
+    "clear": "Limpiar",
+    "loadMore": "Cargar más",
+    "remaining": "restantes"
   },
   "nav": {
     "transactions": "Transacciones",
