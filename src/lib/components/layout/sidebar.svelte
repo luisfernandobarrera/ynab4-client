@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { X, Wallet, Receipt, Calendar, PieChart, Settings, FolderOpen } from 'lucide-svelte';
+  import { X, Wallet, Receipt, Calendar, PieChart, Settings, FolderOpen, Plus, Home } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { Separator } from '$lib/components/ui/separator';
-  import { sidebarOpen, isMobile } from '$lib/stores/ui';
-  import { budgetInfo, onBudgetAccounts, offBudgetAccounts, currentView, selectedAccountId } from '$lib/stores/budget';
+  import { sidebarOpen, isMobile, openModal } from '$lib/stores/ui';
+  import { budgetInfo, onBudgetAccounts, offBudgetAccounts, currentView, selectedAccountId, resetBudget } from '$lib/stores/budget';
   import { cn, formatCurrency } from '$lib/utils';
+  import { t } from '$lib/i18n';
 
   function handleNavClick(view: string) {
     currentView.set(view);
@@ -20,6 +21,24 @@
     if ($isMobile) {
       sidebarOpen.set(false);
     }
+  }
+
+  function handleOpenSettings() {
+    openModal('settings');
+    if ($isMobile) {
+      sidebarOpen.set(false);
+    }
+  }
+
+  function handleCreateBudget() {
+    openModal('create-budget');
+    if ($isMobile) {
+      sidebarOpen.set(false);
+    }
+  }
+
+  function handleGoHome() {
+    resetBudget();
   }
 
   const navItems = [
@@ -138,14 +157,18 @@
   </nav>
 
   <!-- Footer -->
-  <div class="border-t p-4 space-y-2">
-    <Button variant="outline" class="w-full justify-start gap-2" onclick={() => handleNavClick('open')}>
-      <FolderOpen class="h-4 w-4" />
-      Open Budget
+  <div class="border-t p-3 space-y-1.5 bg-muted/30">
+    <Button variant="ghost" size="sm" class="w-full justify-start gap-2 h-9" onclick={handleGoHome}>
+      <Home class="h-4 w-4" />
+      {$t('common.home')}
     </Button>
-    <Button variant="ghost" class="w-full justify-start gap-2" onclick={() => handleNavClick('settings')}>
+    <Button variant="ghost" size="sm" class="w-full justify-start gap-2 h-9" onclick={handleCreateBudget}>
+      <Plus class="h-4 w-4" />
+      {$t('budget.createNew')}
+    </Button>
+    <Button variant="ghost" size="sm" class="w-full justify-start gap-2 h-9" onclick={handleOpenSettings}>
       <Settings class="h-4 w-4" />
-      Settings
+      {$t('settings.title')}
     </Button>
   </div>
 </aside>
