@@ -9,13 +9,19 @@
   --font-family-sans: 'Plus Jakarta Sans', sans-serif;
   --font-family-mono: 'Inter', monospace;
 
+  /* Brand Colors - Sodalita & Terracota */
+  --color-sodalita: #2D4A6F;
+  --color-sodalita-light: #3E5C76;
+  --color-sodalita-dark: #1E3A5F;
+  --color-terracota: #C75B39;
+  --color-terracota-light: #E07A5F;
+  --color-terracota-dark: #A64B2E;
+  
   /* YNAB Colors */
-  --color-ynab-green: #85c751;
-  --color-ynab-red: #e25850;
-  --color-ynab-orange: #f5a623;
-  --color-ynab-yellow: #f8e71c;
-  --color-ynab-blue: #4a90d9;
-  --color-ynab-purple: #9b59b6;
+  --color-ynab-green: #5CB85C;
+  --color-ynab-red: #D9534F;
+  --color-ynab-orange: #F0AD4E;
+  --color-ynab-blue: #5BC0DE;
 
   /* Border radius */
   --radius-lg: 0.5rem;
@@ -23,50 +29,52 @@
   --radius-sm: calc(var(--radius-lg) - 4px);
 }
 
-/* Light mode defaults */
+/* Light mode */
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
+  --background: 210 20% 98%;
+  --foreground: 215 25% 15%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
+  --card-foreground: 215 25% 15%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
+  --popover-foreground: 215 25% 15%;
+  --primary: 213 54% 31%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 20 45% 50%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 210 15% 92%;
+  --muted-foreground: 215 15% 45%;
+  --accent: 20 60% 94%;
+  --accent-foreground: 20 45% 35%;
+  --destructive: 4 72% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 210 20% 88%;
+  --input: 210 20% 88%;
+  --ring: 213 54% 31%;
+  --success: 142 45% 45%;
 }
 
-/* Dark mode */
+/* Dark mode - Sodalita base */
 .dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 50.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
+  --background: 215 35% 12%;
+  --foreground: 210 20% 92%;
+  --card: 215 32% 16%;
+  --card-foreground: 210 20% 92%;
+  --popover: 215 32% 18%;
+  --popover-foreground: 210 20% 92%;
+  --primary: 20 55% 52%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 213 40% 35%;
+  --secondary-foreground: 210 20% 92%;
+  --muted: 215 25% 20%;
+  --muted-foreground: 210 15% 60%;
+  --accent: 215 30% 22%;
+  --accent-foreground: 210 20% 92%;
+  --destructive: 4 65% 50%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 215 25% 22%;
+  --input: 215 25% 22%;
+  --ring: 20 55% 52%;
+  --success: 142 50% 50%;
 }
 
 /* Base styles */
@@ -91,11 +99,11 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .amount-positive, .inflow {
-  color: var(--color-ynab-green);
+  color: hsl(var(--success));
 }
 
 .amount-negative, .outflow {
-  color: var(--color-ynab-red);
+  color: hsl(var(--destructive));
 }
 
 /* Custom scrollbar */
@@ -115,4 +123,32 @@ h1, h2, h3, h4, h5, h6 {
 
 ::-webkit-scrollbar-thumb:hover {
   background-color: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Accent colors for icons */
+.icon-dropbox {
+  color: #0061FF;
+}
+
+.icon-local {
+  color: var(--color-terracota);
+}
+
+/* Button variants with brand colors */
+.btn-primary {
+  background-color: var(--color-terracota);
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-terracota-dark);
+}
+
+.btn-secondary {
+  background-color: var(--color-sodalita);
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-sodalita-dark);
 }

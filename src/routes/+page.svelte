@@ -345,19 +345,20 @@
 {#if $activeModal === 'settings'}
   <!-- Backdrop -->
   <div 
-    class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+    class="fixed inset-0 z-50 bg-black/80"
     onclick={() => {
       closeModal();
       if (isDesktop) loadLocalBudgetList();
     }}
     role="presentation"
   ></div>
-  <!-- Dialog -->
+  <!-- Dialog Window -->
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-    <div class="bg-background border border-border rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto pointer-events-auto">
-      <div class="sticky top-0 flex justify-end p-3 bg-background/95 backdrop-blur border-b border-border">
+    <div class="bg-background border-2 border-border rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden pointer-events-auto flex flex-col">
+      <div class="flex items-center justify-between px-5 py-4 bg-[--color-sodalita] text-white shrink-0">
+        <h2 class="text-lg font-heading font-bold">{$t('settings.title')}</h2>
         <button
-          class="p-2 rounded-lg hover:bg-accent transition-colors"
+          class="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
           onclick={() => {
             closeModal();
             if (isDesktop) loadLocalBudgetList();
@@ -367,7 +368,9 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
       </div>
-      <SettingsView />
+      <div class="flex-1 overflow-y-auto">
+        <SettingsView />
+      </div>
     </div>
   </div>
 {/if}

@@ -174,21 +174,21 @@
 {#if open}
   <!-- Backdrop -->
   <div 
-    class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+    class="fixed inset-0 z-50 bg-black/80"
     onclick={onClose}
     role="presentation"
   ></div>
   
-  <!-- Dialog -->
+  <!-- Dialog Window -->
   <div class="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-md px-4">
-    <div class="bg-card rounded-xl shadow-2xl border border-border">
-      <!-- Header -->
-      <div class="flex items-center justify-between p-5 border-b border-border">
-        <h2 class="text-xl font-heading font-bold">
+    <div class="bg-background rounded-lg shadow-2xl border-2 border-border overflow-hidden">
+      <!-- Header - Sodalita style -->
+      <div class="flex items-center justify-between px-5 py-4 bg-[--color-sodalita] text-white">
+        <h2 class="text-lg font-heading font-bold">
           {$t('budget.createNew')}
         </h2>
         <button 
-          class="p-1.5 rounded-lg hover:bg-accent transition-colors"
+          class="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
           onclick={onClose}
           aria-label="Close"
         >
@@ -197,7 +197,7 @@
       </div>
 
       <!-- Content -->
-      <div class="p-5 space-y-5">
+      <div class="p-5 space-y-5 bg-background">
         <!-- Budget Name -->
         <div class="space-y-2">
           <Label for="budget-name">{$t('budget.name')}</Label>
@@ -206,7 +206,7 @@
             bind:value={budgetName}
             placeholder={$t('budget.namePlaceholder') || 'Mi Presupuesto'}
             disabled={isCreating}
-            class="h-11"
+            class="h-11 bg-card"
           />
         </div>
 
@@ -217,12 +217,12 @@
             {#if isDesktop}
               <button
                 type="button"
-                class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all {saveLocation === 'local' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30 hover:bg-accent/50'}"
+                class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all bg-card {saveLocation === 'local' ? 'border-[--color-terracota] ring-2 ring-[--color-terracota]/20' : 'border-border hover:border-[--color-terracota]/50'}"
                 onclick={() => saveLocation = 'local'}
                 disabled={isCreating}
               >
-                <div class="p-2 rounded-lg bg-orange-500/10">
-                  <HardDrive class="h-5 w-5 text-orange-500" />
+                <div class="p-2 rounded-lg bg-[--color-terracota]/10">
+                  <HardDrive class="h-5 w-5 text-[--color-terracota]" />
                 </div>
                 <div class="text-left">
                   <p class="font-medium">{$t('localFiles.title')}</p>
@@ -233,12 +233,12 @@
             
             <button
               type="button"
-              class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all {saveLocation === 'dropbox' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30 hover:bg-accent/50'} {!isDropboxConnected ? 'opacity-50' : ''}"
+              class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all bg-card {saveLocation === 'dropbox' ? 'border-[--color-sodalita] ring-2 ring-[--color-sodalita]/20' : 'border-border hover:border-[--color-sodalita]/50'} {!isDropboxConnected ? 'opacity-50' : ''}"
               onclick={() => { if (isDropboxConnected) saveLocation = 'dropbox' }}
               disabled={isCreating || !isDropboxConnected}
             >
-              <div class="p-2 rounded-lg bg-blue-500/10">
-                <Cloud class="h-5 w-5 text-blue-500" />
+              <div class="p-2 rounded-lg bg-[--color-sodalita]/10">
+                <Cloud class="h-5 w-5 text-[--color-sodalita]" />
               </div>
               <div class="text-left flex-1">
                 <p class="font-medium">Dropbox</p>
@@ -269,7 +269,7 @@
                 bind:value={localPath}
                 placeholder="/path/to/YNAB"
                 disabled={isCreating}
-                class="flex-1 h-11 text-sm"
+                class="flex-1 h-11 text-sm bg-card"
               />
               <Button 
                 variant="outline" 
@@ -286,18 +286,22 @@
 
         <!-- Error -->
         {#if error}
-          <div class="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+          <div class="p-3 rounded-lg bg-destructive/10 border border-destructive/30">
             <p class="text-sm text-destructive">{error}</p>
           </div>
         {/if}
       </div>
 
       <!-- Footer -->
-      <div class="flex justify-end gap-3 p-5 border-t border-border bg-muted/30 rounded-b-xl">
-        <Button variant="ghost" onclick={onClose} disabled={isCreating}>
+      <div class="flex justify-end gap-3 px-5 py-4 border-t border-border bg-muted">
+        <Button variant="outline" onclick={onClose} disabled={isCreating}>
           {$t('common.cancel')}
         </Button>
-        <Button onclick={createBudget} disabled={isCreating || !budgetName.trim()}>
+        <Button 
+          onclick={createBudget} 
+          disabled={isCreating || !budgetName.trim()}
+          class="bg-[--color-terracota] hover:bg-[--color-terracota-dark] text-white"
+        >
           {#if isCreating}
             <Loader2 class="mr-2 h-4 w-4 animate-spin" />
           {/if}
