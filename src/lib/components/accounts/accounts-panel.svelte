@@ -9,7 +9,7 @@
   let showOptions = $state(false);
 
   // Calculate balances from transactions
-  const accountBalances = $derived(() => {
+  const accountBalances = $derived.by(() => {
     const balances: Record<string, number> = {};
     for (const tx of $transactions) {
       if (tx.accountId) {
@@ -25,7 +25,7 @@
   );
 
   // Group accounts
-  const groupedAccounts = $derived(() => {
+  const groupedAccounts = $derived.by(() => {
     const groups: Map<string, { label: string; accounts: typeof $accounts; total: number; order: number }> = new Map();
     
     if (groupBy === 'budget') {
@@ -67,7 +67,7 @@
   });
 
   // Net worth calculation
-  const netWorth = $derived(() => {
+  const netWorth = $derived.by(() => {
     return activeAccounts.reduce((sum, a) => sum + (accountBalances[a.id] || 0), 0);
   });
 

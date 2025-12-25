@@ -46,7 +46,7 @@
   );
 
   // Calculate totals
-  const totals = $derived(() => {
+  const totals = $derived.by(() => {
     let working = 0;
     let cleared = 0;
     let reconciled = 0;
@@ -65,7 +65,7 @@
   });
 
   // Group transactions by date for mobile view
-  const groupedTransactions = $derived(() => {
+  const groupedTransactions = $derived.by(() => {
     const groups: Map<string, typeof filteredTransactions> = new Map();
     
     for (const tx of filteredTransactions) {
@@ -112,7 +112,7 @@
   }
 
   // Calculate running balance
-  const transactionsWithBalance = $derived(() => {
+  const transactionsWithBalance = $derived.by(() => {
     if (!$selectedAccountId) return filteredTransactions.map(tx => ({ ...tx, runningBalance: 0 }));
     
     // Get all transactions for this account sorted by date ascending
