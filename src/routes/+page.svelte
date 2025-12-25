@@ -28,6 +28,7 @@
   let loadingDropbox = $state(false);
   let loadingBudgetList = $state(false);
   let dropboxError = $state<string | null>(null);
+  let budgetFilter = $state<'all' | 'dropbox' | 'local'>('all');
 
   // Check Tauri
   const checkTauri = () => {
@@ -156,6 +157,9 @@
 </script>
 
 {#if !$budgetInfo.client}
+  {@const allBudgets = [...dropboxBudgets.map(b => ({...b, source: 'dropbox' as const})), ...localBudgets.map(b => ({...b, source: 'local' as const}))]}
+  {@const filteredBudgets = budgetFilter === 'all' ? allBudgets : allBudgets.filter(b => b.source === budgetFilter)}
+  
   <!-- Welcome screen -->
   <div class="min-h-screen flex flex-col" style="background: #1a1a2e;">
     <!-- Top bar -->
@@ -183,131 +187,111 @@
     </header>
 
     <!-- Main content -->
-    <main class="flex-1 overflow-y-auto p-6" style="background: #1a1a2e;">
-      <div class="max-w-lg mx-auto space-y-6">
+    <main class="flex-1 overflow-y-auto p-4" style="background: #1a1a2e;">
+      <div class="max-w-4xl mx-auto space-y-4">
         
-        <!-- Dropbox Section -->
-        <section class="rounded-xl p-5" style="background: #25253a; border: 1px solid #404060;">
-          <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-              <div class="p-2 rounded-lg" style="background: rgba(59, 130, 246, 0.2);">
-                <Cloud class="h-5 w-5 text-blue-400" />
-              </div>
-              <h2 class="text-lg font-semibold text-white">Dropbox</h2>
-            </div>
-            {#if isDropboxConnected}
-              <div class="flex items-center gap-3">
-                <span class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full" style="background: rgba(34, 197, 94, 0.2); color: #4ade80;">
-                  <span class="h-2 w-2 rounded-full bg-green-400"></span>
-                  {$t('settings.connected')}
-                </span>
-                <button 
-                  class="text-xs text-gray-400 hover:text-white transition-colors"
-                  onclick={disconnectDropbox}
-                >
-                  {$t('dropbox.disconnect')}
-                </button>
-              </div>
-            {:else}
-              <Button size="sm" onclick={connectDropbox} disabled={loadingDropbox} style="background: #3b82f6; color: white;">
-                {#if loadingDropbox}
-                  <Loader2 class="mr-2 h-3 w-3 animate-spin" />
-                {/if}
-                {$t('dropbox.connect')}
-              </Button>
+        <!-- Action bar -->
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <!-- Create button -->
+            <button 
+              class="px-4 py-2 rounded-lg font-medium text-white flex items-center gap-2 transition-all hover:opacity-90"
+              style="background: #C75B39;"
+              onclick={createNewBudget}
+            >
+              <Plus class="h-4 w-4" />
+              {$t('budget.createNew')}
+            </button>
+            
+            <!-- Browse local -->
+            {#if isDesktop}
+              <button 
+                onclick={openLocalBudget}
+                class="px-3 py-2 rounded-lg font-medium text-gray-300 hover:text-white flex items-center gap-2 transition-colors"
+                style="border: 1px solid #404060;"
+              >
+                <FolderOpen class="h-4 w-4" />
+                {$t('common.browse')}
+              </button>
             {/if}
           </div>
           
-          {#if isDropboxConnected}
-            {#if loadingDropbox}
-              <div class="flex items-center justify-center py-8">
-                <Loader2 class="h-6 w-6 animate-spin text-blue-400" />
-              </div>
-            {:else if dropboxBudgets.length === 0}
-              <p class="text-sm text-gray-400 py-6 text-center">
-                {$t('budget.noBudgetsFound')}
-              </p>
+          <div class="flex items-center gap-2">
+            <!-- Dropbox connection -->
+            {#if !isDropboxConnected}
+              <button 
+                onclick={connectDropbox} 
+                disabled={loadingDropbox}
+                class="px-3 py-2 rounded-lg font-medium text-white flex items-center gap-2 transition-all hover:opacity-90"
+                style="background: #3b82f6;"
+              >
+                {#if loadingDropbox}
+                  <Loader2 class="h-4 w-4 animate-spin" />
+                {:else}
+                  <Cloud class="h-4 w-4" />
+                {/if}
+                Dropbox
+              </button>
             {:else}
-              <div class="space-y-2">
-                {#each dropboxBudgets as budget}
-                  <button
-                    class="group w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all text-white"
-                    style="background: #1a1a2e;"
-                    onmouseover={(e) => e.currentTarget.style.background = '#35354a'}
-                    onmouseout={(e) => e.currentTarget.style.background = '#1a1a2e'}
-                    onclick={() => selectDropboxBudget(budget.path)}
-                    disabled={loadingDropbox}
-                  >
-                    <span class="flex-1 font-medium truncate">{budget.name}</span>
-                    <svg class="h-5 w-5 text-gray-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                {/each}
-              </div>
+              <span class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full" style="background: rgba(34, 197, 94, 0.2); color: #4ade80;">
+                <span class="h-2 w-2 rounded-full bg-green-400"></span>
+                Dropbox
+              </span>
             {/if}
-          {:else}
-            <p class="text-sm text-gray-400">
-              {$t('budget.dropboxDescription')}
-            </p>
-          {/if}
-        </section>
-
-        <!-- Local Files Section (Desktop only) -->
-        {#if isDesktop}
-          <section class="rounded-xl p-5" style="background: #25253a; border: 1px solid #404060;">
-            <div class="flex items-center justify-between mb-4">
-              <div class="flex items-center gap-3">
-                <div class="p-2 rounded-lg" style="background: rgba(199, 91, 57, 0.2);">
-                  <HardDrive class="h-5 w-5" style="color: #E07A5F;" />
-                </div>
-                <h2 class="text-lg font-semibold text-white">{$t('localFiles.title')}</h2>
-              </div>
-              <Button size="sm" variant="outline" onclick={openLocalBudget} style="border-color: #404060; color: white;">
-                <FolderOpen class="mr-2 h-3 w-3" />
-                {$t('common.browse')}
-              </Button>
-            </div>
             
-            {#if loadingLocal}
-              <div class="flex items-center justify-center py-8">
-                <Loader2 class="h-6 w-6 animate-spin" style="color: #E07A5F;" />
-              </div>
-            {:else if localBudgets.length === 0}
-              <p class="text-sm text-gray-400 py-6 text-center">
-                {$t('budget.noBudgetsFound')}
-              </p>
-            {:else}
-              <div class="space-y-2">
-                {#each localBudgets as budget}
-                  <button
-                    class="group w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all text-white"
-                    style="background: #1a1a2e;"
-                    onmouseover={(e) => e.currentTarget.style.background = '#35354a'}
-                    onmouseout={(e) => e.currentTarget.style.background = '#1a1a2e'}
-                    onclick={() => selectLocalBudget(budget.path)}
-                    disabled={loadingLocal}
-                  >
-                    <span class="flex-1 font-medium truncate">{budget.name}</span>
-                    <svg class="h-5 w-5 text-gray-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
-                {/each}
-              </div>
+            <!-- Filter (only in Tauri with both sources) -->
+            {#if isDesktop && (dropboxBudgets.length > 0 || localBudgets.length > 0)}
+              <select 
+                bind:value={budgetFilter}
+                class="rounded-lg px-2 py-1.5 text-sm cursor-pointer focus:outline-none text-white"
+                style="background: #35354a; border: 1px solid #404060;"
+              >
+                <option value="all">{$t('common.all')}</option>
+                <option value="dropbox">Dropbox</option>
+                <option value="local">{$t('localFiles.title')}</option>
+              </select>
             {/if}
-          </section>
+          </div>
+        </div>
+        
+        <!-- Budget grid -->
+        {#if loadingBudgetList || loadingDropbox || loadingLocal}
+          <div class="flex items-center justify-center py-16">
+            <Loader2 class="h-8 w-8 animate-spin text-gray-400" />
+          </div>
+        {:else if filteredBudgets.length === 0}
+          <div class="text-center py-16">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style="background: #25253a;">
+              <FolderOpen class="h-8 w-8 text-gray-500" />
+            </div>
+            <p class="text-gray-400 mb-2">{$t('budget.noBudgetsFound')}</p>
+            <p class="text-sm text-gray-500">{$t('welcome.getStarted')}</p>
+          </div>
+        {:else}
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {#each filteredBudgets as budget}
+              <button
+                class="group p-4 rounded-xl text-left transition-all hover:scale-[1.02]"
+                style="background: #25253a; border: 1px solid #404060;"
+                onmouseover={(e) => e.currentTarget.style.borderColor = budget.source === 'dropbox' ? '#3b82f6' : '#C75B39'}
+                onmouseout={(e) => e.currentTarget.style.borderColor = '#404060'}
+                onclick={() => budget.source === 'dropbox' ? selectDropboxBudget(budget.path) : selectLocalBudget(budget.path)}
+              >
+                <div class="flex items-start justify-between mb-3">
+                  <h3 class="font-semibold text-white truncate pr-2">{budget.name}</h3>
+                  {#if budget.source === 'dropbox'}
+                    <Cloud class="h-4 w-4 text-blue-400 shrink-0" />
+                  {:else}
+                    <HardDrive class="h-4 w-4 shrink-0" style="color: #E07A5F;" />
+                  {/if}
+                </div>
+                <div class="text-xs text-gray-500">
+                  {budget.source === 'dropbox' ? 'Dropbox' : $t('localFiles.title')}
+                </div>
+              </button>
+            {/each}
+          </div>
         {/if}
-
-        <!-- Create New Budget -->
-        <button 
-          class="w-full py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 transition-all hover:opacity-90"
-          style="background: #C75B39;"
-          onclick={createNewBudget}
-        >
-          <Plus class="h-5 w-5" />
-          {$t('budget.createNew')}
-        </button>
       </div>
     </main>
   </div>
