@@ -118,11 +118,14 @@
   }
 
   async function selectLocalBudget(path: string) {
+    console.log('[Page] Selecting local budget:', path);
     loadingLocal = true;
     try {
       await loadFromLocal(path);
+      console.log('[Page] Budget loaded successfully');
     } catch (error) {
-      console.error('Error loading budget:', error);
+      console.error('[Page] Error loading budget:', error);
+      alert(`Error loading budget: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       loadingLocal = false;
     }
@@ -278,12 +281,17 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {#each filteredBudgets as budget}
               <button
-                class="group p-4 rounded-xl text-left transition-all hover:scale-[1.02] bg-[var(--card)] border border-[var(--border)] hover:border-[var(--primary)]"
+                class="group p-4 rounded-xl text-left transition-all hover:scale-[1.02] bg-[var(--card)] border border-[var(--border)] hover:border-[var(--primary)] disabled:opacity-50 disabled:cursor-wait"
                 onclick={() => budget.source === 'dropbox' ? selectDropboxBudget(budget.path) : selectLocalBudget(budget.path)}
+                disabled={loadingLocal || loadingDropbox}
               >
                 <div class="flex items-start justify-between mb-3">
                   <h3 class="font-semibold text-[var(--foreground)] truncate pr-2">{budget.name}</h3>
-                  {#if budget.source === 'dropbox'}
+                  {#if loadingLocal && budget.source === 'local'}
+                    <Loader2 class="h-4 w-4 animate-spin text-[var(--primary)]" />
+                  {:else if loadingDropbox && budget.source === 'dropbox'}
+                    <Loader2 class="h-4 w-4 animate-spin text-blue-500" />
+                  {:else if budget.source === 'dropbox'}
                     <Cloud class="h-4 w-4 text-blue-500 shrink-0" />
                   {:else}
                     <HardDrive class="h-4 w-4 shrink-0 text-[var(--primary)]" />

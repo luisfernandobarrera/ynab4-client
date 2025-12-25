@@ -38,20 +38,27 @@ export class BudgetLoader {
    */
   static async loadFromLocalPath(path: string): Promise<BudgetInfo> {
     console.log('[BudgetLoader] Loading from local path:', path);
+    console.log('[BudgetLoader] isTauri:', isTauri());
     
     if (!isTauri()) {
       throw new Error('Local file access requires desktop app');
     }
 
+    console.log('[BudgetLoader] Importing ynab-library...');
     const { YnabClient } = await import('ynab-library');
+    console.log('[BudgetLoader] Importing TauriIO...');
     const { TauriIO } = await import('./tauri-io');
 
     // Create TauriIO instance with write capability
+    console.log('[BudgetLoader] Creating TauriIO...');
     const io = new TauriIO(false); // readOnly = false
 
     // Load in read-only mode first
+    console.log('[BudgetLoader] Creating YnabClient...');
     const client = new YnabClient(path, io, true);
+    console.log('[BudgetLoader] Initializing client...');
     await client.initialize();
+    console.log('[BudgetLoader] Client initialized');
 
     // Extract and clean budget name
     const rawName = path.split('/').pop()?.replace('.ynab4', '') || 'Budget';
