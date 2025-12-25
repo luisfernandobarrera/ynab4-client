@@ -32,7 +32,11 @@
     "change": "Change",
     "refresh": "Refresh",
     "home": "Home",
-    "name": "Name"
+    "name": "Name",
+    "browse": "Browse",
+    "comingSoon": "Coming Soon",
+    "clearFilter": "Clear Filter",
+    "options": "Options"
   },
   "nav": {
     "transactions": "Transactions",
@@ -256,7 +260,8 @@
     "investments": "Investments",
     "mortgage": "Mortgage",
     "otherAssets": "Other Assets",
-    "otherLiabilities": "Other Liabilities"
+    "otherLiabilities": "Other Liabilities",
+    "other": "Other"
   },
   "accounts": {
     "groupBy": "Group by",
@@ -272,7 +277,10 @@
     "showClosed": "With closed",
     "netWorth": "Net Worth",
     "open": "Open",
-    "closed": "Closed"
+    "closed": "Closed",
+    "allAccounts": "All Accounts",
+    "onBudget": "On Budget",
+    "offBudget": "Off Budget"
   },
   "months": {
     "short": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],

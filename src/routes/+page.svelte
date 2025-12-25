@@ -9,8 +9,9 @@
   import { ScheduledList } from '$lib/components/scheduled';
   import { ReportsView } from '$lib/components/reports';
   import { SettingsView, ThemeToggle } from '$lib/components/settings';
+  import { Sidebar, MobileHeader } from '$lib/components/layout';
   import { budgetInfo, currentView, isLoading, loadFromLocal, loadFromDropbox } from '$lib/stores/budget';
-  import { activeModal, openModal, closeModal } from '$lib/stores/ui';
+  import { activeModal, openModal, closeModal, isMobile } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
   import { BudgetLoader, openBudgetFolderDialog, findLocalBudgets, isTauri } from '$lib/services';
   import { t, locale, supportedLocales, setLocale, localeNames } from '$lib/i18n';
@@ -20,6 +21,7 @@
   let accessToken = $state<string | null>(null);
   let showTransactionEntry = $state(false);
   let isDesktop = $state(false);
+  let sidebarOpen = $state(true);
   
   // Budget lists
   let localBudgets = $state<Array<{name: string, path: string}>>([]);
@@ -41,6 +43,9 @@
     // Check if running in Tauri (desktop)
     isDesktop = checkTauri();
     console.log('[Page] isDesktop:', isDesktop);
+    
+    // Set sidebar state based on mobile
+    sidebarOpen = window.innerWidth > 768;
     
     // Find local budgets if desktop
     if (isDesktop) {
@@ -216,7 +221,7 @@
               <button 
                 onclick={connectDropbox} 
                 disabled={loadingDropbox}
-                class="h-10 px-3 rounded-lg font-medium text-white flex items-center gap-2 transition-all hover:opacity-90 bg-[var(--info)]"
+                class="h-10 px-3 rounded-lg font-medium text-white flex items-center gap-2 transition-all hover:opacity-90 bg-blue-500"
                 title="Dropbox"
               >
                 {#if loadingDropbox}
@@ -226,8 +231,8 @@
                 {/if}
               </button>
             {:else}
-              <span class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-[var(--success)]/20 text-[var(--success)]">
-                <span class="h-2 w-2 rounded-full bg-[var(--success)]"></span>
+              <span class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-green-500/20 text-green-500">
+                <span class="h-2 w-2 rounded-full bg-green-500"></span>
                 <Cloud class="h-3 w-3" />
               </span>
             {/if}
@@ -244,7 +249,7 @@
               </button>
               <button 
                 onclick={() => budgetFilter = 'dropbox'}
-                class="h-9 px-3 transition-colors {budgetFilter === 'dropbox' ? 'bg-[var(--accent)] text-[var(--info)]' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'}"
+                class="h-9 px-3 transition-colors {budgetFilter === 'dropbox' ? 'bg-[var(--accent)] text-blue-500' : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'}"
                 title="Dropbox"
               >
                 <Cloud class="h-4 w-4" />
@@ -283,7 +288,7 @@
                 <div class="flex items-start justify-between mb-3">
                   <h3 class="font-semibold text-[var(--foreground)] truncate pr-2">{budget.name}</h3>
                   {#if budget.source === 'dropbox'}
-                    <Cloud class="h-4 w-4 text-[var(--info)] shrink-0" />
+                    <Cloud class="h-4 w-4 text-blue-500 shrink-0" />
                   {:else}
                     <HardDrive class="h-4 w-4 shrink-0 text-[var(--primary)]" />
                   {/if}
@@ -299,28 +304,61 @@
     </main>
   </div>
 {:else}
-  <!-- Budget loaded - show current view -->
-  <div class="h-full bg-[var(--background)]">
-    {#if $isLoading}
-      <div class="flex items-center justify-center h-full">
-        <Loader2 class="h-8 w-8 animate-spin text-[var(--muted-foreground)]" />
-      </div>
-    {:else if $currentView === 'budget'}
-      <BudgetView />
-    {:else if $currentView === 'transactions'}
-      <TransactionList
-        onAddTransaction={handleAddTransaction}
-        onEditTransaction={(id) => console.log('Edit:', id)}
-      />
-    {:else if $currentView === 'scheduled'}
-      <ScheduledList />
-    {:else if $currentView === 'reports'}
-      <ReportsView />
-    {:else if $currentView === 'settings'}
-      <SettingsView />
-    {:else}
-      <BudgetView />
-    {/if}
+  <!-- Budget loaded - show app with sidebar -->
+  <div class="app-container">
+    <!-- Mobile Header -->
+    <MobileHeader
+      onMenuClick={() => sidebarOpen = !sidebarOpen}
+    />
+    
+    <!-- Sidebar -->
+    <Sidebar
+      open={sidebarOpen}
+      onToggle={() => sidebarOpen = !sidebarOpen}
+    />
+    
+    <!-- Main Content -->
+    <main class="main-content">
+      {#if $isLoading}
+        <div class="flex items-center justify-center h-full">
+          <Loader2 class="h-8 w-8 animate-spin text-[var(--muted-foreground)]" />
+        </div>
+      {:else if $currentView === 'transactions'}
+        <TransactionList
+          onAddTransaction={handleAddTransaction}
+          onEditTransaction={(id) => console.log('Edit:', id)}
+        />
+      {:else if $currentView === 'budget'}
+        <BudgetView />
+      {:else if $currentView === 'reconciliation'}
+        <div class="p-4 text-center text-[var(--muted-foreground)]">
+          <p>{$t('common.comingSoon')}</p>
+        </div>
+      {:else if $currentView === 'scheduled'}
+        <ScheduledList />
+      {:else if $currentView === 'cashflow'}
+        <div class="p-4 text-center text-[var(--muted-foreground)]">
+          <p>{$t('common.comingSoon')}</p>
+        </div>
+      {:else if $currentView === 'reports'}
+        <ReportsView />
+      {:else if $currentView === 'payees'}
+        <div class="p-4 text-center text-[var(--muted-foreground)]">
+          <p>{$t('common.comingSoon')}</p>
+        </div>
+      {:else if $currentView === 'import'}
+        <div class="p-4 text-center text-[var(--muted-foreground)]">
+          <p>{$t('common.comingSoon')}</p>
+        </div>
+      {:else if $currentView === 'settings'}
+        <SettingsView />
+      {:else}
+        <TransactionList
+          onAddTransaction={handleAddTransaction}
+          onEditTransaction={(id) => console.log('Edit:', id)}
+        />
+      {/if}
+    </main>
   </div>
 {/if}
 
@@ -425,3 +463,30 @@
   onClose={() => (showTransactionEntry = false)}
   onSave={handleSaveTransaction}
 />
+
+<style>
+  .app-container {
+    display: flex;
+    height: 100vh;
+    background: var(--background);
+    overflow: hidden;
+  }
+
+  .main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  @media (max-width: 768px) {
+    .app-container {
+      flex-direction: column;
+    }
+
+    .main-content {
+      padding-top: 0; /* MobileHeader is part of main content now */
+    }
+  }
+</style>

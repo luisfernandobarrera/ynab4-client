@@ -32,7 +32,11 @@
     "change": "Cambio",
     "refresh": "Actualizar",
     "home": "Inicio",
-    "name": "Nombre"
+    "name": "Nombre",
+    "browse": "Explorar",
+    "comingSoon": "Próximamente",
+    "clearFilter": "Limpiar filtro",
+    "options": "Opciones"
   },
   "nav": {
     "transactions": "Transacciones",
@@ -256,7 +260,8 @@
     "investments": "Inversiones",
     "mortgage": "Hipoteca",
     "otherAssets": "Otros Activos",
-    "otherLiabilities": "Otras Deudas"
+    "otherLiabilities": "Otras Deudas",
+    "other": "Otros"
   },
   "accounts": {
     "groupBy": "Agrupar por",
@@ -272,7 +277,10 @@
     "showClosed": "Con cerradas",
     "netWorth": "Patrimonio neto",
     "open": "Abiertas",
-    "closed": "Cerradas"
+    "closed": "Cerradas",
+    "allAccounts": "Todas las Cuentas",
+    "onBudget": "En Presupuesto",
+    "offBudget": "Fuera de Presupuesto"
   },
   "months": {
     "short": ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"],

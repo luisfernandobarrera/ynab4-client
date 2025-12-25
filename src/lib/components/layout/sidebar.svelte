@@ -1,39 +1,45 @@
 <script lang="ts">
-  import { X, Wallet, Receipt, Calendar, PieChart, Settings, FolderOpen, Plus, Home } from 'lucide-svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Separator } from '$lib/components/ui/separator';
-  import { sidebarOpen, isMobile, openModal } from '$lib/stores/ui';
-  import { budgetInfo, onBudgetAccounts, offBudgetAccounts, currentView, selectedAccountId, resetBudget } from '$lib/stores/budget';
-  import { cn, formatCurrency } from '$lib/utils';
+  import { 
+    LayoutDashboard, 
+    ArrowRightLeft, 
+    CheckCircle2, 
+    Calendar, 
+    TrendingUp, 
+    BarChart3,
+    Users,
+    Upload,
+    Settings,
+    Home,
+    Menu,
+    X
+  } from 'lucide-svelte';
+  import { budgetInfo, currentView, resetBudget } from '$lib/stores/budget';
+  import { isMobile } from '$lib/stores/ui';
   import { t } from '$lib/i18n';
 
-  function handleNavClick(view: string) {
+  interface Props {
+    open?: boolean;
+    onToggle?: () => void;
+  }
+
+  let { open = true, onToggle }: Props = $props();
+
+  const menuItems = $derived([
+    { id: 'transactions', icon: ArrowRightLeft, label: $t('nav.transactions') },
+    { id: 'budget', icon: LayoutDashboard, label: $t('nav.budget') },
+    { id: 'reconciliation', icon: CheckCircle2, label: $t('nav.reconciliation') },
+    { id: 'scheduled', icon: Calendar, label: $t('nav.scheduled') },
+    { id: 'cashflow', icon: TrendingUp, label: $t('nav.cashFlow') },
+    { id: 'reports', icon: BarChart3, label: $t('nav.reports') },
+    { id: 'payees', icon: Users, label: $t('nav.payees') },
+    { id: 'import', icon: Upload, label: $t('nav.import') },
+    { id: 'settings', icon: Settings, label: $t('nav.settings') },
+  ]);
+
+  function handleViewChange(view: string) {
     currentView.set(view);
-    selectedAccountId.set(null);
     if ($isMobile) {
-      sidebarOpen.set(false);
-    }
-  }
-
-  function handleAccountClick(accountId: string) {
-    currentView.set('transactions');
-    selectedAccountId.set(accountId);
-    if ($isMobile) {
-      sidebarOpen.set(false);
-    }
-  }
-
-  function handleOpenSettings() {
-    openModal('settings');
-    if ($isMobile) {
-      sidebarOpen.set(false);
-    }
-  }
-
-  function handleCreateBudget() {
-    openModal('create-budget');
-    if ($isMobile) {
-      sidebarOpen.set(false);
+      onToggle?.();
     }
   }
 
@@ -41,135 +47,270 @@
     resetBudget();
   }
 
-  const navItems = [
-    { id: 'budget', label: 'Budget', icon: Wallet },
-    { id: 'transactions', label: 'All Accounts', icon: Receipt },
-    { id: 'scheduled', label: 'Scheduled', icon: Calendar },
-    { id: 'reports', label: 'Reports', icon: PieChart },
-  ] as const;
+  // Get budget name without data folder
+  const budgetName = $derived(
+    $budgetInfo.budgetName?.split('~')[0] || 'YNAB4 Client'
+  );
 </script>
 
-<!-- Overlay for mobile -->
-{#if $isMobile && $sidebarOpen}
-  <div
-    class="fixed inset-0 z-40 bg-black/60"
-    onclick={() => sidebarOpen.set(false)}
-    onkeydown={(e) => e.key === 'Escape' && sidebarOpen.set(false)}
-    role="button"
-    tabindex="-1"
+{#if $isMobile && open}
+  <div 
+    class="sidebar-overlay"
+    onclick={onToggle}
+    role="presentation"
   ></div>
 {/if}
 
-<!-- Sidebar -->
-<aside
-  class={cn(
-    'fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-card border-r transition-transform duration-300 md:static md:translate-x-0',
-    $sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-  )}
->
-  <!-- Header -->
-  <div class="flex h-14 items-center justify-between border-b px-4">
-    <h2 class="font-heading text-lg font-semibold truncate">
-      {$budgetInfo.budgetName || 'Select Budget'}
-    </h2>
-    {#if $isMobile}
-      <Button variant="ghost" size="icon" onclick={() => sidebarOpen.set(false)}>
-        <X class="h-5 w-5" />
-      </Button>
+<aside class="sidebar" class:collapsed={!open}>
+  <div class="sidebar-header">
+    {#if $budgetInfo.client}
+      <button 
+        class="sidebar-title budget-btn"
+        onclick={handleGoHome}
+        title={$t('common.home')}
+      >
+        <span class="budget-name">{budgetName}</span>
+        <span class="budget-switch">↺</span>
+      </button>
+    {:else}
+      <h2 class="sidebar-title">YNAB4 Client</h2>
     {/if}
+    <button class="hamburger-btn" onclick={onToggle}>
+      {#if open}
+        <X class="h-5 w-5" />
+      {:else}
+        <Menu class="h-5 w-5" />
+      {/if}
+    </button>
   </div>
 
-  <!-- Navigation -->
-  <nav class="flex-1 overflow-y-auto p-4 space-y-6">
-    <!-- Main navigation -->
-    <div class="space-y-1">
-      {#each navItems as item}
-        <button
-          class={cn(
-            'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-            $currentView === item.id
-              ? 'bg-primary text-primary-foreground'
-              : 'hover:bg-accent hover:text-accent-foreground'
-          )}
-          onclick={() => handleNavClick(item.id)}
-        >
-          <item.icon class="h-4 w-4" />
-          {item.label}
-        </button>
-      {/each}
-    </div>
-
-    <Separator />
-
-    <!-- On Budget Accounts -->
-    {#if $onBudgetAccounts.length > 0}
-      <div>
-        <h3 class="mb-2 px-3 text-xs font-semibold uppercase text-muted-foreground">
-          Budget
-        </h3>
-        <div class="space-y-1">
-          {#each $onBudgetAccounts as account}
+  {#if $budgetInfo.client}
+    <nav class="sidebar-nav">
+      <ul class="sidebar-menu">
+        {#each menuItems as item}
+          <li>
             <button
-              class={cn(
-                'flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors',
-                $selectedAccountId === account.id
-                  ? 'bg-accent text-accent-foreground'
-                  : 'hover:bg-accent/50'
-              )}
-              onclick={() => handleAccountClick(account.id)}
+              class="sidebar-menu-item"
+              class:active={$currentView === item.id}
+              onclick={() => handleViewChange(item.id)}
             >
-              <span class="truncate">{account.name}</span>
-              <span class={cn('amount text-xs', account.balance >= 0 ? 'text-ynab-green' : 'text-ynab-red')}>
-                {formatCurrency(account.balance)}
+              <span class="menu-icon">
+                <svelte:component this={item.icon} class="h-5 w-5" />
               </span>
+              <span class="menu-text">{item.label}</span>
             </button>
-          {/each}
-        </div>
-      </div>
-    {/if}
+          </li>
+        {/each}
+      </ul>
+    </nav>
+  {/if}
 
-    <!-- Off Budget Accounts -->
-    {#if $offBudgetAccounts.length > 0}
-      <div>
-        <h3 class="mb-2 px-3 text-xs font-semibold uppercase text-muted-foreground">
-          Tracking
-        </h3>
-        <div class="space-y-1">
-          {#each $offBudgetAccounts as account}
-            <button
-              class={cn(
-                'flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition-colors',
-                $selectedAccountId === account.id
-                  ? 'bg-accent text-accent-foreground'
-                  : 'hover:bg-accent/50'
-              )}
-              onclick={() => handleAccountClick(account.id)}
-            >
-              <span class="truncate">{account.name}</span>
-              <span class="amount text-xs text-muted-foreground">
-                {formatCurrency(account.balance)}
-              </span>
-            </button>
-          {/each}
-        </div>
-      </div>
-    {/if}
-  </nav>
-
-  <!-- Footer -->
-  <div class="border-t p-3 space-y-1.5 bg-muted/30">
-    <Button variant="ghost" size="sm" class="w-full justify-start gap-2 h-9" onclick={handleGoHome}>
-      <Home class="h-4 w-4" />
-      {$t('common.home')}
-    </Button>
-    <Button variant="ghost" size="sm" class="w-full justify-start gap-2 h-9" onclick={handleCreateBudget}>
-      <Plus class="h-4 w-4" />
-      {$t('budget.createNew')}
-    </Button>
-    <Button variant="ghost" size="sm" class="w-full justify-start gap-2 h-9" onclick={handleOpenSettings}>
-      <Settings class="h-4 w-4" />
-      {$t('settings.title')}
-    </Button>
+  <div class="sidebar-footer">
+    <button class="home-btn" onclick={handleGoHome}>
+      <Home class="h-5 w-5" />
+      {#if open}
+        <span>{$t('common.home')}</span>
+      {/if}
+    </button>
   </div>
 </aside>
 
+<style>
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 240px;
+    min-width: 240px;
+    height: 100%;
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    transition: all 0.3s ease;
+    z-index: 50;
+  }
+
+  .sidebar.collapsed {
+    width: 60px;
+    min-width: 60px;
+  }
+
+  .sidebar.collapsed .menu-text,
+  .sidebar.collapsed .budget-name,
+  .sidebar.collapsed .budget-switch,
+  .sidebar.collapsed .home-btn span {
+    display: none;
+  }
+
+  .sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+    min-height: 60px;
+  }
+
+  .sidebar-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+  }
+
+  .budget-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    padding: 0;
+  }
+
+  .budget-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--foreground);
+  }
+
+  .budget-switch {
+    font-size: 0.875rem;
+    color: var(--muted-foreground);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .budget-btn:hover .budget-switch {
+    opacity: 1;
+  }
+
+  .hamburger-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+
+  .hamburger-btn:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem 0;
+  }
+
+  .sidebar-menu {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .sidebar-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+  }
+
+  .sidebar-menu-item:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  .sidebar-menu-item.active {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .menu-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .menu-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sidebar-footer {
+    padding: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .home-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.15s;
+  }
+
+  .home-btn:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  /* Mobile */
+  @media (max-width: 768px) {
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      transform: translateX(0);
+    }
+
+    .sidebar.collapsed {
+      transform: translateX(-100%);
+      width: 240px;
+      min-width: 240px;
+    }
+
+    .sidebar.collapsed .menu-text,
+    .sidebar.collapsed .budget-name,
+    .sidebar.collapsed .budget-switch,
+    .sidebar.collapsed .home-btn span {
+      display: inline;
+    }
+  }
+</style>
