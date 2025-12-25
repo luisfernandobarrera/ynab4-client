@@ -3,8 +3,9 @@
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import TransactionCard from './transaction-card.svelte';
+  import TransactionContextMenu from './transaction-context-menu.svelte';
   import { selectedAccountTransactions, selectedAccountId, accounts } from '$lib/stores/budget';
-  import { isMobile, selectedTransactionIds, clearTransactionSelection } from '$lib/stores/ui';
+  import { isMobile, selectedTransactionIds, clearTransactionSelection, toggleTransactionSelection } from '$lib/stores/ui';
   import { cn, formatCurrency } from '$lib/utils';
 
   interface Props {
@@ -16,6 +17,9 @@
 
   let searchQuery = $state('');
   let showCleared = $state(true);
+  let contextMenuOpen = $state(false);
+  let contextMenuX = $state(0);
+  let contextMenuY = $state(0);
 
   const selectedAccount = $derived(
     $selectedAccountId ? $accounts.find((a) => a.id === $selectedAccountId) : null
@@ -46,13 +50,33 @@
   function handleTransactionClick(txId: string) {
     if (hasSelection) {
       // In selection mode, toggle selection
-      import('$lib/stores/ui').then(({ toggleTransactionSelection }) => {
-        toggleTransactionSelection(txId);
-      });
+      toggleTransactionSelection(txId);
     } else {
       // Normal mode, edit transaction
       onEditTransaction?.(txId);
     }
+  }
+
+  function handleContextMenu(event: MouseEvent, txId: string) {
+    event.preventDefault();
+    
+    // If the transaction isn't selected, select only it
+    if (!$selectedTransactionIds.has(txId)) {
+      clearTransactionSelection();
+      toggleTransactionSelection(txId);
+    }
+    
+    contextMenuX = event.clientX;
+    contextMenuY = event.clientY;
+    contextMenuOpen = true;
+  }
+
+  function openBulkActionsMenu(event: MouseEvent) {
+    const button = event.currentTarget as HTMLElement;
+    const rect = button.getBoundingClientRect();
+    contextMenuX = rect.left;
+    contextMenuY = rect.bottom + 4;
+    contextMenuOpen = true;
   }
 </script>
 
@@ -106,7 +130,7 @@
           <Button variant="ghost" size="sm" onclick={clearTransactionSelection}>
             Cancel
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onclick={openBulkActionsMenu}>
             <MoreVertical class="mr-2 h-4 w-4" />
             Actions
           </Button>
@@ -129,10 +153,12 @@
     {:else}
       <div class="space-y-2">
         {#each filteredTransactions as tx (tx.id)}
-          <TransactionCard
-            transaction={tx}
-            onClick={() => handleTransactionClick(tx.id)}
-          />
+          <div oncontextmenu={(e) => handleContextMenu(e, tx.id)}>
+            <TransactionCard
+              transaction={tx}
+              onClick={() => handleTransactionClick(tx.id)}
+            />
+          </div>
         {/each}
       </div>
     {/if}
@@ -147,5 +173,13 @@
       <Plus class="h-6 w-6" />
     </button>
   {/if}
+
+  <!-- Context Menu -->
+  <TransactionContextMenu
+    bind:open={contextMenuOpen}
+    x={contextMenuX}
+    y={contextMenuY}
+    onClose={() => (contextMenuOpen = false)}
+  />
 </div>
 
