@@ -105,7 +105,7 @@ export class TauriIO {
 }
 
 /**
- * Find local YNAB budgets in common locations
+ * Find local YNAB budgets in common locations or custom paths
  * Uses Rust backend command for efficient filesystem access
  */
 export async function findLocalBudgets(): Promise<Array<{ name: string; path: string }>> {
@@ -116,7 +116,23 @@ export async function findLocalBudgets(): Promise<Array<{ name: string; path: st
 
   try {
     const { invoke } = await import('@tauri-apps/api/core');
-    const budgets = await invoke<Array<{ name: string; path: string }>>('find_ynab_budgets');
+    
+    // Check if custom paths are configured in localStorage
+    const savedFolders = localStorage.getItem('ynab4-search-folders');
+    const customPaths: string[] = savedFolders ? JSON.parse(savedFolders) : [];
+    
+    let budgets: Array<{ name: string; path: string }>;
+    
+    if (customPaths.length > 0) {
+      console.log('[TauriIO] Using custom search paths:', customPaths);
+      budgets = await invoke<Array<{ name: string; path: string }>>('find_ynab_budgets_in_paths', {
+        customPaths
+      });
+    } else {
+      console.log('[TauriIO] Using default search paths');
+      budgets = await invoke<Array<{ name: string; path: string }>>('find_ynab_budgets');
+    }
+    
     console.log('[TauriIO] Found budgets:', budgets);
     return budgets;
   } catch (error) {

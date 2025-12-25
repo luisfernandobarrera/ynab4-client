@@ -24,41 +24,56 @@ pub struct BudgetInfo {
 /// Find YNAB4 budgets in common locations
 #[tauri::command]
 fn find_ynab_budgets() -> Vec<BudgetInfo> {
+    find_ynab_budgets_in_paths(vec![])
+}
+
+/// Find YNAB4 budgets in specified paths
+#[tauri::command]
+fn find_ynab_budgets_in_paths(custom_paths: Vec<String>) -> Vec<BudgetInfo> {
     let mut budgets = Vec::new();
+    let mut search_paths: Vec<std::path::PathBuf> = Vec::new();
     
-    // Get home directory
-    if let Some(home) = dirs::home_dir() {
-        // Common YNAB locations
-        let search_paths = vec![
-            home.join("Dropbox").join("YNAB"),
-            home.join("Dropbox").join("Apps").join("YNAB"),
-            home.join("Documents").join("YNAB"),
-        ];
-        
-        for search_path in search_paths {
-            if search_path.exists() {
-                // Look for .ynab4 directories
-                for entry in WalkDir::new(&search_path)
-                    .max_depth(2)
-                    .into_iter()
-                    .filter_map(|e| e.ok())
-                {
-                    let path = entry.path();
-                    if path.is_dir() {
-                        if let Some(ext) = path.extension() {
-                            if ext == "ynab4" {
-                                if let Some(name) = path.file_stem() {
-                                    let name_str = name.to_string_lossy().to_string();
-                                    // Clean name (remove ~GUID suffix)
-                                    let clean_name = if let Some(idx) = name_str.find('~') {
-                                        name_str[..idx].to_string()
-                                    } else {
-                                        name_str
-                                    };
-                                    
+    // Use custom paths if provided
+    if !custom_paths.is_empty() {
+        for path_str in custom_paths {
+            search_paths.push(std::path::PathBuf::from(path_str));
+        }
+    } else {
+        // Default: search common YNAB locations
+        if let Some(home) = dirs::home_dir() {
+            search_paths.push(home.join("Dropbox").join("YNAB"));
+            search_paths.push(home.join("Dropbox").join("Apps").join("YNAB"));
+            search_paths.push(home.join("Documents").join("YNAB"));
+        }
+    }
+    
+    for search_path in search_paths {
+        if search_path.exists() {
+            // Look for .ynab4 directories
+            for entry in WalkDir::new(&search_path)
+                .max_depth(2)
+                .into_iter()
+                .filter_map(|e| e.ok())
+            {
+                let path = entry.path();
+                if path.is_dir() {
+                    if let Some(ext) = path.extension() {
+                        if ext == "ynab4" {
+                            if let Some(name) = path.file_stem() {
+                                let name_str = name.to_string_lossy().to_string();
+                                // Clean name (remove ~GUID suffix)
+                                let clean_name = if let Some(idx) = name_str.find('~') {
+                                    name_str[..idx].to_string()
+                                } else {
+                                    name_str
+                                };
+                                
+                                // Avoid duplicates
+                                let path_string = path.to_string_lossy().to_string();
+                                if !budgets.iter().any(|b: &BudgetInfo| b.path == path_string) {
                                     budgets.push(BudgetInfo {
                                         name: clean_name,
-                                        path: path.to_string_lossy().to_string(),
+                                        path: path_string,
                                     });
                                 }
                             }
@@ -632,6 +647,7 @@ pub fn run() {
     })
         .invoke_handler(tauri::generate_handler![
             find_ynab_budgets,
+            find_ynab_budgets_in_paths,
             get_dropbox_path,
             dropbox_start_auth,
             dropbox_exchange_code,

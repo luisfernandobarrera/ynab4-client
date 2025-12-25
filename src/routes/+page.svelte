@@ -1,13 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { FolderOpen, Cloud, Loader2, Plus, HardDrive, RefreshCw } from 'lucide-svelte';
+  import { FolderOpen, Cloud, Loader2, Plus, HardDrive, RefreshCw, Settings } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { BudgetPicker, BudgetView, CreateBudgetDialog } from '$lib/components/budget';
   import { TransactionList } from '$lib/components/transactions';
   import { TransactionEntrySheet } from '$lib/components/entry';
   import { ScheduledList } from '$lib/components/scheduled';
   import { ReportsView } from '$lib/components/reports';
+  import { SettingsView } from '$lib/components/settings';
   import { budgetInfo, currentView, isLoading, loadFromLocal, loadFromDropbox } from '$lib/stores/budget';
   import { activeModal, openModal, closeModal } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
@@ -287,8 +288,8 @@
         </Button>
       </section>
 
-      <!-- Language selector -->
-      <div class="flex justify-center pt-4">
+      <!-- Footer with language and settings -->
+      <div class="flex justify-center items-center gap-4 pt-4">
         <select 
           class="bg-card border border-border rounded-md px-3 py-1.5 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
           value={$locale}
@@ -298,6 +299,13 @@
             <option value={loc}>{localeNames[loc]}</option>
           {/each}
         </select>
+        <button
+          class="p-2 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+          onclick={() => openModal('settings')}
+          aria-label="Settings"
+        >
+          <Settings class="h-5 w-5" />
+        </button>
       </div>
     </div>
   </div>
@@ -320,10 +328,7 @@
     {:else if $currentView === 'reports'}
       <ReportsView />
     {:else if $currentView === 'settings'}
-      <div class="container mx-auto p-6">
-        <h2 class="text-2xl font-heading font-bold">{$t('settings.title')}</h2>
-        <p class="text-muted-foreground mt-2">Coming soon...</p>
-      </div>
+      <SettingsView />
     {:else}
       <BudgetView />
     {/if}
@@ -353,6 +358,27 @@
     }
   }}
 />
+
+{#if $activeModal === 'settings'}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div class="bg-card rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-end p-2">
+        <button
+          class="p-2 rounded-md hover:bg-accent"
+          onclick={() => {
+            closeModal();
+            // Reload budgets in case search folders changed
+            if (isDesktop) loadLocalBudgetList();
+          }}
+          aria-label="Close"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <SettingsView />
+    </div>
+  </div>
+{/if}
 
 <!-- Transaction Entry Sheet -->
 <TransactionEntrySheet
