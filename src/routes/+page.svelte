@@ -24,17 +24,15 @@
 
   // Check Tauri on script init (before mount)
   const checkTauri = () => {
-    if (browser) {
-      return typeof (window as { __TAURI__?: unknown }).__TAURI__ !== 'undefined';
-    }
-    return false;
+    if (!browser) return false;
+    const win = window as { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
+    return '__TAURI__' in win || '__TAURI_INTERNALS__' in win;
   };
 
   onMount(async () => {
-    // Check if running in Tauri (desktop) - with small delay for Tauri init
-    await new Promise(r => setTimeout(r, 100));
+    // Check if running in Tauri (desktop)
     isDesktop = checkTauri();
-    console.log('[Page] isDesktop:', isDesktop, 'window.__TAURI__:', typeof (window as any).__TAURI__);
+    console.log('[Page] isDesktop:', isDesktop);
     
     // Find local budgets if desktop
     if (isDesktop) {

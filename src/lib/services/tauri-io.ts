@@ -154,7 +154,9 @@ export async function findLocalBudgets(): Promise<Array<{ name: string; path: st
  * Check if running in Tauri
  */
 export function isTauri(): boolean {
-  return browser && typeof (window as { __TAURI__?: unknown }).__TAURI__ !== 'undefined';
+  if (!browser) return false;
+  const win = window as { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
+  return '__TAURI__' in win || '__TAURI_INTERNALS__' in win;
 }
 
 /**
