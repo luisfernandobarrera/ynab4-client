@@ -1,28 +1,34 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { FolderOpen, Cloud, Loader2, Plus, History } from 'lucide-svelte';
+  import { FolderOpen, Cloud, Loader2, Plus, HardDrive, RefreshCw } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { BudgetPicker, BudgetView } from '$lib/components/budget';
   import { TransactionList } from '$lib/components/transactions';
   import { TransactionEntrySheet } from '$lib/components/entry';
   import { ScheduledList } from '$lib/components/scheduled';
   import { ReportsView } from '$lib/components/reports';
-  import { budgetInfo, currentView, isLoading, loadFromLocal } from '$lib/stores/budget';
+  import { budgetInfo, currentView, isLoading, loadFromLocal, loadFromDropbox } from '$lib/stores/budget';
   import { activeModal, openModal, closeModal } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
-  import { openBudgetFolderDialog, findLocalBudgets } from '$lib/services';
+  import { BudgetLoader, openBudgetFolderDialog, findLocalBudgets, isTauri } from '$lib/services';
   import { t, locale, supportedLocales, setLocale, localeNames } from '$lib/i18n';
 
+  // State
   let isDropboxConnected = $state(false);
   let accessToken = $state<string | null>(null);
   let showTransactionEntry = $state(false);
   let isDesktop = $state(false);
+  
+  // Budget lists
+  let localBudgets = $state<Array<{name: string, path: string}>>([]);
+  let dropboxBudgets = $state<Array<{name: string, path: string}>>([]);
   let loadingLocal = $state(false);
   let loadingDropbox = $state(false);
-  let recentBudgets = $state<Array<{name: string, path: string}>>([]);
+  let loadingBudgetList = $state(false);
+  let dropboxError = $state<string | null>(null);
 
-  // Check Tauri on script init (before mount)
+  // Check Tauri
   const checkTauri = () => {
     if (!browser) return false;
     const win = window as { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
@@ -36,12 +42,7 @@
     
     // Find local budgets if desktop
     if (isDesktop) {
-      try {
-        recentBudgets = await findLocalBudgets();
-        console.log('[Page] Found local budgets:', recentBudgets);
-      } catch (e) {
-        console.warn('[Page] Could not find local budgets:', e);
-      }
+      loadLocalBudgetList();
     }
     
     // Check Dropbox connection
@@ -52,10 +53,38 @@
     if (success) {
       isDropboxConnected = true;
       accessToken = await DropboxAuth.getAccessToken();
+      loadDropboxBudgetList();
     } else if (isDropboxConnected) {
       accessToken = await DropboxAuth.getAccessToken();
+      loadDropboxBudgetList();
     }
   });
+
+  async function loadLocalBudgetList() {
+    try {
+      localBudgets = await findLocalBudgets();
+      console.log('[Page] Found local budgets:', localBudgets);
+    } catch (e) {
+      console.warn('[Page] Could not find local budgets:', e);
+    }
+  }
+
+  async function loadDropboxBudgetList() {
+    if (!accessToken) return;
+    
+    loadingBudgetList = true;
+    dropboxError = null;
+    
+    try {
+      dropboxBudgets = await BudgetLoader.listDropboxBudgets(accessToken);
+      console.log('[Page] Found Dropbox budgets:', dropboxBudgets);
+    } catch (e) {
+      dropboxError = e instanceof Error ? e.message : 'Error loading budgets';
+      console.error('[Page] Error loading Dropbox budgets:', e);
+    } finally {
+      loadingBudgetList = false;
+    }
+  }
 
   async function connectDropbox() {
     loadingDropbox = true;
@@ -70,10 +99,30 @@
     DropboxAuth.signOut();
     isDropboxConnected = false;
     accessToken = null;
+    dropboxBudgets = [];
   }
 
-  function openBudgetPicker() {
-    openModal('budget-picker', { accessToken });
+  async function selectDropboxBudget(path: string) {
+    if (!accessToken) return;
+    loadingDropbox = true;
+    try {
+      await loadFromDropbox(accessToken, path);
+    } catch (error) {
+      console.error('Error loading budget:', error);
+    } finally {
+      loadingDropbox = false;
+    }
+  }
+
+  async function selectLocalBudget(path: string) {
+    loadingLocal = true;
+    try {
+      await loadFromLocal(path);
+    } catch (error) {
+      console.error('Error loading budget:', error);
+    } finally {
+      loadingLocal = false;
+    }
   }
 
   async function openLocalBudget() {
@@ -90,15 +139,9 @@
     }
   }
 
-  async function openRecentBudget(path: string) {
-    loadingLocal = true;
-    try {
-      await loadFromLocal(path);
-    } catch (error) {
-      console.error('Error loading budget:', error);
-    } finally {
-      loadingLocal = false;
-    }
+  function createNewBudget() {
+    // TODO: Implement budget creation
+    openModal('create-budget');
   }
 
   function handleAddTransaction() {
@@ -112,90 +155,137 @@
 </script>
 
 {#if !$budgetInfo.client}
-  <!-- Welcome screen - clean and focused -->
-  <div class="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-b from-background to-background/95">
-    <div class="w-full max-w-md space-y-8">
-      <!-- Logo/Title -->
-      <div class="text-center space-y-2">
-        <h1 class="text-3xl font-heading font-bold tracking-tight">YNAB4</h1>
+  <!-- Welcome screen -->
+  <div class="min-h-screen p-6 bg-gradient-to-b from-background to-background/95">
+    <div class="max-w-2xl mx-auto space-y-8">
+      <!-- Header -->
+      <div class="text-center space-y-2 pt-8">
+        <h1 class="text-4xl font-heading font-bold tracking-tight">YNAB4</h1>
         <p class="text-muted-foreground">{$t('welcome.subtitle')}</p>
       </div>
 
-      <!-- Primary actions -->
-      <div class="space-y-3">
-        <!-- Dropbox section -->
-        {#if isDropboxConnected}
+      <!-- Dropbox Section -->
+      <section class="space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold flex items-center gap-2">
+            <Cloud class="h-5 w-5 text-blue-500" />
+            Dropbox
+          </h2>
+          {#if isDropboxConnected}
+            <button 
+              class="text-sm text-muted-foreground hover:text-foreground"
+              onclick={disconnectDropbox}
+            >
+              {$t('dropbox.disconnect')}
+            </button>
+          {/if}
+        </div>
+
+        {#if !isDropboxConnected}
           <Button 
-            class="w-full h-14 text-base gap-3" 
-            onclick={openBudgetPicker}
-          >
-            <Cloud class="h-5 w-5" />
-            {$t('dropbox.selectBudget')}
-          </Button>
-          <button 
-            class="w-full text-sm text-muted-foreground hover:text-foreground"
-            onclick={disconnectDropbox}
-          >
-            {$t('dropbox.disconnect')}
-          </button>
-        {:else}
-          <Button 
-            class="w-full h-14 text-base gap-3" 
+            class="w-full h-12" 
             onclick={connectDropbox}
             disabled={loadingDropbox}
           >
             {#if loadingDropbox}
-              <Loader2 class="h-5 w-5 animate-spin" />
+              <Loader2 class="mr-2 h-4 w-4 animate-spin" />
             {:else}
-              <Cloud class="h-5 w-5" />
+              <Cloud class="mr-2 h-4 w-4" />
             {/if}
             {$t('dropbox.connect')}
           </Button>
-        {/if}
-
-        <!-- Local files section (always show for desktop, with note for web) -->
-        {#if isDesktop}
-          <div class="pt-2 border-t border-border">
-            <Button 
-              variant="outline" 
-              class="w-full h-12 text-base gap-3"
-              onclick={openLocalBudget}
-              disabled={loadingLocal}
-            >
-              {#if loadingLocal}
-                <Loader2 class="h-5 w-5 animate-spin" />
-              {:else}
-                <FolderOpen class="h-5 w-5" />
-              {/if}
-              {$t('localFiles.open')}
-            </Button>
-          </div>
-
-          <!-- Recent budgets -->
-          {#if recentBudgets.length > 0}
-            <div class="pt-2">
-              <p class="text-xs text-muted-foreground mb-2 flex items-center gap-2">
-                <History class="h-3 w-3" />
-                {$t('budget.recent')}
-              </p>
-              <div class="space-y-1">
-                {#each recentBudgets.slice(0, 3) as budget}
+        {:else}
+          <div class="rounded-lg border bg-card">
+            {#if loadingBudgetList}
+              <div class="flex items-center justify-center py-8">
+                <Loader2 class="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            {:else if dropboxError}
+              <div class="p-4 text-center">
+                <p class="text-sm text-destructive mb-2">{dropboxError}</p>
+                <Button variant="outline" size="sm" onclick={loadDropboxBudgetList}>
+                  <RefreshCw class="mr-2 h-3 w-3" />
+                  {$t('common.refresh')}
+                </Button>
+              </div>
+            {:else if dropboxBudgets.length === 0}
+              <div class="p-4 text-center text-muted-foreground text-sm">
+                {$t('budget.noBudgetsFound')}
+              </div>
+            {:else}
+              <div class="divide-y">
+                {#each dropboxBudgets as budget}
                   <button
-                    class="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors"
-                    onclick={() => openRecentBudget(budget.path)}
+                    class="w-full flex items-center justify-between p-4 hover:bg-accent transition-colors text-left"
+                    onclick={() => selectDropboxBudget(budget.path)}
+                    disabled={loadingDropbox}
                   >
-                    {budget.name}
+                    <div>
+                      <p class="font-medium">{budget.name}</p>
+                      <p class="text-xs text-muted-foreground">{budget.path}</p>
+                    </div>
+                    {#if loadingDropbox}
+                      <Loader2 class="h-4 w-4 animate-spin" />
+                    {/if}
                   </button>
                 {/each}
               </div>
+            {/if}
+          </div>
+        {/if}
+      </section>
+
+      <!-- Local Files Section (Desktop only) -->
+      {#if isDesktop}
+        <section class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold flex items-center gap-2">
+              <HardDrive class="h-5 w-5 text-orange-500" />
+              {$t('localFiles.title') || 'Local'}
+            </h2>
+            <Button variant="ghost" size="sm" onclick={openLocalBudget}>
+              <FolderOpen class="mr-2 h-3 w-3" />
+              {$t('common.search') || 'Browse'}
+            </Button>
+          </div>
+
+          {#if localBudgets.length > 0}
+            <div class="rounded-lg border bg-card divide-y">
+              {#each localBudgets as budget}
+                <button
+                  class="w-full flex items-center justify-between p-4 hover:bg-accent transition-colors text-left"
+                  onclick={() => selectLocalBudget(budget.path)}
+                  disabled={loadingLocal}
+                >
+                  <div>
+                    <p class="font-medium">{budget.name}</p>
+                    <p class="text-xs text-muted-foreground truncate max-w-[300px]">{budget.path}</p>
+                  </div>
+                  {#if loadingLocal}
+                    <Loader2 class="h-4 w-4 animate-spin" />
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {:else}
+            <div class="rounded-lg border bg-card p-4 text-center text-muted-foreground text-sm">
+              {$t('budget.noBudgetsFound')}
             </div>
           {/if}
-        {:else}
-          <p class="text-xs text-center text-muted-foreground pt-2">
-            {$t('localFiles.desktopOnly')}
-          </p>
-        {/if}
-      </div>
+        </section>
+      {/if}
+
+      <!-- Create New Budget -->
+      <section class="pt-4 border-t">
+        <Button 
+          variant="outline" 
+          class="w-full h-12"
+          onclick={createNewBudget}
+        >
+          <Plus class="mr-2 h-4 w-4" />
+          {$t('budget.createNew') || 'Create New Budget'}
+        </Button>
+      </section>
 
       <!-- Language selector -->
       <div class="flex justify-center pt-4">
@@ -247,6 +337,20 @@
       {accessToken}
       onClose={closeModal}
     />
+  </div>
+{/if}
+
+{#if $activeModal === 'create-budget'}
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div class="bg-card rounded-lg p-6 max-w-md w-full">
+      <h2 class="text-xl font-heading font-bold mb-4">Create New Budget</h2>
+      <p class="text-muted-foreground mb-4">
+        Budget creation is coming soon. For now, you can create a budget in YNAB4 desktop app.
+      </p>
+      <Button onclick={closeModal} class="w-full">
+        {$t('common.close')}
+      </Button>
+    </div>
   </div>
 {/if}
 

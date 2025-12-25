@@ -10,6 +10,7 @@
     "connected": "Conectado"
   },
   "localFiles": {
+    "title": "Presupuestos Locales",
     "open": "Abrir Presupuesto Local",
     "desktopOnly": "Archivos locales disponibles en la app de escritorio"
   },

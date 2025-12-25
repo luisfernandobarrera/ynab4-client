@@ -10,6 +10,7 @@
     "connected": "Connected"
   },
   "localFiles": {
+    "title": "Local Budgets",
     "open": "Open Local Budget",
     "desktopOnly": "Local files available in desktop app"
   },
