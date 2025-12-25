@@ -5,7 +5,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { Separator } from '$lib/components/ui/separator';
-  import { t, locale, supportedLocales, setLocale, localeNames } from '$lib/i18n';
+  import { t } from '$lib/i18n';
   import { isTauri, getDropboxPath } from '$lib/services';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
 
@@ -95,25 +95,6 @@
 </script>
 
 <div class="p-6 space-y-6" style="background: #1a1a2e;">
-  <!-- Language -->
-  <section class="space-y-3 p-4 rounded-xl" style="background: #25253a; border: 1px solid #404060;">
-    <div class="flex items-center gap-2">
-      <Globe class="h-5 w-5 text-gray-400" />
-      <h2 class="font-semibold text-white">{$t('settings.language')}</h2>
-    </div>
-    <p class="text-sm text-gray-400">{$t('settings.languageDescription')}</p>
-    <select 
-      class="w-full rounded-lg px-3 py-2 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-      style="background: #1a1a2e; border: 1px solid #404060;"
-      value={$locale}
-      onchange={(e) => setLocale(e.currentTarget.value)}
-    >
-      {#each supportedLocales as loc}
-        <option value={loc}>{localeNames[loc]}</option>
-      {/each}
-    </select>
-  </section>
-
   <!-- Dropbox -->
   <section class="space-y-3 p-4 rounded-xl" style="background: #25253a; border: 1px solid #404060;">
     <div class="flex items-center gap-2">
