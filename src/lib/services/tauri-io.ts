@@ -20,7 +20,8 @@ let tauriFS: TauriFS | null = null;
 async function getTauriFS(): Promise<TauriFS> {
   if (tauriFS) return tauriFS;
 
-  if (!browser || typeof (window as { __TAURI__?: unknown }).__TAURI__ === 'undefined') {
+  const win = window as { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
+  if (!browser || (!('__TAURI__' in win) && !('__TAURI_INTERNALS__' in win))) {
     throw new Error('TauriIO requires Tauri runtime');
   }
 
