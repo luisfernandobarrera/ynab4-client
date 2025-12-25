@@ -1,9 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { X, Loader2, Cloud, HardDrive, FolderOpen } from 'lucide-svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
   import { t, locale } from '$lib/i18n';
   import { isTauri, getDropboxPath } from '$lib/services';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
@@ -174,17 +171,16 @@
 {#if open}
   <!-- Backdrop -->
   <div 
-    class="fixed inset-0 z-[100]"
-    style="background: rgba(0, 0, 0, 0.95);"
+    class="fixed inset-0 z-[100] bg-black/80"
     onclick={onClose}
     role="presentation"
   ></div>
   
   <!-- Dialog Window -->
   <div class="fixed left-1/2 top-1/2 z-[101] -translate-x-1/2 -translate-y-1/2 w-full max-w-md px-4">
-    <div class="rounded-xl shadow-2xl overflow-hidden" style="background: #25253a; border: 2px solid #404060;">
+    <div class="rounded-xl shadow-2xl overflow-hidden bg-[var(--card)] border-2 border-[var(--border)]">
       <!-- Header -->
-      <div class="flex items-center justify-between px-5 py-4 text-white" style="background: #2D4A6F;">
+      <div class="flex items-center justify-between px-5 py-4 bg-[var(--secondary)] text-[var(--secondary-foreground)]">
         <h2 class="text-lg font-heading font-bold">
           {$t('budget.createNew')}
         </h2>
@@ -198,60 +194,57 @@
       </div>
 
       <!-- Content -->
-      <div class="p-5 space-y-5" style="background: #25253a;">
+      <div class="p-5 space-y-5 bg-[var(--card)]">
         <!-- Budget Name -->
         <div class="space-y-2">
-          <label for="budget-name" class="text-sm font-medium text-gray-300">{$t('budget.name')}</label>
+          <label for="budget-name" class="text-sm font-medium text-[var(--foreground)]">{$t('budget.name')}</label>
           <input
             id="budget-name"
             bind:value={budgetName}
             placeholder="Mi Presupuesto"
             disabled={isCreating}
-            class="w-full h-11 px-3 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            style="background: #1a1a2e; border: 1px solid #404060;"
+            class="w-full h-11 px-3 rounded-lg text-[var(--foreground)] placeholder-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] bg-[var(--background)] border border-[var(--border)]"
           />
         </div>
 
         <!-- Save Location -->
         <div class="space-y-3">
-          <label class="text-sm font-medium text-gray-300">{$t('budget.saveLocation')}</label>
+          <label class="text-sm font-medium text-[var(--foreground)]">{$t('budget.saveLocation')}</label>
           <div class="space-y-2">
             {#if isDesktop}
               <button
                 type="button"
-                class="w-full flex items-center gap-3 p-4 rounded-lg transition-all text-white"
-                style="background: #1a1a2e; border: 2px solid {saveLocation === 'local' ? '#C75B39' : '#404060'};"
+                class="w-full flex items-center gap-3 p-4 rounded-lg transition-all text-[var(--foreground)] bg-[var(--background)] border-2 {saveLocation === 'local' ? 'border-[var(--primary)]' : 'border-[var(--border)]'}"
                 onclick={() => saveLocation = 'local'}
                 disabled={isCreating}
               >
-                <div class="p-2 rounded-lg" style="background: rgba(199, 91, 57, 0.2);">
-                  <HardDrive class="h-5 w-5" style="color: #E07A5F;" />
+                <div class="p-2 rounded-lg bg-[var(--primary)]/20">
+                  <HardDrive class="h-5 w-5 text-[var(--primary)]" />
                 </div>
                 <div class="text-left">
                   <p class="font-medium">{$t('localFiles.title')}</p>
-                  <p class="text-xs text-gray-400">Guardar en disco local</p>
+                  <p class="text-xs text-[var(--muted-foreground)]">Guardar en disco local</p>
                 </div>
               </button>
             {/if}
             
             <button
               type="button"
-              class="w-full flex items-center gap-3 p-4 rounded-lg transition-all text-white {!isDropboxConnected ? 'opacity-50' : ''}"
-              style="background: #1a1a2e; border: 2px solid {saveLocation === 'dropbox' ? '#3b82f6' : '#404060'};"
+              class="w-full flex items-center gap-3 p-4 rounded-lg transition-all text-[var(--foreground)] bg-[var(--background)] border-2 {saveLocation === 'dropbox' ? 'border-[var(--info)]' : 'border-[var(--border)]'} {!isDropboxConnected ? 'opacity-50' : ''}"
               onclick={() => { if (isDropboxConnected) saveLocation = 'dropbox' }}
               disabled={isCreating || !isDropboxConnected}
             >
-              <div class="p-2 rounded-lg" style="background: rgba(59, 130, 246, 0.2);">
-                <Cloud class="h-5 w-5 text-blue-400" />
+              <div class="p-2 rounded-lg bg-[var(--info)]/20">
+                <Cloud class="h-5 w-5 text-[var(--info)]" />
               </div>
               <div class="text-left flex-1">
                 <p class="font-medium">Dropbox</p>
-                <p class="text-xs text-gray-400">
+                <p class="text-xs text-[var(--muted-foreground)]">
                   {isDropboxConnected ? 'Sincronizar con Dropbox' : 'Conectar Dropbox primero'}
                 </p>
               </div>
               {#if !isDropboxConnected}
-                <span class="text-xs px-2 py-1 rounded text-gray-400" style="background: #35354a;">
+                <span class="text-xs px-2 py-1 rounded text-[var(--muted-foreground)] bg-[var(--muted)]">
                   No conectado
                 </span>
               {/if}
@@ -262,21 +255,19 @@
         <!-- Local Path (only for desktop when local selected) -->
         {#if isDesktop && saveLocation === 'local'}
           <div class="space-y-2">
-            <label for="local-path" class="text-sm font-medium text-gray-300">{$t('budget.folder')}</label>
+            <label for="local-path" class="text-sm font-medium text-[var(--foreground)]">{$t('budget.folder')}</label>
             <div class="flex gap-2">
               <input
                 id="local-path"
                 bind:value={localPath}
                 placeholder="/path/to/YNAB"
                 disabled={isCreating}
-                class="flex-1 h-11 px-3 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                style="background: #1a1a2e; border: 1px solid #404060;"
+                class="flex-1 h-11 px-3 rounded-lg text-[var(--foreground)] text-sm placeholder-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] bg-[var(--background)] border border-[var(--border)]"
               />
               <button 
                 onclick={selectFolder}
                 disabled={isCreating}
-                class="h-11 w-11 rounded-lg flex items-center justify-center text-white hover:bg-white/10 transition-colors"
-                style="border: 1px solid #404060;"
+                class="h-11 w-11 rounded-lg flex items-center justify-center text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors border border-[var(--border)]"
               >
                 <FolderOpen class="h-4 w-4" />
               </button>
@@ -286,27 +277,25 @@
 
         <!-- Error -->
         {#if error}
-          <div class="p-3 rounded-lg" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3);">
-            <p class="text-sm text-red-400">{error}</p>
+          <div class="p-3 rounded-lg bg-[var(--destructive)]/15 border border-[var(--destructive)]/30">
+            <p class="text-sm text-[var(--destructive)]">{error}</p>
           </div>
         {/if}
       </div>
 
       <!-- Footer -->
-      <div class="flex justify-end gap-3 px-5 py-4" style="background: #1a1a2e; border-top: 1px solid #404060;">
+      <div class="flex justify-end gap-3 px-5 py-4 bg-[var(--background)] border-t border-[var(--border)]">
         <button 
           onclick={onClose} 
           disabled={isCreating}
-          class="px-4 py-2 rounded-lg font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
-          style="border: 1px solid #404060;"
+          class="px-4 py-2 rounded-lg font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors border border-[var(--border)]"
         >
           {$t('common.cancel')}
         </button>
         <button 
           onclick={createBudget} 
           disabled={isCreating || !budgetName.trim()}
-          class="px-4 py-2 rounded-lg font-medium text-white transition-all hover:opacity-90 disabled:opacity-50"
-          style="background: #C75B39;"
+          class="px-4 py-2 rounded-lg font-medium text-[var(--primary-foreground)] bg-[var(--primary)] transition-all hover:opacity-90 disabled:opacity-50"
         >
           {#if isCreating}
             <Loader2 class="mr-2 h-4 w-4 animate-spin inline" />

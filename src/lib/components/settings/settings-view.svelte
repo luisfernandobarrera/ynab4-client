@@ -2,12 +2,10 @@
   import { onMount } from 'svelte';
   import { FolderOpen, Plus, Trash2, Cloud, HardDrive } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
-  import { Separator } from '$lib/components/ui/separator';
   import { t } from '$lib/i18n';
   import { isTauri, getDropboxPath } from '$lib/services';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
+  import ThemeToggle from './theme-toggle.svelte';
 
   // Settings stored in localStorage
   let searchFolders = $state<string[]>([]);
@@ -70,12 +68,6 @@
       } catch (e) {
         console.error('Error selecting folder:', e);
       }
-    } else if (newFolderPath.trim()) {
-      if (!searchFolders.includes(newFolderPath.trim())) {
-        searchFolders = [...searchFolders, newFolderPath.trim()];
-        saveSettings();
-      }
-      newFolderPath = '';
     }
   }
 
@@ -94,25 +86,35 @@
   }
 </script>
 
-<div class="p-6 space-y-6" style="background: #1a1a2e;">
-  <!-- Dropbox -->
-  <section class="space-y-3 p-4 rounded-xl" style="background: #25253a; border: 1px solid #404060;">
-    <div class="flex items-center gap-2">
-      <Cloud class="h-5 w-5 text-blue-400" />
-      <h2 class="font-semibold text-white">Dropbox</h2>
+<div class="p-6 space-y-6 bg-[var(--background)]">
+  <!-- Theme -->
+  <section class="space-y-3 p-4 rounded-xl bg-[var(--card)] border border-[var(--border)]">
+    <div class="flex items-center justify-between">
+      <div>
+        <h2 class="font-semibold text-[var(--foreground)]">{$t('settings.theme') || 'Tema'}</h2>
+        <p class="text-sm text-[var(--muted-foreground)]">{$t('settings.themeDescription') || 'Selecciona el tema de la aplicación'}</p>
+      </div>
+      <ThemeToggle />
     </div>
-    <p class="text-sm text-gray-400">{$t('settings.dropboxDescription')}</p>
+  </section>
+
+  <!-- Dropbox -->
+  <section class="space-y-3 p-4 rounded-xl bg-[var(--card)] border border-[var(--border)]">
+    <div class="flex items-center gap-2">
+      <Cloud class="h-5 w-5 text-[var(--info)]" />
+      <h2 class="font-semibold text-[var(--foreground)]">Dropbox</h2>
+    </div>
+    <p class="text-sm text-[var(--muted-foreground)]">{$t('settings.dropboxDescription')}</p>
     
     {#if isDropboxConnected}
-      <div class="flex items-center justify-between p-3 rounded-lg" style="background: #1a1a2e; border: 1px solid rgba(34, 197, 94, 0.3);">
+      <div class="flex items-center justify-between p-3 rounded-lg bg-[var(--background)] border border-[var(--success)]/30">
         <div class="flex items-center gap-2">
-          <span class="h-2 w-2 rounded-full bg-green-400"></span>
-          <span class="text-sm font-medium text-green-400">{$t('settings.connected')}</span>
+          <span class="h-2 w-2 rounded-full bg-[var(--success)]"></span>
+          <span class="text-sm font-medium text-[var(--success)]">{$t('settings.connected')}</span>
         </div>
         <button 
           onclick={disconnectDropbox}
-          class="px-3 py-1 text-sm rounded-lg text-gray-300 hover:text-white transition-colors"
-          style="border: 1px solid #404060;"
+          class="px-3 py-1 text-sm rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors border border-[var(--border)]"
         >
           {$t('settings.disconnect')}
         </button>
@@ -120,8 +122,7 @@
     {:else}
       <button 
         onclick={connectDropbox}
-        class="px-4 py-2 rounded-lg font-medium text-white transition-all hover:opacity-90"
-        style="background: #3b82f6;"
+        class="px-4 py-2 rounded-lg font-medium text-white transition-all hover:opacity-90 bg-[var(--info)]"
       >
         <Cloud class="mr-2 h-4 w-4 inline" />
         {$t('settings.connectDropbox')}
@@ -131,28 +132,28 @@
 
   <!-- Search Folders (Desktop only) -->
   {#if isDesktop}
-    <section class="space-y-3 p-4 rounded-xl" style="background: #25253a; border: 1px solid #404060;">
+    <section class="space-y-3 p-4 rounded-xl bg-[var(--card)] border border-[var(--border)]">
       <div class="flex items-center gap-2">
-        <HardDrive class="h-5 w-5" style="color: #E07A5F;" />
-        <h2 class="font-semibold text-white">{$t('settings.searchFolders') || 'Carpetas de Búsqueda'}</h2>
+        <HardDrive class="h-5 w-5 text-[var(--primary)]" />
+        <h2 class="font-semibold text-[var(--foreground)]">{$t('settings.searchFolders') || 'Carpetas de Búsqueda'}</h2>
       </div>
-      <p class="text-sm text-gray-400">
+      <p class="text-sm text-[var(--muted-foreground)]">
         {$t('settings.searchFoldersDescription') || 'Carpetas donde se buscarán presupuestos YNAB4'}
       </p>
 
       <!-- List of folders -->
       <div class="space-y-2">
         {#if searchFolders.length === 0}
-          <p class="text-sm text-gray-500 italic">
+          <p class="text-sm text-[var(--muted-foreground)] italic">
             {$t('settings.noSearchFolders') || 'No hay carpetas configuradas'}
           </p>
         {:else}
           {#each searchFolders as folder, i}
-            <div class="flex items-center gap-2 p-3 rounded-lg group" style="background: #1a1a2e; border: 1px solid #404060;">
-              <FolderOpen class="h-4 w-4 text-gray-400 shrink-0" />
-              <span class="text-sm flex-1 truncate text-gray-300" title={folder}>{folder}</span>
+            <div class="flex items-center gap-2 p-3 rounded-lg group bg-[var(--background)] border border-[var(--border)]">
+              <FolderOpen class="h-4 w-4 text-[var(--muted-foreground)] shrink-0" />
+              <span class="text-sm flex-1 truncate text-[var(--foreground)]" title={folder}>{folder}</span>
               <button
-                class="p-1 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                class="p-1 rounded hover:bg-[var(--destructive)]/20 text-[var(--muted-foreground)] hover:text-[var(--destructive)] opacity-0 group-hover:opacity-100 transition-all"
                 onclick={() => removeFolder(i)}
                 aria-label="Remove folder"
               >
@@ -166,14 +167,11 @@
       <!-- Add folder button -->
       <button 
         onclick={addFolder}
-        class="px-4 py-2 rounded-lg font-medium text-gray-300 hover:text-white transition-colors"
-        style="border: 1px solid #404060;"
+        class="px-4 py-2 rounded-lg font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors border border-[var(--border)]"
       >
         <Plus class="mr-2 h-4 w-4 inline" />
         {$t('settings.addFolder') || 'Añadir Carpeta'}
       </button>
     </section>
   {/if}
-
 </div>
-
