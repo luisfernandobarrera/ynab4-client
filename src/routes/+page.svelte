@@ -276,8 +276,7 @@
     </main>
 
     <!-- Bottom action bar (only when budgets exist) -->
-    {@const allBudgets = isDesktop ? localBudgets : dropboxBudgets}
-    {#if allBudgets.length > 0}
+    {#if (isDesktop ? localBudgets : dropboxBudgets).length > 0}
       <footer class="border-t border-border p-3">
         <div class="max-w-lg mx-auto">
           <Button 
