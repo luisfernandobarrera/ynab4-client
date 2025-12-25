@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { Plus, Search, Lock, ChevronDown, Save, X } from 'lucide-svelte';
-  import { Input } from '$lib/components/ui/input';
+  import { Plus, Search, Lock, ChevronDown, Save, X, PanelLeftClose, PanelLeft, Calendar } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
+  import { AccountsPanel } from '$lib/components/accounts';
   import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories } from '$lib/stores/budget';
   import { isMobile } from '$lib/stores/ui';
   import { formatCurrency } from '$lib/utils';
@@ -16,11 +16,18 @@
 
   let searchQuery = $state('');
   let hideReconciled = $state(false);
+  let showAccountsPanel = $state(true);
   let showAccountDropdown = $state(false);
+  let showDateFilter = $state(false);
+  
+  // Date filter
+  let dateFrom = $state('');
+  let dateTo = $state('');
   
   // Inline entry state
-  let showInlineEntry = $state(false);
+  let isEditing = $state(false);
   let entryDate = $state(new Date().toISOString().split('T')[0]);
+  let entryAccount = $state('');
   let entryPayee = $state('');
   let entryCategory = $state('');
   let entryMemo = $state('');
@@ -47,6 +54,13 @@
       }
       // Hide reconciled
       if (hideReconciled && tx.cleared === 'Reconciled') {
+        return false;
+      }
+      // Date filter
+      if (dateFrom && tx.date && tx.date < dateFrom) {
+        return false;
+      }
+      if (dateTo && tx.date && tx.date > dateTo) {
         return false;
       }
       return true;
@@ -111,14 +125,6 @@
     }
   }
 
-  function getStatusIcon(cleared: string): string {
-    switch (cleared) {
-      case 'Reconciled': return '✓';
-      case 'Cleared': return '○';
-      default: return '○';
-    }
-  }
-
   // Calculate running balance
   const transactionsWithBalance = $derived.by(() => {
     if (!$selectedAccountId) return filteredTransactions.map(tx => ({ ...tx, runningBalance: 0 }));
@@ -141,14 +147,63 @@
       runningBalance: balanceMap.get(tx.id) || 0
     }));
   });
+
+  function startEntry() {
+    isEditing = true;
+    entryDate = new Date().toISOString().split('T')[0];
+    entryAccount = selectedAccount?.id || ($accounts[0]?.id ?? '');
+    entryPayee = '';
+    entryCategory = '';
+    entryMemo = '';
+    entryOutflow = '';
+    entryInflow = '';
+  }
+
+  function cancelEntry() {
+    isEditing = false;
+  }
+
+  function saveEntry() {
+    // TODO: Implement save
+    console.log('Save entry:', { entryDate, entryAccount, entryPayee, entryCategory, entryMemo, entryOutflow, entryInflow });
+    isEditing = false;
+  }
+
+  function clearDateFilter() {
+    dateFrom = '';
+    dateTo = '';
+    showDateFilter = false;
+  }
+
+  const hasDateFilter = $derived(!!dateFrom || !!dateTo);
 </script>
 
 <div class="transactions-view">
+  <!-- Accounts Panel -->
+  {#if showAccountsPanel && !$isMobile}
+    <AccountsPanel />
+  {/if}
+
   <!-- Main Content -->
   <div class="transactions-main">
     <!-- Toolbar -->
     <div class="tx-toolbar">
       <div class="tx-toolbar-left">
+        <!-- Panel toggle -->
+        {#if !$isMobile}
+          <button 
+            class="tx-icon-btn"
+            onclick={() => showAccountsPanel = !showAccountsPanel}
+            title={showAccountsPanel ? $t('common.hidePanel') : $t('common.showPanel')}
+          >
+            {#if showAccountsPanel}
+              <PanelLeftClose class="h-4 w-4" />
+            {:else}
+              <PanelLeft class="h-4 w-4" />
+            {/if}
+          </button>
+        {/if}
+        
         <!-- Account dropdown -->
         <div class="account-dropdown-wrapper">
           <button 
@@ -156,7 +211,7 @@
             onclick={() => showAccountDropdown = !showAccountDropdown}
           >
             <span class="account-name">{selectedAccount?.name || $t('accounts.allAccounts')}</span>
-            <ChevronDown class="h-4 w-4" />
+            <ChevronDown class="h-4 w-4 chevron {showAccountDropdown ? 'open' : ''}" />
           </button>
           
           {#if showAccountDropdown}
@@ -193,8 +248,39 @@
       </div>
       
       <div class="tx-toolbar-actions">
+        <!-- Date filter -->
+        <div class="date-filter-wrapper">
+          <button 
+            class="tx-icon-btn"
+            class:active={hasDateFilter || showDateFilter}
+            onclick={() => showDateFilter = !showDateFilter}
+            title={$t('transactions.dateFilter')}
+          >
+            <Calendar class="h-4 w-4" />
+          </button>
+          
+          {#if showDateFilter}
+            <div class="date-filter-overlay" onclick={() => showDateFilter = false} role="presentation"></div>
+            <div class="date-filter-popup">
+              <div class="date-filter-row">
+                <label>{$t('transactions.from')}:</label>
+                <input type="date" bind:value={dateFrom} />
+              </div>
+              <div class="date-filter-row">
+                <label>{$t('transactions.to')}:</label>
+                <input type="date" bind:value={dateTo} />
+              </div>
+              {#if hasDateFilter}
+                <button class="date-filter-clear" onclick={clearDateFilter}>
+                  {$t('common.clear')}
+                </button>
+              {/if}
+            </div>
+          {/if}
+        </div>
+        
         <button 
-          class="tx-btn"
+          class="tx-icon-btn"
           class:active={hideReconciled}
           onclick={() => hideReconciled = !hideReconciled}
           title={hideReconciled ? $t('transactions.showAll') : $t('transactions.hideReconciled')}
@@ -213,21 +299,6 @@
             <button class="tx-search-clear" onclick={() => searchQuery = ''}>×</button>
           {/if}
         </div>
-        
-        {#if !$isMobile}
-          <Button 
-            onclick={() => showInlineEntry = !showInlineEntry} 
-            class={showInlineEntry ? "bg-[var(--muted)] text-[var(--muted-foreground)]" : "bg-[var(--primary)] text-[var(--primary-foreground)]"}
-          >
-            {#if showInlineEntry}
-              <X class="h-4 w-4 mr-2" />
-              {$t('common.cancel')}
-            {:else}
-              <Plus class="h-4 w-4 mr-2" />
-              {$t('transactions.addTransaction')}
-            {/if}
-          </Button>
-        {/if}
       </div>
     </div>
 
@@ -252,7 +323,7 @@
           </tr>
           
           <!-- Inline entry row -->
-          {#if showInlineEntry}
+          {#if isEditing}
             <tr class="tx-entry-row">
               <td class="col-flag"></td>
               <td class="col-date">
@@ -260,11 +331,18 @@
               </td>
               {#if !selectedAccount}
                 <td class="col-account">
-                  <select class="entry-select">
+                  <input 
+                    type="text" 
+                    class="entry-input"
+                    placeholder={$t('transactions.account')}
+                    bind:value={entryAccount}
+                    list="accounts-list"
+                  />
+                  <datalist id="accounts-list">
                     {#each $accounts as account}
-                      <option value={account.id}>{account.name}</option>
+                      <option value={account.name}>{account.name}</option>
                     {/each}
-                  </select>
+                  </datalist>
                 </td>
               {/if}
               <td class="col-payee">
@@ -303,31 +381,42 @@
               </td>
               <td class="col-outflow">
                 <input 
-                  type="number" 
+                  type="text" 
                   class="entry-input entry-amount" 
                   placeholder="0.00"
                   bind:value={entryOutflow}
-                  step="0.01"
-                  min="0"
                 />
               </td>
               <td class="col-inflow">
                 <input 
-                  type="number" 
+                  type="text" 
                   class="entry-input entry-amount" 
                   placeholder="0.00"
                   bind:value={entryInflow}
-                  step="0.01"
-                  min="0"
                 />
               </td>
               {#if selectedAccount}
                 <td class="col-balance"></td>
               {/if}
               <td class="col-status">
-                <button class="entry-save-btn" title={$t('common.save')}>
-                  <Save class="h-4 w-4" />
-                </button>
+                <div class="entry-actions">
+                  <button class="entry-save-btn" onclick={saveEntry} title={$t('common.save')}>
+                    <Save class="h-3.5 w-3.5" />
+                  </button>
+                  <button class="entry-cancel-btn" onclick={cancelEntry} title={$t('common.cancel')}>
+                    <X class="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          {:else}
+            <!-- Add transaction row (discrete) -->
+            <tr class="tx-add-row" onclick={startEntry}>
+              <td class="col-flag">
+                <Plus class="h-3.5 w-3.5 add-icon" />
+              </td>
+              <td colspan={selectedAccount ? 7 : 8} class="add-cell">
+                <span class="add-text">{$t('transactions.addTransaction')}</span>
               </td>
             </tr>
           {/if}
@@ -480,17 +569,42 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
     background: var(--card);
     border-bottom: 1px solid var(--border);
-    gap: 1rem;
+    gap: 0.75rem;
     flex-wrap: wrap;
   }
 
   .tx-toolbar-left {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.5rem;
+  }
+
+  .tx-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--background);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tx-icon-btn:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  .tx-icon-btn.active {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-color: var(--primary);
   }
 
   /* Account Dropdown */
@@ -501,14 +615,15 @@
   .account-dropdown-trigger {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
+    gap: 0.375rem;
+    padding: 0.375rem 0.625rem;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 6px;
     background: var(--background);
     color: var(--foreground);
     cursor: pointer;
     transition: all 0.15s;
+    font-size: 0.875rem;
   }
 
   .account-dropdown-trigger:hover {
@@ -517,12 +632,20 @@
   }
 
   .account-name {
-    font-size: 1rem;
     font-weight: 600;
-    max-width: 200px;
+    max-width: 180px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .chevron {
+    transition: transform 0.15s;
+    color: var(--muted-foreground);
+  }
+
+  .chevron.open {
+    transform: rotate(180deg);
   }
 
   .account-dropdown-overlay {
@@ -536,13 +659,13 @@
     top: calc(100% + 4px);
     left: 0;
     z-index: 50;
-    min-width: 280px;
-    max-height: 400px;
+    min-width: 260px;
+    max-height: 360px;
     overflow-y: auto;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 8px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   }
 
   .account-dropdown-item {
@@ -550,11 +673,11 @@
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 0.75rem 1rem;
+    padding: 0.625rem 0.875rem;
     border: none;
     background: transparent;
     color: var(--foreground);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     text-align: left;
     cursor: pointer;
     transition: background 0.15s;
@@ -578,12 +701,12 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-right: 1rem;
+    margin-right: 0.75rem;
   }
 
   .account-item-balance {
     font-family: var(--font-family-mono);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     font-feature-settings: "tnum";
     flex-shrink: 0;
@@ -592,16 +715,9 @@
   .account-item-balance.positive { color: var(--success); }
   .account-item-balance.negative { color: var(--destructive); }
 
-  .tx-title {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--foreground);
-    margin: 0;
-  }
-
   .tx-balance {
     font-family: var(--font-family-mono);
-    font-size: 1rem;
+    font-size: 0.875rem;
     font-weight: 600;
     font-feature-settings: "tnum";
   }
@@ -609,35 +725,74 @@
   .tx-balance.positive { color: var(--success); }
   .tx-balance.negative { color: var(--destructive); }
 
-  .tx-toolbar-actions {
+  /* Date Filter */
+  .date-filter-wrapper {
+    position: relative;
+  }
+
+  .date-filter-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+  }
+
+  .date-filter-popup {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 50;
+    padding: 0.75rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    min-width: 200px;
+  }
+
+  .date-filter-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    margin-bottom: 0.5rem;
   }
 
-  .tx-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--background);
+  .date-filter-row label {
+    font-size: 0.75rem;
     color: var(--muted-foreground);
+    width: 40px;
+  }
+
+  .date-filter-row input {
+    flex: 1;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 0.8125rem;
+  }
+
+  .date-filter-clear {
+    width: 100%;
+    padding: 0.375rem;
+    border: none;
+    border-radius: 4px;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
     cursor: pointer;
     transition: all 0.15s;
   }
 
-  .tx-btn:hover {
-    background: var(--accent);
-    color: var(--foreground);
+  .date-filter-clear:hover {
+    background: var(--destructive);
+    color: white;
   }
 
-  .tx-btn.active {
-    background: var(--primary);
-    color: var(--primary-foreground);
-    border-color: var(--primary);
+  .tx-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
   }
 
   .tx-search {
@@ -647,14 +802,14 @@
   }
 
   .tx-search input {
-    width: 200px;
-    height: 36px;
-    padding: 0 2rem 0 2.25rem;
+    width: 160px;
+    height: 32px;
+    padding: 0 1.75rem 0 2rem;
     border: 1px solid var(--border);
     border-radius: 6px;
     background: var(--background);
     color: var(--foreground);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
   }
 
   .tx-search input:focus {
@@ -664,22 +819,22 @@
 
   .tx-search-icon {
     position: absolute;
-    left: 0.75rem;
+    left: 0.625rem;
     color: var(--muted-foreground);
     pointer-events: none;
   }
 
   .tx-search-clear {
     position: absolute;
-    right: 0.5rem;
-    width: 20px;
-    height: 20px;
+    right: 0.375rem;
+    width: 18px;
+    height: 18px;
     border: none;
     background: var(--muted);
     color: var(--muted-foreground);
     border-radius: 50%;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 12px;
     line-height: 1;
   }
 
@@ -692,7 +847,7 @@
   .tx-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
   }
 
   .tx-table thead {
@@ -704,9 +859,9 @@
 
   .tx-table th {
     text-align: left;
-    padding: 0.75rem 0.5rem;
+    padding: 0.5rem 0.375rem;
     font-weight: 600;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--muted-foreground);
@@ -715,7 +870,7 @@
   }
 
   .tx-table td {
-    padding: 0.625rem 0.5rem;
+    padding: 0.5rem 0.375rem;
     border-bottom: 1px solid var(--border);
     vertical-align: middle;
     color: var(--foreground);
@@ -731,37 +886,75 @@
   }
 
   .col-flag { width: 24px; text-align: center; }
-  .col-date { width: 110px; }
-  .col-account { width: 120px; }
-  .col-payee { min-width: 140px; }
-  .col-category { min-width: 160px; }
+  .col-date { width: 90px; }
+  .col-account { width: 110px; }
+  .col-payee { min-width: 120px; }
+  .col-category { min-width: 140px; }
   .col-outflow, .col-inflow, .col-balance { 
-    width: 100px; 
+    width: 85px; 
     text-align: right; 
     font-family: var(--font-family-mono);
     font-feature-settings: "tnum";
   }
-  .col-status { width: 40px; text-align: center; }
+  .col-status { width: 32px; text-align: center; }
+
+  .col-outflow.has-value { color: var(--destructive); }
+  .col-inflow.has-value { color: var(--success); }
+  .col-balance.positive { color: var(--success); }
+  .col-balance.negative { color: var(--destructive); }
+
+  /* Add Transaction Row */
+  .tx-add-row {
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .tx-add-row:hover {
+    background: var(--accent);
+  }
+
+  .tx-add-row td {
+    padding: 0.375rem;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .add-icon {
+    color: var(--muted-foreground);
+  }
+
+  .add-cell {
+    color: var(--muted-foreground);
+  }
+
+  .add-text {
+    font-size: 0.75rem;
+    font-style: italic;
+  }
+
+  .tx-add-row:hover .add-icon,
+  .tx-add-row:hover .add-text {
+    color: var(--primary);
+  }
 
   /* Inline Entry Row */
   .tx-entry-row {
     background: var(--accent);
-    border-bottom: 2px solid var(--primary);
   }
 
   .tx-entry-row td {
-    padding: 0.5rem 0.375rem;
+    padding: 0.375rem 0.25rem;
     vertical-align: top;
+    border-bottom: 2px solid var(--primary);
   }
 
   .entry-input {
     width: 100%;
-    padding: 0.375rem 0.5rem;
+    padding: 0.25rem 0.375rem;
     border: 1px solid var(--border);
     border-radius: 4px;
     background: var(--background);
     color: var(--foreground);
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     transition: border-color 0.15s;
   }
 
@@ -772,22 +965,6 @@
 
   .entry-input::placeholder {
     color: var(--muted-foreground);
-  }
-
-  .entry-select {
-    width: 100%;
-    padding: 0.375rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--background);
-    color: var(--foreground);
-    font-size: 0.8125rem;
-    cursor: pointer;
-  }
-
-  .entry-select:focus {
-    outline: none;
-    border-color: var(--primary);
   }
 
   .entry-memo {
@@ -801,39 +978,39 @@
     font-feature-settings: "tnum";
   }
 
-  /* Remove spinners from number inputs */
-  .entry-amount::-webkit-outer-spin-button,
-  .entry-amount::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-  .entry-amount[type=number] {
-    -moz-appearance: textfield;
-    appearance: textfield;
+  .entry-actions {
+    display: flex;
+    gap: 0.25rem;
+    justify-content: center;
   }
 
-  .entry-save-btn {
+  .entry-save-btn,
+  .entry-cancel-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     border: none;
     border-radius: 4px;
-    background: var(--primary);
-    color: var(--primary-foreground);
     cursor: pointer;
     transition: opacity 0.15s;
   }
 
-  .entry-save-btn:hover {
-    opacity: 0.9;
+  .entry-save-btn {
+    background: var(--success);
+    color: white;
   }
 
-  .col-outflow.has-value { color: var(--destructive); }
-  .col-inflow.has-value { color: var(--success); }
-  .col-balance.positive { color: var(--success); }
-  .col-balance.negative { color: var(--destructive); }
+  .entry-cancel-btn {
+    background: var(--muted);
+    color: var(--muted-foreground);
+  }
+
+  .entry-save-btn:hover,
+  .entry-cancel-btn:hover {
+    opacity: 0.85;
+  }
 
   .flag-dot {
     display: inline-block;
@@ -868,7 +1045,7 @@
 
   .memo-text {
     color: var(--muted-foreground);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-style: italic;
   }
 
@@ -878,7 +1055,7 @@
     gap: 0.25rem;
     padding: 0.125rem 0.375rem;
     border-radius: 4px;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-weight: 500;
   }
 
@@ -894,7 +1071,7 @@
 
   .status-bar {
     width: 4px;
-    height: 20px;
+    height: 16px;
     border-radius: 2px;
     margin: 0 auto;
   }
@@ -919,25 +1096,25 @@
     position: sticky;
     top: 0;
     z-index: 5;
-    padding: 0.5rem 1rem;
-    background: var(--background);
-    color: var(--info);
-    font-size: 0.8rem;
+    padding: 0.375rem 0.75rem;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
     font-weight: 600;
-    border-bottom: 2px solid var(--info);
+    border-bottom: 1px solid var(--border);
   }
 
   .tx-card {
     display: flex;
     align-items: center;
     width: 100%;
-    padding: 0.75rem 1rem;
+    padding: 0.625rem 0.75rem;
     border: none;
     background: var(--card);
     border-bottom: 1px solid var(--border);
     cursor: pointer;
     text-align: left;
-    gap: 0.75rem;
+    gap: 0.625rem;
     transition: background 0.15s;
   }
 
@@ -946,8 +1123,8 @@
   }
 
   .tx-card-status {
-    width: 4px;
-    height: 32px;
+    width: 3px;
+    height: 28px;
     border-radius: 2px;
     flex-shrink: 0;
   }
@@ -963,6 +1140,7 @@
 
   .tx-card-payee {
     font-weight: 500;
+    font-size: 0.875rem;
     color: var(--foreground);
     white-space: nowrap;
     overflow: hidden;
@@ -970,7 +1148,7 @@
   }
 
   .tx-card-category {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--muted-foreground);
     white-space: nowrap;
     overflow: hidden;
@@ -979,7 +1157,7 @@
 
   .tx-card-amount {
     font-family: var(--font-family-mono);
-    font-size: 0.9rem;
+    font-size: 0.875rem;
     font-weight: 600;
     font-feature-settings: "tnum";
     flex-shrink: 0;
@@ -992,11 +1170,11 @@
   .tx-status-bar {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.5rem 1rem;
+    gap: 0.75rem;
+    padding: 0.375rem 0.75rem;
     background: var(--muted);
     border-top: 1px solid var(--border);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
   }
 
   .status-item {
@@ -1026,31 +1204,31 @@
   /* FAB */
   .tx-fab {
     position: fixed;
-    bottom: 1.5rem;
+    bottom: 1.25rem;
     left: 50%;
     transform: translateX(-50%);
     z-index: 30;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
+    padding: 0.625rem 1.25rem;
     border: none;
     border-radius: 9999px;
-    background: var(--info);
-    color: white;
+    background: var(--primary);
+    color: var(--primary-foreground);
     font-weight: 600;
+    font-size: 0.875rem;
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     transition: all 0.15s;
   }
 
   .tx-fab:hover {
-    background: var(--info);
     opacity: 0.9;
   }
 
   .tx-fab:active {
-    transform: translateX(-50%) scale(0.95);
+    transform: translateX(-50%) scale(0.97);
   }
 
   /* Mobile */
@@ -1058,6 +1236,7 @@
     .tx-toolbar {
       flex-direction: column;
       align-items: stretch;
+      gap: 0.5rem;
     }
 
     .tx-toolbar-left {
@@ -1070,15 +1249,11 @@
 
     .tx-search {
       flex: 1;
-      min-width: 150px;
+      min-width: 120px;
     }
 
     .tx-search input {
       width: 100%;
-    }
-
-    .tx-toolbar-actions > :global(button:last-child) {
-      display: none;
     }
 
     .tx-table-container {

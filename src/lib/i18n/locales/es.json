@@ -36,7 +36,10 @@
     "browse": "Explorar",
     "comingSoon": "Próximamente",
     "clearFilter": "Limpiar filtro",
-    "options": "Opciones"
+    "options": "Opciones",
+    "hidePanel": "Ocultar panel",
+    "showPanel": "Mostrar panel",
+    "clear": "Limpiar"
   },
   "nav": {
     "transactions": "Transacciones",
@@ -150,6 +153,7 @@
     "optional": "Opcional",
     "addTransaction": "Agregar Transacción",
     "editTransaction": "Editar Transacción",
+    "dateFilter": "Filtro de Fechas",
     "selectPayee": "Seleccionar beneficiario",
     "selectCategory": "Seleccionar categoría",
     "selectAccount": "Seleccionar cuenta",

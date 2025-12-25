@@ -36,7 +36,10 @@
     "browse": "Browse",
     "comingSoon": "Coming Soon",
     "clearFilter": "Clear Filter",
-    "options": "Options"
+    "options": "Options",
+    "hidePanel": "Hide Panel",
+    "showPanel": "Show Panel",
+    "clear": "Clear"
   },
   "nav": {
     "transactions": "Transactions",
@@ -150,6 +153,7 @@
     "optional": "Optional",
     "addTransaction": "Add Transaction",
     "editTransaction": "Edit Transaction",
+    "dateFilter": "Date Filter",
     "selectPayee": "Select payee",
     "selectCategory": "Select category",
     "selectAccount": "Select account",
