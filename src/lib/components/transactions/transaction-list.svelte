@@ -1,12 +1,9 @@
 <script lang="ts">
-  import { Plus, Filter, Search, MoreVertical, Settings2 } from 'lucide-svelte';
-  import { Button } from '$lib/components/ui/button';
+  import { Plus, Search, ChevronLeft, Lock, Circle, CheckCircle2 } from 'lucide-svelte';
   import { Input } from '$lib/components/ui/input';
-  import TransactionsTable from './transactions-table.svelte';
-  import TransactionContextMenu from './transaction-context-menu.svelte';
   import { selectedAccountTransactions, selectedAccountId, accounts } from '$lib/stores/budget';
-  import { isMobile, selectedTransactionIds, clearTransactionSelection, toggleTransactionSelection } from '$lib/stores/ui';
-  import { cn, formatCurrency } from '$lib/utils';
+  import { isMobile } from '$lib/stores/ui';
+  import { formatCurrency } from '$lib/utils';
   import { t } from '$lib/i18n';
 
   interface Props {
@@ -17,184 +14,205 @@
   let { onAddTransaction, onEditTransaction }: Props = $props();
 
   let searchQuery = $state('');
-  let showCleared = $state(true);
-  let contextMenuOpen = $state(false);
-  let contextMenuX = $state(0);
-  let contextMenuY = $state(0);
 
   const selectedAccount = $derived(
     $selectedAccountId ? $accounts.find((a) => a.id === $selectedAccountId) : null
   );
 
-  // Transform transactions to the format expected by TransactionsTable
-  const tableTransactions = $derived(
-    $selectedAccountTransactions
-      .filter((tx) => {
-        // Filter by search
-        if (searchQuery) {
-          const query = searchQuery.toLowerCase();
-          const matchesPayee = tx.payee?.toLowerCase().includes(query);
-          const matchesCategory = tx.category?.toLowerCase().includes(query);
-          const matchesMemo = tx.memo?.toLowerCase().includes(query);
-          if (!matchesPayee && !matchesCategory && !matchesMemo) {
-            return false;
-          }
-        }
-        // Filter cleared
-        if (!showCleared && tx.cleared === 'Cleared') {
-          return false;
-        }
-        return true;
-      })
-      .map(tx => ({
-        id: tx.id,
-        date: tx.date,
-        payee: tx.payee || '',
-        category: tx.category || '',
-        masterCategory: tx.masterCategory,
-        memo: tx.memo,
-        outflow: tx.amount < 0 ? Math.abs(tx.amount) : 0,
-        inflow: tx.amount > 0 ? tx.amount : 0,
-        amount: tx.amount,
-        cleared: tx.cleared as 'Uncleared' | 'Cleared' | 'Reconciled',
-        flagColor: tx.flagColor,
-        accountId: tx.accountId,
-        accountName: tx.accountName,
-        isTransfer: tx.isTransfer,
-        transferAccountName: tx.transferAccountName,
-      }))
+  // Filter transactions
+  const filteredTransactions = $derived(
+    $selectedAccountTransactions.filter((tx) => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        tx.payee?.toLowerCase().includes(query) ||
+        tx.category?.toLowerCase().includes(query) ||
+        tx.memo?.toLowerCase().includes(query)
+      );
+    })
   );
 
-  const hasSelection = $derived($selectedTransactionIds.size > 0);
+  // Group transactions by date
+  const groupedTransactions = $derived(() => {
+    const groups: Map<string, typeof filteredTransactions> = new Map();
+    
+    for (const tx of filteredTransactions) {
+      const date = tx.date || 'No date';
+      if (!groups.has(date)) {
+        groups.set(date, []);
+      }
+      groups.get(date)!.push(tx);
+    }
+    
+    // Sort groups by date descending
+    return Array.from(groups.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  });
 
-  function handleTransactionClick(txId: string) {
-    if (hasSelection) {
-      toggleTransactionSelection(txId);
-    } else {
-      onEditTransaction?.(txId);
+  function formatDate(dateStr: string): string {
+    if (dateStr === 'No date') return dateStr;
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch {
+      return dateStr;
     }
   }
 
-  function handleContextMenu(event: MouseEvent, txId: string) {
-    event.preventDefault();
-    
-    if (!$selectedTransactionIds.has(txId)) {
-      clearTransactionSelection();
-      toggleTransactionSelection(txId);
-    }
-    
-    contextMenuX = event.clientX;
-    contextMenuY = event.clientY;
-    contextMenuOpen = true;
+  function formatAmount(amount: number): string {
+    const formatted = Math.abs(amount).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    return amount < 0 ? `-$${formatted}` : `+$${formatted}`;
   }
 
-  function openBulkActionsMenu(event: MouseEvent) {
-    const button = event.currentTarget as HTMLElement;
-    const rect = button.getBoundingClientRect();
-    contextMenuX = rect.left;
-    contextMenuY = rect.bottom + 4;
-    contextMenuOpen = true;
+  function getStatusIcon(cleared: string) {
+    switch (cleared) {
+      case 'Reconciled':
+      case 'Cleared':
+        return { component: Lock, class: 'text-emerald-500' };
+      default:
+        return { component: Circle, class: 'text-gray-400' };
+    }
   }
 </script>
 
 <div class="flex flex-col h-full bg-[var(--background)]">
   <!-- Header -->
-  <div class="sticky top-0 z-10 bg-[var(--card)] border-b border-[var(--border)] p-4 space-y-4">
-    <!-- Account info or All Accounts -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h2 class="text-xl font-heading font-semibold text-[var(--foreground)]">
+  <header class="bg-[#1e3a5f] text-white">
+    <!-- Account name -->
+    <div class="flex items-center gap-3 px-4 py-3">
+      <button class="p-1 -ml-1 hover:bg-white/10 rounded-lg transition-colors">
+        <ChevronLeft class="h-6 w-6" />
+      </button>
+      <div class="flex items-center gap-2">
+        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+        </svg>
+        <h1 class="text-lg font-semibold">
           {selectedAccount?.name || $t('accounts.allAccounts')}
-        </h2>
-        {#if selectedAccount}
-          <p class={cn('amount text-sm', selectedAccount.balance >= 0 ? 'text-[var(--success)]' : 'text-[var(--destructive)]')}>
-            {$t('accounts.balance')}: {formatCurrency(selectedAccount.balance)}
-          </p>
-        {/if}
+        </h1>
       </div>
-      
-      {#if !$isMobile}
-        <Button onclick={onAddTransaction} class="bg-[var(--primary)] hover:bg-[var(--primary)]/90 text-[var(--primary-foreground)]">
-          <Plus class="mr-2 h-4 w-4" />
-          {$t('transactions.addTransaction')}
-        </Button>
-      {/if}
     </div>
 
-    <!-- Search and filters -->
-    <div class="flex items-center gap-2">
-      <div class="relative flex-1">
+    <!-- Balance summary -->
+    <div class="grid grid-cols-3 text-center text-xs border-t border-white/20 py-2">
+      <div>
+        <div class="text-white/70 uppercase tracking-wide">From Nov</div>
+        <div class="font-semibold text-cyan-300">
+          {formatCurrency(selectedAccount?.balance || 0)}
+        </div>
+      </div>
+      <div>
+        <div class="text-white/70 uppercase tracking-wide">Funded in Dic</div>
+        <div class="font-semibold">$0.00</div>
+      </div>
+      <div>
+        <div class="text-white/70 uppercase tracking-wide">Spent in Dic</div>
+        <div class="font-semibold">$0.00</div>
+      </div>
+    </div>
+
+    <!-- Remaining banner -->
+    <div class="flex items-center justify-between px-4 py-3 {(selectedAccount?.balance || 0) >= 0 ? 'bg-emerald-500' : 'bg-red-500'}">
+      <span class="text-sm font-semibold uppercase tracking-wide">Remaining:</span>
+      <span class="text-2xl font-bold">
+        {formatCurrency(selectedAccount?.balance || 0)}
+      </span>
+    </div>
+  </header>
+
+  <!-- Search (optional) -->
+  {#if searchQuery || filteredTransactions.length > 20}
+    <div class="px-4 py-2 border-b border-[var(--border)] bg-[var(--card)]">
+      <div class="relative">
         <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
         <Input
           type="search"
           placeholder={$t('common.search')}
-          class="pl-10 bg-[var(--input)] border-[var(--border)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]"
+          class="pl-10 h-9 bg-[var(--background)] border-[var(--border)]"
           bind:value={searchQuery}
         />
       </div>
-      <Button variant="outline" size="icon" class="border-[var(--border)] bg-[var(--card)] text-[var(--foreground)]">
-        <Filter class="h-4 w-4" />
-      </Button>
-      <Button variant="outline" size="icon" class="border-[var(--border)] bg-[var(--card)] text-[var(--foreground)]">
-        <Settings2 class="h-4 w-4" />
-      </Button>
     </div>
-
-    <!-- Selection bar -->
-    {#if hasSelection}
-      <div class="flex items-center justify-between rounded-lg bg-[var(--accent)] p-2">
-        <span class="text-sm text-[var(--accent-foreground)]">
-          {$selectedTransactionIds.size} {$t('common.selected')}
-        </span>
-        <div class="flex gap-2">
-          <Button variant="ghost" size="sm" onclick={clearTransactionSelection}>
-            {$t('common.cancel')}
-          </Button>
-          <Button variant="outline" size="sm" onclick={openBulkActionsMenu}>
-            <MoreVertical class="mr-2 h-4 w-4" />
-            {$t('common.actions')}
-          </Button>
-        </div>
-      </div>
-    {/if}
-  </div>
-
-  <!-- Transaction list/table -->
-  <div class="flex-1 overflow-y-auto">
-    {#if tableTransactions.length === 0}
-      <div class="flex flex-col items-center justify-center py-12 text-center">
-        <p class="text-[var(--muted-foreground)]">{$t('transactions.noTransactionsFound')}</p>
-        {#if searchQuery}
-          <Button variant="link" onclick={() => (searchQuery = '')}>
-            {$t('common.clearSearch')}
-          </Button>
-        {/if}
-      </div>
-    {:else}
-      <TransactionsTable
-        transactions={tableTransactions}
-        showAccount={!selectedAccount}
-        showRunningBalance={!!selectedAccount}
-        onTransactionClick={handleTransactionClick}
-      />
-    {/if}
-  </div>
-
-  <!-- Mobile FAB -->
-  {#if $isMobile && onAddTransaction}
-    <button
-      class="fixed bottom-20 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--primary-foreground)] shadow-lg hover:opacity-90 active:scale-95 transition-transform"
-      onclick={onAddTransaction}
-    >
-      <Plus class="h-6 w-6" />
-    </button>
   {/if}
 
-  <!-- Context Menu -->
-  <TransactionContextMenu
-    bind:open={contextMenuOpen}
-    x={contextMenuX}
-    y={contextMenuY}
-    onClose={() => (contextMenuOpen = false)}
-  />
+  <!-- Transaction list -->
+  <div class="flex-1 overflow-y-auto bg-[var(--background)]">
+    {#if filteredTransactions.length === 0}
+      <div class="flex flex-col items-center justify-center py-16 text-center px-4">
+        <p class="text-[var(--muted-foreground)]">{$t('transactions.noTransactionsFound')}</p>
+      </div>
+    {:else}
+      {#each groupedTransactions as [date, transactions]}
+        <!-- Date header -->
+        <div class="sticky top-0 z-10 px-4 py-2 bg-[var(--background)] border-b-2 border-cyan-500">
+          <span class="text-sm font-medium text-cyan-600">{formatDate(date)}</span>
+        </div>
+
+        <!-- Transactions for this date -->
+        {#each transactions as tx (tx.id)}
+          {@const status = getStatusIcon(tx.cleared)}
+          {@const isOutflow = tx.amount < 0}
+          <button
+            class="w-full flex items-start gap-3 px-4 py-3 border-b border-[var(--border)] hover:bg-[var(--accent)] transition-colors text-left"
+            onclick={() => onEditTransaction?.(tx.id)}
+          >
+            <!-- Status icon -->
+            <div class="pt-0.5">
+              <svelte:component this={status.component} class="h-4 w-4 {status.class}" />
+            </div>
+
+            <!-- Payee and category -->
+            <div class="flex-1 min-w-0">
+              <p class="font-medium text-[var(--foreground)] truncate">
+                {#if tx.isTransfer && tx.transferAccountName}
+                  {tx.transferAccountName}
+                {:else}
+                  {tx.payee || $t('payees.unknown')}
+                {/if}
+              </p>
+              <p class="text-sm text-[var(--muted-foreground)] truncate">
+                {#if tx.isTransfer}
+                  Transfer
+                {:else if tx.category}
+                  {tx.category}
+                  {#if tx.masterCategory}
+                    <span class="opacity-60"> · {tx.masterCategory}</span>
+                  {/if}
+                {:else}
+                  -
+                {/if}
+              </p>
+            </div>
+
+            <!-- Amount and account -->
+            <div class="text-right shrink-0">
+              <p class="font-semibold tabular-nums {isOutflow ? 'text-red-500' : 'text-emerald-500'}">
+                {formatAmount(tx.amount)}
+              </p>
+              {#if tx.accountName && !selectedAccount}
+                <p class="text-sm text-[var(--muted-foreground)]">{tx.accountName}</p>
+              {/if}
+            </div>
+          </button>
+        {/each}
+      {/each}
+    {/if}
+  </div>
+
+  <!-- FAB - Add Transaction -->
+  {#if onAddTransaction}
+    <button
+      class="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-6 py-3 rounded-full bg-cyan-500 text-white font-semibold shadow-lg hover:bg-cyan-600 active:scale-95 transition-all"
+      onclick={onAddTransaction}
+    >
+      <Plus class="h-5 w-5" strokeWidth={2.5} />
+      <span>Add Transaction</span>
+    </button>
+  {/if}
 </div>
