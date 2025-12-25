@@ -1,7 +1,7 @@
 {
-	"name": "ynab4-client-temp",
+	"name": "ynab4-client",
 	"private": true,
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
@@ -9,13 +9,24 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"tauri": "tauri",
+		"tauri:dev": "tauri dev",
+		"tauri:build": "tauri build",
+		"tauri:android:init": "tauri android init",
+		"tauri:android:dev": "tauri android dev",
+		"tauri:android:build": "tauri android build",
+		"tauri:ios:init": "tauri ios init",
+		"tauri:ios:dev": "tauri ios dev",
+		"tauri:ios:build": "tauri ios build"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^7.0.0",
+		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/kit": "^2.49.1",
 		"@sveltejs/vite-plugin-svelte": "^6.2.1",
 		"@tailwindcss/postcss": "^4.1.18",
+		"@tauri-apps/cli": "^2.9.6",
 		"autoprefixer": "^10.4.23",
 		"bits-ui": "^2.14.4",
 		"clsx": "^2.1.1",
@@ -31,6 +42,6 @@
 	},
 	"dependencies": {
 		"@tanstack/svelte-table": "^8.21.3",
-		"ynab-library": "file:../../../personal/finance/ynab/ynab-library"
+		"ynab-library": "file:../ynab-library"
 	}
 }
