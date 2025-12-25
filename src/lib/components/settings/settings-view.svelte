@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Settings, FolderOpen, Plus, X, Trash2, Globe, Cloud, HardDrive } from 'lucide-svelte';
+  import { Settings, FolderOpen, Plus, X, Trash2, Globe, Cloud, HardDrive, Fingerprint, Copy, Check } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
@@ -15,6 +15,9 @@
   let isDropboxConnected = $state(false);
   let dropboxPath = $state<string | null>(null);
   let newFolderPath = $state('');
+  let deviceGUID = $state<string | null>(null);
+  let shortDeviceId = $state<string | null>(null);
+  let copied = $state(false);
 
   onMount(async () => {
     isDesktop = isTauri();
@@ -24,6 +27,21 @@
     const savedFolders = localStorage.getItem('ynab4-search-folders');
     if (savedFolders) {
       searchFolders = JSON.parse(savedFolders);
+    }
+    
+    // Load device GUID
+    deviceGUID = localStorage.getItem('ynab4-device-guid');
+    shortDeviceId = localStorage.getItem('ynab4-short-device-id');
+    
+    // Generate new GUID if not exists
+    if (!deviceGUID) {
+      deviceGUID = crypto.randomUUID().toUpperCase();
+      localStorage.setItem('ynab4-device-guid', deviceGUID);
+    }
+    if (!shortDeviceId) {
+      // Generate short ID (A-Z)
+      shortDeviceId = String.fromCharCode(65 + Math.floor(Math.random() * 26));
+      localStorage.setItem('ynab4-short-device-id', shortDeviceId);
     }
     
     // Get Dropbox path
@@ -50,6 +68,14 @@
       }
     }
   });
+  
+  async function copyDeviceGUID() {
+    if (deviceGUID) {
+      await navigator.clipboard.writeText(deviceGUID);
+      copied = true;
+      setTimeout(() => copied = false, 2000);
+    }
+  }
 
   function saveSettings() {
     localStorage.setItem('ynab4-search-folders', JSON.stringify(searchFolders));
@@ -192,6 +218,46 @@
 
     <Separator />
   {/if}
+
+  <!-- Device Info -->
+  <section class="space-y-4">
+    <div class="flex items-center gap-2">
+      <Fingerprint class="h-5 w-5 text-purple-500" />
+      <h2 class="text-lg font-semibold">{$t('settings.device') || 'Device'}</h2>
+    </div>
+    <p class="text-sm text-muted-foreground">
+      {$t('settings.deviceDescription') || 'Unique identifier for this device when syncing changes'}
+    </p>
+    
+    <div class="space-y-3 p-4 rounded-lg bg-accent/30">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-xs text-muted-foreground uppercase tracking-wide">Device GUID</p>
+          <p class="font-mono text-sm select-all">{deviceGUID || '—'}</p>
+        </div>
+        <button 
+          class="p-2 rounded-lg hover:bg-accent transition-colors"
+          onclick={copyDeviceGUID}
+          aria-label="Copy"
+        >
+          {#if copied}
+            <Check class="h-4 w-4 text-green-500" />
+          {:else}
+            <Copy class="h-4 w-4 text-muted-foreground" />
+          {/if}
+        </button>
+      </div>
+      <div>
+        <p class="text-xs text-muted-foreground uppercase tracking-wide">Short ID</p>
+        <p class="font-mono text-lg font-bold">{shortDeviceId || '—'}</p>
+      </div>
+    </div>
+    <p class="text-xs text-muted-foreground">
+      {$t('settings.deviceReadOnly') || 'This identifier is read-only and used for sequential writes to the budget.'}
+    </p>
+  </section>
+
+  <Separator />
 
   <!-- About -->
   <section class="space-y-4">
