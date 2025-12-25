@@ -1,0 +1,113 @@
+{
+  "app": {
+    "name": "YNAB4 Client",
+    "tagline": "A modern client for your YNAB4 budgets"
+  },
+  "welcome": {
+    "title": "Welcome to YNAB4 Client",
+    "subtitle": "A modern client for your YNAB4 budgets"
+  },
+  "nav": {
+    "budget": "Budget",
+    "allAccounts": "All Accounts",
+    "scheduled": "Scheduled",
+    "reports": "Reports",
+    "settings": "Settings",
+    "more": "More"
+  },
+  "accounts": {
+    "budget": "Budget",
+    "tracking": "Tracking",
+    "balance": "Balance",
+    "openBudget": "Open Budget"
+  },
+  "transactions": {
+    "title": "Transactions",
+    "add": "Add Transaction",
+    "edit": "Edit Transaction",
+    "new": "New Transaction",
+    "search": "Search transactions...",
+    "noTransactions": "No transactions found",
+    "clearSearch": "Clear search",
+    "selected": "{count} selected",
+    "actions": "Actions",
+    "cancel": "Cancel"
+  },
+  "entry": {
+    "amount": "Amount",
+    "payee": "Payee",
+    "category": "Category",
+    "account": "Account",
+    "date": "Date",
+    "memo": "Memo",
+    "cleared": "Cleared",
+    "flag": "Flag",
+    "selectPayee": "Select payee",
+    "selectCategory": "Select category",
+    "selectAccount": "Select account",
+    "searchPayee": "Search or enter payee...",
+    "searchCategory": "Search category...",
+    "save": "Save",
+    "addMemo": "Add memo..."
+  },
+  "dropbox": {
+    "title": "Dropbox",
+    "subtitle": "Sync budgets from Dropbox",
+    "connect": "Connect Dropbox",
+    "disconnect": "Disconnect",
+    "connected": "Connected",
+    "selectBudget": "Select Budget",
+    "description": "Connect to Dropbox to access your YNAB4 budgets synced in the cloud."
+  },
+  "local": {
+    "title": "Local Files",
+    "subtitle": "Open budgets from your device",
+    "open": "Open Local Budget",
+    "description": "Open a .ynab4 budget folder from your local device."
+  },
+  "features": {
+    "title": "Features",
+    "compatibility": "Full YNAB4 compatibility",
+    "readWrite": "Read and write budgets",
+    "dropboxSync": "Dropbox sync support",
+    "offline": "Works offline",
+    "mobileFirst": "Mobile-first design",
+    "crossPlatform": "Cross-platform (Web, Android, iOS, Desktop)"
+  },
+  "budget": {
+    "title": "Budget",
+    "budgeted": "Budgeted",
+    "activity": "Activity",
+    "available": "Available",
+    "toBeBudgeted": "To be Budgeted"
+  },
+  "reports": {
+    "title": "Reports"
+  },
+  "scheduled": {
+    "title": "Scheduled Transactions"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "dark": "Dark",
+    "light": "Light",
+    "system": "System"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "noPayee": "No Payee",
+    "noCategory": "No Category",
+    "reconciled": "Reconciled"
+  }
+}
+

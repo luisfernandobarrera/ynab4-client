@@ -1,0 +1,113 @@
+{
+  "app": {
+    "name": "YNAB4 Client",
+    "tagline": "Un cliente moderno para tus presupuestos YNAB4"
+  },
+  "welcome": {
+    "title": "Bienvenido a YNAB4 Client",
+    "subtitle": "Un cliente moderno para tus presupuestos YNAB4"
+  },
+  "nav": {
+    "budget": "Presupuesto",
+    "allAccounts": "Todas las Cuentas",
+    "scheduled": "Programadas",
+    "reports": "Reportes",
+    "settings": "Configuración",
+    "more": "Más"
+  },
+  "accounts": {
+    "budget": "Presupuesto",
+    "tracking": "Seguimiento",
+    "balance": "Saldo",
+    "openBudget": "Abrir Presupuesto"
+  },
+  "transactions": {
+    "title": "Transacciones",
+    "add": "Agregar Transacción",
+    "edit": "Editar Transacción",
+    "new": "Nueva Transacción",
+    "search": "Buscar transacciones...",
+    "noTransactions": "No se encontraron transacciones",
+    "clearSearch": "Limpiar búsqueda",
+    "selected": "{count} seleccionadas",
+    "actions": "Acciones",
+    "cancel": "Cancelar"
+  },
+  "entry": {
+    "amount": "Monto",
+    "payee": "Beneficiario",
+    "category": "Categoría",
+    "account": "Cuenta",
+    "date": "Fecha",
+    "memo": "Nota",
+    "cleared": "Liquidado",
+    "flag": "Bandera",
+    "selectPayee": "Seleccionar beneficiario",
+    "selectCategory": "Seleccionar categoría",
+    "selectAccount": "Seleccionar cuenta",
+    "searchPayee": "Buscar o escribir beneficiario...",
+    "searchCategory": "Buscar categoría...",
+    "save": "Guardar",
+    "addMemo": "Agregar nota..."
+  },
+  "dropbox": {
+    "title": "Dropbox",
+    "subtitle": "Sincronizar presupuestos desde Dropbox",
+    "connect": "Conectar Dropbox",
+    "disconnect": "Desconectar",
+    "connected": "Conectado",
+    "selectBudget": "Seleccionar Presupuesto",
+    "description": "Conecta con Dropbox para acceder a tus presupuestos YNAB4 sincronizados en la nube."
+  },
+  "local": {
+    "title": "Archivos Locales",
+    "subtitle": "Abrir presupuestos desde tu dispositivo",
+    "open": "Abrir Presupuesto Local",
+    "description": "Abre una carpeta .ynab4 desde tu dispositivo local."
+  },
+  "features": {
+    "title": "Características",
+    "compatibility": "Compatibilidad total con YNAB4",
+    "readWrite": "Lectura y escritura de presupuestos",
+    "dropboxSync": "Sincronización con Dropbox",
+    "offline": "Funciona sin conexión",
+    "mobileFirst": "Diseño mobile-first",
+    "crossPlatform": "Multiplataforma (Web, Android, iOS, Desktop)"
+  },
+  "budget": {
+    "title": "Presupuesto",
+    "budgeted": "Presupuestado",
+    "activity": "Actividad",
+    "available": "Disponible",
+    "toBeBudgeted": "Por Presupuestar"
+  },
+  "reports": {
+    "title": "Reportes"
+  },
+  "scheduled": {
+    "title": "Transacciones Programadas"
+  },
+  "settings": {
+    "title": "Configuración",
+    "language": "Idioma",
+    "theme": "Tema",
+    "dark": "Oscuro",
+    "light": "Claro",
+    "system": "Sistema"
+  },
+  "common": {
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "close": "Cerrar",
+    "noPayee": "Sin Beneficiario",
+    "noCategory": "Sin Categoría",
+    "reconciled": "Conciliado"
+  }
+}
+
