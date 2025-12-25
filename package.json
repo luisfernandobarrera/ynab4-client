@@ -43,6 +43,7 @@
 	},
 	"dependencies": {
 		"@tanstack/svelte-table": "^8.21.3",
+		"chart.js": "^4.5.1",
 		"ynab-library": "file:../ynab-library"
 	}
 }

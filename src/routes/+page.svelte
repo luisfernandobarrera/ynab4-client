@@ -7,6 +7,7 @@
   import { TransactionList } from '$lib/components/transactions';
   import { TransactionEntrySheet } from '$lib/components/entry';
   import { ScheduledList } from '$lib/components/scheduled';
+  import { ReportsView } from '$lib/components/reports';
   import { budgetInfo, currentView, isLoading } from '$lib/stores/budget';
   import { activeModal, openModal, closeModal, modalData } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
@@ -182,10 +183,7 @@
       {:else if $currentView === 'scheduled'}
         <ScheduledList />
       {:else if $currentView === 'reports'}
-        <div class="container mx-auto p-6">
-          <h2 class="text-2xl font-heading font-bold">Reports</h2>
-          <p class="text-muted-foreground mt-2">Coming soon...</p>
-        </div>
+        <ReportsView />
       {:else if $currentView === 'settings'}
         <div class="container mx-auto p-6">
           <h2 class="text-2xl font-heading font-bold">Settings</h2>
