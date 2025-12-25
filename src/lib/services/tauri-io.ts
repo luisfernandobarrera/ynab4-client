@@ -106,48 +106,41 @@ export class TauriIO {
 
 /**
  * Find local YNAB budgets in common locations
+ * Uses Rust backend command for efficient filesystem access
  */
 export async function findLocalBudgets(): Promise<Array<{ name: string; path: string }>> {
-  if (!browser || typeof (window as { __TAURI__?: unknown }).__TAURI__ === 'undefined') {
+  if (!isTauri()) {
+    console.log('[TauriIO] Not running in Tauri, cannot access local files');
     return [];
   }
 
-  const fs = await getTauriFS();
-  const { homeDir } = await import('@tauri-apps/api/path');
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const budgets = await invoke<Array<{ name: string; path: string }>>('find_ynab_budgets');
+    console.log('[TauriIO] Found budgets:', budgets);
+    return budgets;
+  } catch (error) {
+    console.error('[TauriIO] Error finding budgets:', error);
+    return [];
+  }
+}
 
-  const home = await homeDir();
-  const searchPaths = [
-    `${home}/Dropbox/YNAB`,
-    `${home}/Dropbox/Apps/YNAB`,
-    `${home}/Documents/YNAB`,
-  ];
-
-  const budgets: Array<{ name: string; path: string }> = [];
-
-  for (const searchPath of searchPaths) {
-    try {
-      const pathExists = await fs.exists(searchPath);
-      if (!pathExists) continue;
-
-      const entries = await fs.readDir(searchPath);
-      for (const entry of entries) {
-        if (entry.name.endsWith('.ynab4') && entry.isDirectory) {
-          const rawName = entry.name.replace('.ynab4', '');
-          const tildeIndex = rawName.lastIndexOf('~');
-          const name = tildeIndex > 0 ? rawName.substring(0, tildeIndex) : rawName;
-
-          budgets.push({
-            name,
-            path: `${searchPath}/${entry.name}`,
-          });
-        }
-      }
-    } catch (error) {
-      console.warn(`[TauriIO] Error searching ${searchPath}:`, error);
-    }
+/**
+ * Get the Dropbox path if it exists
+ */
+export async function getDropboxPath(): Promise<string | null> {
+  if (!isTauri()) {
+    return null;
   }
 
-  return budgets;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const path = await invoke<string | null>('get_dropbox_path');
+    return path;
+  } catch (error) {
+    console.error('[TauriIO] Error getting Dropbox path:', error);
+    return null;
+  }
 }
 
 /**
