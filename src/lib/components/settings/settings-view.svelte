@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Settings, FolderOpen, Plus, X, Trash2, Globe, Cloud, HardDrive, Fingerprint, Copy, Check } from 'lucide-svelte';
+  import { FolderOpen, Plus, Trash2, Cloud, HardDrive } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
@@ -14,10 +14,6 @@
   let isDesktop = $state(false);
   let isDropboxConnected = $state(false);
   let dropboxPath = $state<string | null>(null);
-  let newFolderPath = $state('');
-  let deviceGUID = $state<string | null>(null);
-  let shortDeviceId = $state<string | null>(null);
-  let copied = $state(false);
 
   onMount(async () => {
     isDesktop = isTauri();
@@ -27,21 +23,6 @@
     const savedFolders = localStorage.getItem('ynab4-search-folders');
     if (savedFolders) {
       searchFolders = JSON.parse(savedFolders);
-    }
-    
-    // Load device GUID
-    deviceGUID = localStorage.getItem('ynab4-device-guid');
-    shortDeviceId = localStorage.getItem('ynab4-short-device-id');
-    
-    // Generate new GUID if not exists
-    if (!deviceGUID) {
-      deviceGUID = crypto.randomUUID().toUpperCase();
-      localStorage.setItem('ynab4-device-guid', deviceGUID);
-    }
-    if (!shortDeviceId) {
-      // Generate short ID (A-Z)
-      shortDeviceId = String.fromCharCode(65 + Math.floor(Math.random() * 26));
-      localStorage.setItem('ynab4-short-device-id', shortDeviceId);
     }
     
     // Get Dropbox path
@@ -68,14 +49,6 @@
       }
     }
   });
-  
-  async function copyDeviceGUID() {
-    if (deviceGUID) {
-      await navigator.clipboard.writeText(deviceGUID);
-      copied = true;
-      setTimeout(() => copied = false, 2000);
-    }
-  }
 
   function saveSettings() {
     localStorage.setItem('ynab4-search-folders', JSON.stringify(searchFolders));
@@ -221,53 +194,5 @@
     </section>
   {/if}
 
-  <!-- Device Info -->
-  <section class="space-y-3 p-4 rounded-xl" style="background: #25253a; border: 1px solid #404060;">
-    <div class="flex items-center gap-2">
-      <Fingerprint class="h-5 w-5 text-purple-400" />
-      <h2 class="font-semibold text-white">{$t('settings.device') || 'Dispositivo'}</h2>
-    </div>
-    <p class="text-sm text-gray-400">
-      {$t('settings.deviceDescription') || 'Identificador único de este dispositivo para sincronizar cambios'}
-    </p>
-    
-    <div class="space-y-3 p-3 rounded-lg" style="background: #1a1a2e; border: 1px solid #404060;">
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-xs text-gray-500 uppercase tracking-wide">Device GUID</p>
-          <p class="font-mono text-xs select-all break-all text-gray-300">{deviceGUID || '—'}</p>
-        </div>
-        <button 
-          class="p-2 rounded-lg hover:bg-white/10 transition-colors shrink-0"
-          onclick={copyDeviceGUID}
-          aria-label="Copy"
-        >
-          {#if copied}
-            <Check class="h-4 w-4 text-green-400" />
-          {:else}
-            <Copy class="h-4 w-4 text-gray-400" />
-          {/if}
-        </button>
-      </div>
-      <div>
-        <p class="text-xs text-gray-500 uppercase tracking-wide">Short ID</p>
-        <p class="font-mono text-lg font-bold text-white">{shortDeviceId || '—'}</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- About -->
-  <section class="space-y-3 p-4 rounded-xl" style="background: #25253a; border: 1px solid #404060;">
-    <h2 class="font-semibold text-white">{$t('settings.about')}</h2>
-    <p class="text-sm text-gray-400">
-      {$t('settings.aboutDescription')}
-    </p>
-    <p class="text-xs text-gray-500">
-      {$t('settings.disclaimer')}
-    </p>
-    <p class="text-xs text-gray-500">
-      {$t('settings.version')}: 0.1.0
-    </p>
-  </section>
 </div>
 

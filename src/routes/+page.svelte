@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { FolderOpen, Cloud, Loader2, Plus, HardDrive, RefreshCw, Settings } from 'lucide-svelte';
+  import { FolderOpen, Cloud, Loader2, Plus, HardDrive, RefreshCw, Settings, Globe, X } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { BudgetPicker, BudgetView, CreateBudgetDialog } from '$lib/components/budget';
   import { TransactionList } from '$lib/components/transactions';
@@ -165,17 +165,14 @@
     <!-- Top bar -->
     <header class="flex items-center justify-between px-4 py-3 border-b" style="background: #25253a; border-color: #404060;">
       <h1 class="text-xl font-heading font-bold text-white">YNAB4 Client</h1>
-      <div class="flex items-center gap-2">
-        <select 
-          class="rounded-md px-2 py-1 text-sm cursor-pointer focus:outline-none text-white"
-          style="background: #35354a; border: 1px solid #404060;"
-          value={$locale}
-          onchange={(e) => setLocale(e.currentTarget.value)}
+      <div class="flex items-center gap-1">
+        <button
+          class="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-white/10"
+          onclick={() => openModal('language')}
+          title={$t('settings.language')}
         >
-          {#each supportedLocales as loc}
-            <option value={loc}>{localeNames[loc]}</option>
-          {/each}
-        </select>
+          <Globe class="h-5 w-5" />
+        </button>
         <button
           class="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-white/10"
           onclick={() => openModal('settings')}
@@ -191,67 +188,82 @@
       <div class="max-w-4xl mx-auto space-y-4">
         
         <!-- Action bar -->
-        <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2">
             <!-- Create button -->
             <button 
-              class="px-4 py-2 rounded-lg font-medium text-white flex items-center gap-2 transition-all hover:opacity-90"
+              class="h-10 px-4 rounded-lg font-medium text-white flex items-center gap-2 transition-all hover:opacity-90"
               style="background: #C75B39;"
               onclick={createNewBudget}
+              title={$t('budget.createNew')}
             >
-              <Plus class="h-4 w-4" />
-              {$t('budget.createNew')}
+              <Plus class="h-5 w-5" />
+              <span class="hidden sm:inline">{$t('budget.create')}</span>
             </button>
             
             <!-- Browse local -->
             {#if isDesktop}
               <button 
                 onclick={openLocalBudget}
-                class="px-3 py-2 rounded-lg font-medium text-gray-300 hover:text-white flex items-center gap-2 transition-colors"
+                class="h-10 px-3 rounded-lg text-gray-300 hover:text-white flex items-center gap-2 transition-colors"
                 style="border: 1px solid #404060;"
+                title={$t('common.browse')}
               >
-                <FolderOpen class="h-4 w-4" />
-                {$t('common.browse')}
+                <FolderOpen class="h-5 w-5" />
               </button>
             {/if}
-          </div>
-          
-          <div class="flex items-center gap-2">
+            
             <!-- Dropbox connection -->
             {#if !isDropboxConnected}
               <button 
                 onclick={connectDropbox} 
                 disabled={loadingDropbox}
-                class="px-3 py-2 rounded-lg font-medium text-white flex items-center gap-2 transition-all hover:opacity-90"
+                class="h-10 px-3 rounded-lg font-medium text-white flex items-center gap-2 transition-all hover:opacity-90"
                 style="background: #3b82f6;"
+                title="Dropbox"
               >
                 {#if loadingDropbox}
-                  <Loader2 class="h-4 w-4 animate-spin" />
+                  <Loader2 class="h-5 w-5 animate-spin" />
                 {:else}
-                  <Cloud class="h-4 w-4" />
+                  <Cloud class="h-5 w-5" />
                 {/if}
-                Dropbox
               </button>
             {:else}
               <span class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full" style="background: rgba(34, 197, 94, 0.2); color: #4ade80;">
                 <span class="h-2 w-2 rounded-full bg-green-400"></span>
-                Dropbox
+                <Cloud class="h-3 w-3" />
               </span>
             {/if}
-            
-            <!-- Filter (only in Tauri with both sources) -->
-            {#if isDesktop && (dropboxBudgets.length > 0 || localBudgets.length > 0)}
-              <select 
-                bind:value={budgetFilter}
-                class="rounded-lg px-2 py-1.5 text-sm cursor-pointer focus:outline-none text-white"
-                style="background: #35354a; border: 1px solid #404060;"
-              >
-                <option value="all">{$t('common.all')}</option>
-                <option value="dropbox">Dropbox</option>
-                <option value="local">{$t('localFiles.title')}</option>
-              </select>
-            {/if}
           </div>
+          
+          <!-- Filter icons (only in Tauri with both sources) -->
+          {#if isDesktop && (dropboxBudgets.length > 0 || localBudgets.length > 0)}
+            <div class="flex items-center rounded-lg overflow-hidden" style="border: 1px solid #404060;">
+              <button 
+                onclick={() => budgetFilter = 'all'}
+                class="h-9 px-3 text-sm transition-colors {budgetFilter === 'all' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}"
+                style={budgetFilter === 'all' ? 'background: #404060;' : ''}
+              >
+                {$t('common.all')}
+              </button>
+              <button 
+                onclick={() => budgetFilter = 'dropbox'}
+                class="h-9 px-3 transition-colors {budgetFilter === 'dropbox' ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'}"
+                style={budgetFilter === 'dropbox' ? 'background: #404060;' : ''}
+                title="Dropbox"
+              >
+                <Cloud class="h-4 w-4" />
+              </button>
+              <button 
+                onclick={() => budgetFilter = 'local'}
+                class="h-9 px-3 transition-colors {budgetFilter === 'local' ? '' : 'text-gray-500 hover:text-gray-300'}"
+                style={budgetFilter === 'local' ? 'background: #404060; color: #E07A5F;' : ''}
+                title={$t('localFiles.title')}
+              >
+                <HardDrive class="h-4 w-4" />
+              </button>
+            </div>
+          {/if}
         </div>
         
         <!-- Budget grid -->
@@ -369,11 +381,52 @@
           }}
           aria-label="Close"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          <X class="h-5 w-5" />
         </button>
       </div>
       <div class="flex-1 overflow-y-auto" style="background: #1a1a2e;">
         <SettingsView />
+      </div>
+    </div>
+  </div>
+{/if}
+
+{#if $activeModal === 'language'}
+  <!-- Language selector fullscreen -->
+  <div 
+    class="fixed inset-0 z-[100]"
+    style="background: rgba(0, 0, 0, 0.95);"
+    onclick={() => closeModal()}
+    role="presentation"
+  ></div>
+  <div class="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+    <div class="rounded-xl shadow-2xl w-full max-w-sm overflow-hidden pointer-events-auto" style="background: #25253a; border: 2px solid #404060;">
+      <div class="flex items-center justify-between px-5 py-4 text-white" style="background: #2D4A6F;">
+        <h2 class="text-lg font-heading font-bold flex items-center gap-2">
+          <Globe class="h-5 w-5" />
+          {$t('settings.language')}
+        </h2>
+        <button
+          class="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
+          onclick={() => closeModal()}
+          aria-label="Close"
+        >
+          <X class="h-5 w-5" />
+        </button>
+      </div>
+      <div class="p-2" style="background: #1a1a2e;">
+        {#each supportedLocales as loc}
+          <button
+            class="w-full p-4 rounded-lg text-left transition-colors flex items-center justify-between {$locale === loc ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}"
+            style={$locale === loc ? 'background: #404060;' : ''}
+            onclick={() => { setLocale(loc); closeModal(); }}
+          >
+            <span class="text-lg">{localeNames[loc]}</span>
+            {#if $locale === loc}
+              <span class="text-green-400">✓</span>
+            {/if}
+          </button>
+        {/each}
       </div>
     </div>
   </div>
