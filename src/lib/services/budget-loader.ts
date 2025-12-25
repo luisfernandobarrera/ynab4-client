@@ -57,9 +57,9 @@ export class BudgetLoader {
     console.log('[BudgetLoader] Creating TauriIO...');
     const io = new TauriIO(false); // readOnly = false
 
-    // Load in read-only mode first
+    // Load in write mode to allow creating missing metadata
     console.log('[BudgetLoader] Creating YnabClient...');
-    const client = new YnabClient(path, io, true);
+    const client = new YnabClient(path, io, false); // readOnly = false
     console.log('[BudgetLoader] Initializing client...');
     await client.initialize();
     console.log('[BudgetLoader] Client initialized');
