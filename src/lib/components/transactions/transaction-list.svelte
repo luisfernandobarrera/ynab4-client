@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { Plus, Search, Filter, Lock, Circle, CheckCircle2, Settings2, LayoutList } from 'lucide-svelte';
+  import { Plus, Search, Lock, ChevronDown, Save, X } from 'lucide-svelte';
   import { Input } from '$lib/components/ui/input';
   import { Button } from '$lib/components/ui/button';
-  import { AccountsPanel } from '$lib/components/accounts';
-  import { selectedAccountTransactions, selectedAccountId, accounts, transactions } from '$lib/stores/budget';
+  import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories } from '$lib/stores/budget';
   import { isMobile } from '$lib/stores/ui';
   import { formatCurrency } from '$lib/utils';
   import { t } from '$lib/i18n';
@@ -16,8 +15,17 @@
   let { onAddTransaction, onEditTransaction }: Props = $props();
 
   let searchQuery = $state('');
-  let showAccountsPanel = $state(true);
   let hideReconciled = $state(false);
+  let showAccountDropdown = $state(false);
+  
+  // Inline entry state
+  let showInlineEntry = $state(false);
+  let entryDate = $state(new Date().toISOString().split('T')[0]);
+  let entryPayee = $state('');
+  let entryCategory = $state('');
+  let entryMemo = $state('');
+  let entryOutflow = $state('');
+  let entryInflow = $state('');
 
   const selectedAccount = $derived(
     $selectedAccountId ? $accounts.find((a) => a.id === $selectedAccountId) : null
@@ -136,19 +144,47 @@
 </script>
 
 <div class="transactions-view">
-  <!-- Accounts Panel (Desktop) -->
-  {#if showAccountsPanel && !$isMobile}
-    <AccountsPanel />
-  {/if}
-
   <!-- Main Content -->
   <div class="transactions-main">
     <!-- Toolbar -->
     <div class="tx-toolbar">
       <div class="tx-toolbar-left">
-        <h2 class="tx-title">
-          {selectedAccount?.name || $t('accounts.allAccounts')}
-        </h2>
+        <!-- Account dropdown -->
+        <div class="account-dropdown-wrapper">
+          <button 
+            class="account-dropdown-trigger"
+            onclick={() => showAccountDropdown = !showAccountDropdown}
+          >
+            <span class="account-name">{selectedAccount?.name || $t('accounts.allAccounts')}</span>
+            <ChevronDown class="h-4 w-4" />
+          </button>
+          
+          {#if showAccountDropdown}
+            <div class="account-dropdown-overlay" onclick={() => showAccountDropdown = false} role="presentation"></div>
+            <div class="account-dropdown-menu">
+              <button 
+                class="account-dropdown-item" 
+                class:active={!$selectedAccountId}
+                onclick={() => { selectedAccountId.set(null); showAccountDropdown = false; }}
+              >
+                {$t('accounts.allAccounts')}
+              </button>
+              {#each $accounts as account}
+                <button 
+                  class="account-dropdown-item"
+                  class:active={$selectedAccountId === account.id}
+                  onclick={() => { selectedAccountId.set(account.id); showAccountDropdown = false; }}
+                >
+                  <span class="account-item-name">{account.name}</span>
+                  <span class="account-item-balance" class:positive={account.balance >= 0} class:negative={account.balance < 0}>
+                    {formatCurrency(account.balance)}
+                  </span>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        
         {#if selectedAccount}
           <span class="tx-balance" class:positive={totals.working >= 0} class:negative={totals.working < 0}>
             {formatCurrency(totals.working)}
@@ -157,15 +193,6 @@
       </div>
       
       <div class="tx-toolbar-actions">
-        <button 
-          class="tx-btn"
-          class:active={showAccountsPanel}
-          onclick={() => showAccountsPanel = !showAccountsPanel}
-          title={$t('transactions.accounts')}
-        >
-          <LayoutList class="h-4 w-4" />
-        </button>
-        
         <button 
           class="tx-btn"
           class:active={hideReconciled}
@@ -187,10 +214,18 @@
           {/if}
         </div>
         
-        {#if onAddTransaction}
-          <Button onclick={onAddTransaction} class="bg-[var(--primary)] text-[var(--primary-foreground)]">
-            <Plus class="h-4 w-4 mr-2" />
-            {$t('transactions.addTransaction')}
+        {#if !$isMobile}
+          <Button 
+            onclick={() => showInlineEntry = !showInlineEntry} 
+            class={showInlineEntry ? "bg-[var(--muted)] text-[var(--muted-foreground)]" : "bg-[var(--primary)] text-[var(--primary-foreground)]"}
+          >
+            {#if showInlineEntry}
+              <X class="h-4 w-4 mr-2" />
+              {$t('common.cancel')}
+            {:else}
+              <Plus class="h-4 w-4 mr-2" />
+              {$t('transactions.addTransaction')}
+            {/if}
           </Button>
         {/if}
       </div>
@@ -215,6 +250,87 @@
             {/if}
             <th class="col-status"></th>
           </tr>
+          
+          <!-- Inline entry row -->
+          {#if showInlineEntry}
+            <tr class="tx-entry-row">
+              <td class="col-flag"></td>
+              <td class="col-date">
+                <input type="date" class="entry-input" bind:value={entryDate} />
+              </td>
+              {#if !selectedAccount}
+                <td class="col-account">
+                  <select class="entry-select">
+                    {#each $accounts as account}
+                      <option value={account.id}>{account.name}</option>
+                    {/each}
+                  </select>
+                </td>
+              {/if}
+              <td class="col-payee">
+                <input 
+                  type="text" 
+                  class="entry-input" 
+                  placeholder={$t('transactions.payee')}
+                  bind:value={entryPayee}
+                  list="payees-list"
+                />
+                <datalist id="payees-list">
+                  {#each $payees as payee}
+                    <option value={payee.name}></option>
+                  {/each}
+                </datalist>
+              </td>
+              <td class="col-category">
+                <input 
+                  type="text" 
+                  class="entry-input" 
+                  placeholder={$t('transactions.category')}
+                  bind:value={entryCategory}
+                  list="categories-list"
+                />
+                <datalist id="categories-list">
+                  {#each $categories as cat}
+                    <option value={cat.name}></option>
+                  {/each}
+                </datalist>
+                <input 
+                  type="text" 
+                  class="entry-input entry-memo" 
+                  placeholder={$t('transactions.memo')}
+                  bind:value={entryMemo}
+                />
+              </td>
+              <td class="col-outflow">
+                <input 
+                  type="number" 
+                  class="entry-input entry-amount" 
+                  placeholder="0.00"
+                  bind:value={entryOutflow}
+                  step="0.01"
+                  min="0"
+                />
+              </td>
+              <td class="col-inflow">
+                <input 
+                  type="number" 
+                  class="entry-input entry-amount" 
+                  placeholder="0.00"
+                  bind:value={entryInflow}
+                  step="0.01"
+                  min="0"
+                />
+              </td>
+              {#if selectedAccount}
+                <td class="col-balance"></td>
+              {/if}
+              <td class="col-status">
+                <button class="entry-save-btn" title={$t('common.save')}>
+                  <Save class="h-4 w-4" />
+                </button>
+              </td>
+            </tr>
+          {/if}
         </thead>
         <tbody>
           {#each transactionsWithBalance as tx (tx.id)}
@@ -377,6 +493,105 @@
     gap: 1rem;
   }
 
+  /* Account Dropdown */
+  .account-dropdown-wrapper {
+    position: relative;
+  }
+
+  .account-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--background);
+    color: var(--foreground);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .account-dropdown-trigger:hover {
+    border-color: var(--primary);
+    background: var(--accent);
+  }
+
+  .account-name {
+    font-size: 1rem;
+    font-weight: 600;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .account-dropdown-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+  }
+
+  .account-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 50;
+    min-width: 280px;
+    max-height: 400px;
+    overflow-y: auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  }
+
+  .account-dropdown-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: none;
+    background: transparent;
+    color: var(--foreground);
+    font-size: 0.875rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .account-dropdown-item:hover {
+    background: var(--accent);
+  }
+
+  .account-dropdown-item.active {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .account-dropdown-item.active .account-item-balance {
+    color: var(--primary-foreground);
+  }
+
+  .account-item-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 1rem;
+  }
+
+  .account-item-balance {
+    font-family: var(--font-family-mono);
+    font-size: 0.875rem;
+    font-weight: 600;
+    font-feature-settings: "tnum";
+    flex-shrink: 0;
+  }
+
+  .account-item-balance.positive { color: var(--success); }
+  .account-item-balance.negative { color: var(--destructive); }
+
   .tx-title {
     font-size: 1.125rem;
     font-weight: 600;
@@ -516,17 +731,104 @@
   }
 
   .col-flag { width: 24px; text-align: center; }
-  .col-date { width: 90px; }
+  .col-date { width: 110px; }
   .col-account { width: 120px; }
   .col-payee { min-width: 140px; }
   .col-category { min-width: 160px; }
   .col-outflow, .col-inflow, .col-balance { 
-    width: 90px; 
+    width: 100px; 
     text-align: right; 
     font-family: var(--font-family-mono);
     font-feature-settings: "tnum";
   }
-  .col-status { width: 24px; text-align: center; }
+  .col-status { width: 40px; text-align: center; }
+
+  /* Inline Entry Row */
+  .tx-entry-row {
+    background: var(--accent);
+    border-bottom: 2px solid var(--primary);
+  }
+
+  .tx-entry-row td {
+    padding: 0.5rem 0.375rem;
+    vertical-align: top;
+  }
+
+  .entry-input {
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 0.8125rem;
+    transition: border-color 0.15s;
+  }
+
+  .entry-input:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .entry-input::placeholder {
+    color: var(--muted-foreground);
+  }
+
+  .entry-select {
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 0.8125rem;
+    cursor: pointer;
+  }
+
+  .entry-select:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .entry-memo {
+    margin-top: 0.25rem;
+    font-style: italic;
+  }
+
+  .entry-amount {
+    text-align: right;
+    font-family: var(--font-family-mono);
+    font-feature-settings: "tnum";
+  }
+
+  /* Remove spinners from number inputs */
+  .entry-amount::-webkit-outer-spin-button,
+  .entry-amount::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .entry-amount[type=number] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  .entry-save-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .entry-save-btn:hover {
+    opacity: 0.9;
+  }
 
   .col-outflow.has-value { color: var(--destructive); }
   .col-inflow.has-value { color: var(--success); }
