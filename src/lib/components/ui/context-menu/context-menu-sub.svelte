@@ -15,6 +15,7 @@
 
 <div
   class="relative"
+  role="none"
   onmouseenter={() => (showSub = true)}
   onmouseleave={() => (showSub = false)}
 >

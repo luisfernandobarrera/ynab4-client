@@ -88,6 +88,7 @@
     <nav class="sidebar-nav">
       <ul class="sidebar-menu">
         {#each menuItems as item}
+          {@const Icon = item.icon}
           <li>
             <button
               class="sidebar-menu-item"
@@ -95,7 +96,7 @@
               onclick={() => handleViewChange(item.id)}
             >
               <span class="menu-icon">
-                <svelte:component this={item.icon} class="h-5 w-5" />
+                <Icon class="h-5 w-5" />
               </span>
               <span class="menu-text">{item.label}</span>
             </button>

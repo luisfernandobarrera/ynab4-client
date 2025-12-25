@@ -53,12 +53,13 @@
 </script>
 
 {#if compact}
+  {@const Icon = currentTheme.icon}
   <button
     class="theme-toggle-compact"
     onclick={cycleTheme}
     title={currentTheme.label}
   >
-    <svelte:component this={currentTheme.icon} class="h-4 w-4" />
+    <Icon class="h-4 w-4" />
   </button>
 {:else}
   <div class="theme-toggle">
