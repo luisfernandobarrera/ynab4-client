@@ -342,14 +342,23 @@
 />
 
 {#if $activeModal === 'settings'}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-    <div class="bg-card rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-      <div class="flex justify-end p-2">
+  <!-- Backdrop -->
+  <div 
+    class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+    onclick={() => {
+      closeModal();
+      if (isDesktop) loadLocalBudgetList();
+    }}
+    role="presentation"
+  ></div>
+  <!-- Dialog -->
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+    <div class="bg-background border border-border rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto pointer-events-auto">
+      <div class="sticky top-0 flex justify-end p-3 bg-background/95 backdrop-blur border-b border-border">
         <button
-          class="p-2 rounded-md hover:bg-accent"
+          class="p-2 rounded-lg hover:bg-accent transition-colors"
           onclick={() => {
             closeModal();
-            // Reload budgets in case search folders changed
             if (isDesktop) loadLocalBudgetList();
           }}
           aria-label="Close"
