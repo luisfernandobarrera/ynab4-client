@@ -9,7 +9,6 @@
     "core:event:allow-listen",
     "dialog:default",
     "fs:default",
-    "fs:allow-exists",
     "shell:default",
     "shell:allow-open",
     "http:default",
@@ -20,6 +19,12 @@
       "allow": [
         { "url": "https://api.dropboxapi.com/**" },
         { "url": "https://content.dropboxapi.com/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        { "path": "$HOME/**" }
       ]
     },
     {
