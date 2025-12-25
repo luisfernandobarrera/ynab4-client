@@ -6,8 +6,12 @@
 import { browser } from '$app/environment';
 import type { YnabClient } from 'ynab-library';
 
-// Check if running in Tauri
-const isTauri = () => browser && typeof (window as { __TAURI__?: unknown }).__TAURI__ !== 'undefined';
+// Check if running in Tauri (v2 uses __TAURI_INTERNALS__)
+const isTauri = () => {
+  if (!browser) return false;
+  const win = window as { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
+  return '__TAURI__' in win || '__TAURI_INTERNALS__' in win;
+};
 
 export interface BudgetInfo {
   client: YnabClient;
