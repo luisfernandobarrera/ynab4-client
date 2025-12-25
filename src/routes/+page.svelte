@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { FolderOpen, Cloud, Loader2, Plus, HardDrive, RefreshCw, Settings, Globe, X } from 'lucide-svelte';
+  import { FolderOpen, Cloud, Loader2, Plus, HardDrive, RefreshCw, Settings, Languages, X } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { BudgetPicker, BudgetView, CreateBudgetDialog } from '$lib/components/budget';
   import { TransactionList } from '$lib/components/transactions';
@@ -171,7 +171,7 @@
           onclick={() => openModal('language')}
           title={$t('settings.language')}
         >
-          <Globe class="h-5 w-5" />
+          <Languages class="h-5 w-5" />
         </button>
         <button
           class="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-white/10"
@@ -403,7 +403,7 @@
     <div class="rounded-xl shadow-2xl w-full max-w-sm overflow-hidden pointer-events-auto" style="background: #25253a; border: 2px solid #404060;">
       <div class="flex items-center justify-between px-5 py-4 text-white" style="background: #2D4A6F;">
         <h2 class="text-lg font-heading font-bold flex items-center gap-2">
-          <Globe class="h-5 w-5" />
+          <Languages class="h-5 w-5" />
           {$t('settings.language')}
         </h2>
         <button
