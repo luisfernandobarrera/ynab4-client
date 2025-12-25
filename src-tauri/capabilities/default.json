@@ -9,6 +9,7 @@
     "core:event:allow-listen",
     "dialog:default",
     "fs:default",
+    "fs:allow-exists",
     "shell:default",
     "shell:allow-open",
     "http:default",
@@ -24,22 +25,19 @@
     {
       "identifier": "fs:allow-read-text-file",
       "allow": [
-        { "path": "$HOME/Dropbox/**" },
-        { "path": "$HOME/Documents/**" }
+        { "path": "$HOME/**" }
       ]
     },
     {
       "identifier": "fs:allow-read-dir",
       "allow": [
-        { "path": "$HOME/Dropbox/**" },
-        { "path": "$HOME/Documents/**" }
+        { "path": "$HOME/**" }
       ]
     },
     {
       "identifier": "fs:allow-stat",
       "allow": [
-        { "path": "$HOME/Dropbox/**" },
-        { "path": "$HOME/Documents/**" }
+        { "path": "$HOME/**" }
       ]
     },
     {

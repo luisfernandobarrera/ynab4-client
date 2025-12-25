@@ -53,8 +53,16 @@ export class TauriIO {
   }
 
   async readFile(filepath: string): Promise<string> {
-    const fs = await getTauriFS();
-    return fs.readTextFile(filepath);
+    console.log('[TauriIO] readFile:', filepath);
+    try {
+      const fs = await getTauriFS();
+      const content = await fs.readTextFile(filepath);
+      console.log('[TauriIO] readFile success, length:', content.length);
+      return content;
+    } catch (error) {
+      console.error('[TauriIO] readFile error:', filepath, error);
+      throw error;
+    }
   }
 
   async writeFile(filepath: string, data: string): Promise<void> {
@@ -66,8 +74,16 @@ export class TauriIO {
   }
 
   async exists(filepath: string): Promise<boolean> {
-    const fs = await getTauriFS();
-    return fs.exists(filepath);
+    console.log('[TauriIO] exists:', filepath);
+    try {
+      const fs = await getTauriFS();
+      const result = await fs.exists(filepath);
+      console.log('[TauriIO] exists result:', result);
+      return result;
+    } catch (error) {
+      console.error('[TauriIO] exists error:', filepath, error);
+      return false;
+    }
   }
 
   // Alias for BaseIO compatibility
@@ -76,9 +92,17 @@ export class TauriIO {
   }
 
   async readdir(dirpath: string): Promise<string[]> {
-    const fs = await getTauriFS();
-    const entries = await fs.readDir(dirpath);
-    return entries.map((e) => e.name);
+    console.log('[TauriIO] readdir:', dirpath);
+    try {
+      const fs = await getTauriFS();
+      const entries = await fs.readDir(dirpath);
+      const names = entries.map((e) => e.name);
+      console.log('[TauriIO] readdir result:', names.length, 'entries');
+      return names;
+    } catch (error) {
+      console.error('[TauriIO] readdir error:', dirpath, error);
+      throw error;
+    }
   }
 
   async ensureDirExists(dirpath: string): Promise<void> {
