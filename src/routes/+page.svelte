@@ -157,13 +157,14 @@
 
 {#if !$budgetInfo.client}
   <!-- Welcome screen -->
-  <div class="min-h-screen flex flex-col" style="background-color: hsl(var(--background));">
+  <div class="min-h-screen flex flex-col" style="background: #1a1a2e;">
     <!-- Top bar -->
-    <header class="flex items-center justify-between px-4 py-3 border-b border-border" style="background-color: hsl(var(--card));">
-      <h1 class="text-xl font-heading font-bold">YNAB4 Client</h1>
+    <header class="flex items-center justify-between px-4 py-3 border-b" style="background: #25253a; border-color: #404060;">
+      <h1 class="text-xl font-heading font-bold text-white">YNAB4 Client</h1>
       <div class="flex items-center gap-2">
         <select 
-          class="bg-card border border-border rounded-md px-2 py-1 text-sm cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+          class="rounded-md px-2 py-1 text-sm cursor-pointer focus:outline-none text-white"
+          style="background: #35354a; border: 1px solid #404060;"
           value={$locale}
           onchange={(e) => setLocale(e.currentTarget.value)}
         >
@@ -172,7 +173,7 @@
           {/each}
         </select>
         <button
-          class="p-2 rounded-lg hover:bg-accent transition-colors"
+          class="p-2 rounded-lg transition-colors text-gray-300 hover:text-white hover:bg-white/10"
           onclick={() => openModal('settings')}
           title={$t('settings.title')}
         >
@@ -182,31 +183,33 @@
     </header>
 
     <!-- Main content -->
-    <main class="flex-1 overflow-y-auto p-4" style="background-color: hsl(var(--background));">
+    <main class="flex-1 overflow-y-auto p-6" style="background: #1a1a2e;">
       <div class="max-w-lg mx-auto space-y-6">
         
         <!-- Dropbox Section -->
-        <section class="rounded-lg border border-border p-4" style="background-color: hsl(var(--card));">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <Cloud class="h-5 w-5 text-blue-500" />
-              <h2 class="font-semibold">Dropbox</h2>
+        <section class="rounded-xl p-5" style="background: #25253a; border: 1px solid #404060;">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="p-2 rounded-lg" style="background: rgba(59, 130, 246, 0.2);">
+                <Cloud class="h-5 w-5 text-blue-400" />
+              </div>
+              <h2 class="text-lg font-semibold text-white">Dropbox</h2>
             </div>
             {#if isDropboxConnected}
-              <div class="flex items-center gap-2">
-                <span class="flex items-center gap-1.5 text-xs text-green-600 bg-green-500/10 px-2 py-1 rounded-full">
-                  <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+              <div class="flex items-center gap-3">
+                <span class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full" style="background: rgba(34, 197, 94, 0.2); color: #4ade80;">
+                  <span class="h-2 w-2 rounded-full bg-green-400"></span>
                   {$t('settings.connected')}
                 </span>
                 <button 
-                  class="text-xs text-muted-foreground hover:text-foreground"
+                  class="text-xs text-gray-400 hover:text-white transition-colors"
                   onclick={disconnectDropbox}
                 >
                   {$t('dropbox.disconnect')}
                 </button>
               </div>
             {:else}
-              <Button size="sm" variant="outline" onclick={connectDropbox} disabled={loadingDropbox}>
+              <Button size="sm" onclick={connectDropbox} disabled={loadingDropbox} style="background: #3b82f6; color: white;">
                 {#if loadingDropbox}
                   <Loader2 class="mr-2 h-3 w-3 animate-spin" />
                 {/if}
@@ -217,23 +220,26 @@
           
           {#if isDropboxConnected}
             {#if loadingDropbox}
-              <div class="flex items-center justify-center py-6">
-                <Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
+              <div class="flex items-center justify-center py-8">
+                <Loader2 class="h-6 w-6 animate-spin text-blue-400" />
               </div>
             {:else if dropboxBudgets.length === 0}
-              <p class="text-sm text-muted-foreground py-4 text-center">
+              <p class="text-sm text-gray-400 py-6 text-center">
                 {$t('budget.noBudgetsFound')}
               </p>
             {:else}
-              <div class="space-y-1.5">
+              <div class="space-y-2">
                 {#each dropboxBudgets as budget}
                   <button
-                    class="group w-full flex items-center gap-3 p-3 rounded-md hover:bg-accent transition-colors text-left"
+                    class="group w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all text-white"
+                    style="background: #1a1a2e;"
+                    onmouseover={(e) => e.currentTarget.style.background = '#35354a'}
+                    onmouseout={(e) => e.currentTarget.style.background = '#1a1a2e'}
                     onclick={() => selectDropboxBudget(budget.path)}
                     disabled={loadingDropbox}
                   >
                     <span class="flex-1 font-medium truncate">{budget.name}</span>
-                    <svg class="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg class="h-5 w-5 text-gray-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
@@ -241,7 +247,7 @@
               </div>
             {/if}
           {:else}
-            <p class="text-sm text-muted-foreground">
+            <p class="text-sm text-gray-400">
               {$t('budget.dropboxDescription')}
             </p>
           {/if}
@@ -249,36 +255,41 @@
 
         <!-- Local Files Section (Desktop only) -->
         {#if isDesktop}
-          <section class="rounded-lg border border-border p-4" style="background-color: hsl(var(--card));">
-            <div class="flex items-center justify-between mb-3">
-              <div class="flex items-center gap-2">
-                <HardDrive class="h-5 w-5 text-[--color-terracota]" />
-                <h2 class="font-semibold">{$t('localFiles.title')}</h2>
+          <section class="rounded-xl p-5" style="background: #25253a; border: 1px solid #404060;">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-3">
+                <div class="p-2 rounded-lg" style="background: rgba(199, 91, 57, 0.2);">
+                  <HardDrive class="h-5 w-5" style="color: #E07A5F;" />
+                </div>
+                <h2 class="text-lg font-semibold text-white">{$t('localFiles.title')}</h2>
               </div>
-              <Button size="sm" variant="outline" onclick={openLocalBudget}>
+              <Button size="sm" variant="outline" onclick={openLocalBudget} style="border-color: #404060; color: white;">
                 <FolderOpen class="mr-2 h-3 w-3" />
                 {$t('common.browse')}
               </Button>
             </div>
             
             {#if loadingLocal}
-              <div class="flex items-center justify-center py-6">
-                <Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
+              <div class="flex items-center justify-center py-8">
+                <Loader2 class="h-6 w-6 animate-spin" style="color: #E07A5F;" />
               </div>
             {:else if localBudgets.length === 0}
-              <p class="text-sm text-muted-foreground py-4 text-center">
+              <p class="text-sm text-gray-400 py-6 text-center">
                 {$t('budget.noBudgetsFound')}
               </p>
             {:else}
-              <div class="space-y-1.5">
+              <div class="space-y-2">
                 {#each localBudgets as budget}
                   <button
-                    class="group w-full flex items-center gap-3 p-3 rounded-md hover:bg-accent transition-colors text-left"
+                    class="group w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all text-white"
+                    style="background: #1a1a2e;"
+                    onmouseover={(e) => e.currentTarget.style.background = '#35354a'}
+                    onmouseout={(e) => e.currentTarget.style.background = '#1a1a2e'}
                     onclick={() => selectLocalBudget(budget.path)}
                     disabled={loadingLocal}
                   >
                     <span class="flex-1 font-medium truncate">{budget.name}</span>
-                    <svg class="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg class="h-5 w-5 text-gray-500 group-hover:text-white transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                     </svg>
                   </button>
@@ -289,13 +300,14 @@
         {/if}
 
         <!-- Create New Budget -->
-        <Button 
-          class="w-full bg-[--color-terracota] hover:bg-[--color-terracota-dark] text-white"
+        <button 
+          class="w-full py-3 px-4 rounded-xl font-semibold text-white flex items-center justify-center gap-2 transition-all hover:opacity-90"
+          style="background: #C75B39;"
           onclick={createNewBudget}
         >
-          <Plus class="mr-2 h-4 w-4" />
+          <Plus class="h-5 w-5" />
           {$t('budget.createNew')}
-        </Button>
+        </button>
       </div>
     </main>
   </div>
@@ -350,10 +362,10 @@
 />
 
 {#if $activeModal === 'settings'}
-  <!-- Backdrop - completely opaque -->
+  <!-- Backdrop -->
   <div 
     class="fixed inset-0 z-[100]"
-    style="background-color: rgba(0, 0, 0, 0.9);"
+    style="background: rgba(0, 0, 0, 0.95);"
     onclick={() => {
       closeModal();
       if (isDesktop) loadLocalBudgetList();
@@ -362,8 +374,8 @@
   ></div>
   <!-- Dialog Window -->
   <div class="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
-    <div class="border-2 border-border rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden pointer-events-auto flex flex-col" style="background-color: hsl(var(--card));">
-      <div class="flex items-center justify-between px-5 py-4 text-white shrink-0" style="background-color: var(--color-sodalita);">
+    <div class="rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden pointer-events-auto flex flex-col" style="background: #25253a; border: 2px solid #404060;">
+      <div class="flex items-center justify-between px-5 py-4 text-white shrink-0" style="background: #2D4A6F;">
         <h2 class="text-lg font-heading font-bold">{$t('settings.title')}</h2>
         <button
           class="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
@@ -376,7 +388,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
       </div>
-      <div class="flex-1 overflow-y-auto" style="background-color: hsl(var(--background));">
+      <div class="flex-1 overflow-y-auto" style="background: #1a1a2e;">
         <SettingsView />
       </div>
     </div>

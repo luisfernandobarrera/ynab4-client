@@ -121,17 +121,17 @@
   }
 </script>
 
-<div class="p-6 space-y-6" style="background-color: hsl(var(--background));">
+<div class="p-6 space-y-6" style="background: #1a1a2e;">
   <!-- Language -->
-  <section class="space-y-3 p-4 rounded-lg border border-border" style="background-color: hsl(var(--card));">
+  <section class="space-y-3 p-4 rounded-xl" style="background: #25253a; border: 1px solid #404060;">
     <div class="flex items-center gap-2">
-      <Globe class="h-5 w-5 text-muted-foreground" />
-      <h2 class="font-semibold">{$t('settings.language')}</h2>
+      <Globe class="h-5 w-5 text-gray-400" />
+      <h2 class="font-semibold text-white">{$t('settings.language')}</h2>
     </div>
-    <p class="text-sm text-muted-foreground">{$t('settings.languageDescription')}</p>
+    <p class="text-sm text-gray-400">{$t('settings.languageDescription')}</p>
     <select 
-      class="w-full border border-border rounded-md px-3 py-2 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
-      style="background-color: hsl(var(--background));"
+      class="w-full rounded-lg px-3 py-2 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+      style="background: #1a1a2e; border: 1px solid #404060;"
       value={$locale}
       onchange={(e) => setLocale(e.currentTarget.value)}
     >
@@ -142,55 +142,63 @@
   </section>
 
   <!-- Dropbox -->
-  <section class="space-y-3 p-4 rounded-lg border border-border" style="background-color: hsl(var(--card));">
+  <section class="space-y-3 p-4 rounded-xl" style="background: #25253a; border: 1px solid #404060;">
     <div class="flex items-center gap-2">
-      <Cloud class="h-5 w-5 text-blue-500" />
-      <h2 class="font-semibold">Dropbox</h2>
+      <Cloud class="h-5 w-5 text-blue-400" />
+      <h2 class="font-semibold text-white">Dropbox</h2>
     </div>
-    <p class="text-sm text-muted-foreground">{$t('settings.dropboxDescription')}</p>
+    <p class="text-sm text-gray-400">{$t('settings.dropboxDescription')}</p>
     
     {#if isDropboxConnected}
-      <div class="flex items-center justify-between p-3 rounded-lg border border-green-500/30" style="background-color: hsl(var(--background));">
+      <div class="flex items-center justify-between p-3 rounded-lg" style="background: #1a1a2e; border: 1px solid rgba(34, 197, 94, 0.3);">
         <div class="flex items-center gap-2">
-          <span class="h-2 w-2 rounded-full bg-green-500"></span>
-          <span class="text-sm font-medium">{$t('settings.connected')}</span>
+          <span class="h-2 w-2 rounded-full bg-green-400"></span>
+          <span class="text-sm font-medium text-green-400">{$t('settings.connected')}</span>
         </div>
-        <Button variant="outline" size="sm" onclick={disconnectDropbox}>
+        <button 
+          onclick={disconnectDropbox}
+          class="px-3 py-1 text-sm rounded-lg text-gray-300 hover:text-white transition-colors"
+          style="border: 1px solid #404060;"
+        >
           {$t('settings.disconnect')}
-        </Button>
+        </button>
       </div>
     {:else}
-      <Button onclick={connectDropbox}>
-        <Cloud class="mr-2 h-4 w-4" />
+      <button 
+        onclick={connectDropbox}
+        class="px-4 py-2 rounded-lg font-medium text-white transition-all hover:opacity-90"
+        style="background: #3b82f6;"
+      >
+        <Cloud class="mr-2 h-4 w-4 inline" />
         {$t('settings.connectDropbox')}
-      </Button>
+      </button>
     {/if}
   </section>
 
   <!-- Search Folders (Desktop only) -->
   {#if isDesktop}
-    <section class="space-y-3 p-4 rounded-lg border border-border" style="background-color: hsl(var(--card));">
+    <section class="space-y-3 p-4 rounded-xl" style="background: #25253a; border: 1px solid #404060;">
       <div class="flex items-center gap-2">
-        <HardDrive class="h-5 w-5 text-[--color-terracota]" />
-        <h2 class="font-semibold">{$t('settings.searchFolders') || 'Carpetas de Búsqueda'}</h2>
+        <HardDrive class="h-5 w-5" style="color: #E07A5F;" />
+        <h2 class="font-semibold text-white">{$t('settings.searchFolders') || 'Carpetas de Búsqueda'}</h2>
       </div>
-      <p class="text-sm text-muted-foreground">
+      <p class="text-sm text-gray-400">
         {$t('settings.searchFoldersDescription') || 'Carpetas donde se buscarán presupuestos YNAB4'}
       </p>
 
       <!-- List of folders -->
       <div class="space-y-2">
         {#if searchFolders.length === 0}
-          <p class="text-sm text-muted-foreground italic">
+          <p class="text-sm text-gray-500 italic">
             {$t('settings.noSearchFolders') || 'No hay carpetas configuradas'}
           </p>
         {:else}
           {#each searchFolders as folder, i}
-            <div class="flex items-center gap-2 p-2 rounded-lg border border-border group" style="background-color: hsl(var(--background));">
-              <FolderOpen class="h-4 w-4 text-muted-foreground shrink-0" />
-              <span class="text-sm flex-1 truncate" title={folder}>{folder}</span>
+            <div class="flex items-center gap-2 p-3 rounded-lg group" style="background: #1a1a2e; border: 1px solid #404060;">
+              <FolderOpen class="h-4 w-4 text-gray-400 shrink-0" />
+              <span class="text-sm flex-1 truncate text-gray-300" title={folder}>{folder}</span>
               <button
-                class="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                class="p-1 rounded hover:bg-red-500/20 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
                 onclick={() => removeFolder(i)}
                 aria-label="Remove folder"
               >
@@ -202,58 +210,62 @@
       </div>
 
       <!-- Add folder button -->
-      <Button variant="outline" onclick={addFolder}>
-        <Plus class="mr-2 h-4 w-4" />
+      <button 
+        onclick={addFolder}
+        class="px-4 py-2 rounded-lg font-medium text-gray-300 hover:text-white transition-colors"
+        style="border: 1px solid #404060;"
+      >
+        <Plus class="mr-2 h-4 w-4 inline" />
         {$t('settings.addFolder') || 'Añadir Carpeta'}
-      </Button>
+      </button>
     </section>
   {/if}
 
   <!-- Device Info -->
-  <section class="space-y-3 p-4 rounded-lg border border-border" style="background-color: hsl(var(--card));">
+  <section class="space-y-3 p-4 rounded-xl" style="background: #25253a; border: 1px solid #404060;">
     <div class="flex items-center gap-2">
-      <Fingerprint class="h-5 w-5 text-purple-500" />
-      <h2 class="font-semibold">{$t('settings.device') || 'Dispositivo'}</h2>
+      <Fingerprint class="h-5 w-5 text-purple-400" />
+      <h2 class="font-semibold text-white">{$t('settings.device') || 'Dispositivo'}</h2>
     </div>
-    <p class="text-sm text-muted-foreground">
+    <p class="text-sm text-gray-400">
       {$t('settings.deviceDescription') || 'Identificador único de este dispositivo para sincronizar cambios'}
     </p>
     
-    <div class="space-y-3 p-3 rounded-lg border border-border" style="background-color: hsl(var(--background));">
+    <div class="space-y-3 p-3 rounded-lg" style="background: #1a1a2e; border: 1px solid #404060;">
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-xs text-muted-foreground uppercase tracking-wide">Device GUID</p>
-          <p class="font-mono text-xs select-all break-all">{deviceGUID || '—'}</p>
+          <p class="text-xs text-gray-500 uppercase tracking-wide">Device GUID</p>
+          <p class="font-mono text-xs select-all break-all text-gray-300">{deviceGUID || '—'}</p>
         </div>
         <button 
-          class="p-2 rounded-lg hover:bg-accent transition-colors shrink-0"
+          class="p-2 rounded-lg hover:bg-white/10 transition-colors shrink-0"
           onclick={copyDeviceGUID}
           aria-label="Copy"
         >
           {#if copied}
-            <Check class="h-4 w-4 text-green-500" />
+            <Check class="h-4 w-4 text-green-400" />
           {:else}
-            <Copy class="h-4 w-4 text-muted-foreground" />
+            <Copy class="h-4 w-4 text-gray-400" />
           {/if}
         </button>
       </div>
       <div>
-        <p class="text-xs text-muted-foreground uppercase tracking-wide">Short ID</p>
-        <p class="font-mono text-lg font-bold">{shortDeviceId || '—'}</p>
+        <p class="text-xs text-gray-500 uppercase tracking-wide">Short ID</p>
+        <p class="font-mono text-lg font-bold text-white">{shortDeviceId || '—'}</p>
       </div>
     </div>
   </section>
 
   <!-- About -->
-  <section class="space-y-3 p-4 rounded-lg border border-border" style="background-color: hsl(var(--card));">
-    <h2 class="font-semibold">{$t('settings.about')}</h2>
-    <p class="text-sm text-muted-foreground">
+  <section class="space-y-3 p-4 rounded-xl" style="background: #25253a; border: 1px solid #404060;">
+    <h2 class="font-semibold text-white">{$t('settings.about')}</h2>
+    <p class="text-sm text-gray-400">
       {$t('settings.aboutDescription')}
     </p>
-    <p class="text-xs text-muted-foreground">
+    <p class="text-xs text-gray-500">
       {$t('settings.disclaimer')}
     </p>
-    <p class="text-xs text-muted-foreground">
+    <p class="text-xs text-gray-500">
       {$t('settings.version')}: 0.1.0
     </p>
   </section>

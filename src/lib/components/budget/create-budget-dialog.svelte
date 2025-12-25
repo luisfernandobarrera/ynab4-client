@@ -172,19 +172,19 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-  <!-- Backdrop - completely opaque -->
+  <!-- Backdrop -->
   <div 
     class="fixed inset-0 z-[100]"
-    style="background-color: rgba(0, 0, 0, 0.9);"
+    style="background: rgba(0, 0, 0, 0.95);"
     onclick={onClose}
     role="presentation"
   ></div>
   
   <!-- Dialog Window -->
   <div class="fixed left-1/2 top-1/2 z-[101] -translate-x-1/2 -translate-y-1/2 w-full max-w-md px-4">
-    <div class="rounded-lg shadow-2xl border-2 border-border overflow-hidden" style="background-color: hsl(var(--card));">
+    <div class="rounded-xl shadow-2xl overflow-hidden" style="background: #25253a; border: 2px solid #404060;">
       <!-- Header -->
-      <div class="flex items-center justify-between px-5 py-4 text-white" style="background-color: var(--color-sodalita);">
+      <div class="flex items-center justify-between px-5 py-4 text-white" style="background: #2D4A6F;">
         <h2 class="text-lg font-heading font-bold">
           {$t('budget.createNew')}
         </h2>
@@ -198,59 +198,60 @@
       </div>
 
       <!-- Content -->
-      <div class="p-5 space-y-5" style="background-color: hsl(var(--card));">
+      <div class="p-5 space-y-5" style="background: #25253a;">
         <!-- Budget Name -->
         <div class="space-y-2">
-          <Label for="budget-name">{$t('budget.name')}</Label>
-          <Input
+          <label for="budget-name" class="text-sm font-medium text-gray-300">{$t('budget.name')}</label>
+          <input
             id="budget-name"
             bind:value={budgetName}
             placeholder="Mi Presupuesto"
             disabled={isCreating}
-            class="h-11"
+            class="w-full h-11 px-3 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            style="background: #1a1a2e; border: 1px solid #404060;"
           />
         </div>
 
         <!-- Save Location -->
         <div class="space-y-3">
-          <Label>{$t('budget.saveLocation')}</Label>
+          <label class="text-sm font-medium text-gray-300">{$t('budget.saveLocation')}</label>
           <div class="space-y-2">
             {#if isDesktop}
               <button
                 type="button"
-                class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all {saveLocation === 'local' ? 'border-[--color-terracota]' : 'border-border hover:border-[--color-terracota]/50'}"
-                style="background-color: hsl(var(--background));"
+                class="w-full flex items-center gap-3 p-4 rounded-lg transition-all text-white"
+                style="background: #1a1a2e; border: 2px solid {saveLocation === 'local' ? '#C75B39' : '#404060'};"
                 onclick={() => saveLocation = 'local'}
                 disabled={isCreating}
               >
-                <div class="p-2 rounded-lg" style="background-color: rgba(199, 91, 57, 0.15);">
-                  <HardDrive class="h-5 w-5 text-[--color-terracota]" />
+                <div class="p-2 rounded-lg" style="background: rgba(199, 91, 57, 0.2);">
+                  <HardDrive class="h-5 w-5" style="color: #E07A5F;" />
                 </div>
                 <div class="text-left">
                   <p class="font-medium">{$t('localFiles.title')}</p>
-                  <p class="text-xs text-muted-foreground">Guardar en disco local</p>
+                  <p class="text-xs text-gray-400">Guardar en disco local</p>
                 </div>
               </button>
             {/if}
             
             <button
               type="button"
-              class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all {saveLocation === 'dropbox' ? 'border-blue-500' : 'border-border hover:border-blue-500/50'} {!isDropboxConnected ? 'opacity-50' : ''}"
-              style="background-color: hsl(var(--background));"
+              class="w-full flex items-center gap-3 p-4 rounded-lg transition-all text-white {!isDropboxConnected ? 'opacity-50' : ''}"
+              style="background: #1a1a2e; border: 2px solid {saveLocation === 'dropbox' ? '#3b82f6' : '#404060'};"
               onclick={() => { if (isDropboxConnected) saveLocation = 'dropbox' }}
               disabled={isCreating || !isDropboxConnected}
             >
-              <div class="p-2 rounded-lg" style="background-color: rgba(45, 74, 111, 0.15);">
-                <Cloud class="h-5 w-5 text-blue-500" />
+              <div class="p-2 rounded-lg" style="background: rgba(59, 130, 246, 0.2);">
+                <Cloud class="h-5 w-5 text-blue-400" />
               </div>
               <div class="text-left flex-1">
                 <p class="font-medium">Dropbox</p>
-                <p class="text-xs text-muted-foreground">
+                <p class="text-xs text-gray-400">
                   {isDropboxConnected ? 'Sincronizar con Dropbox' : 'Conectar Dropbox primero'}
                 </p>
               </div>
               {#if !isDropboxConnected}
-                <span class="text-xs px-2 py-1 rounded text-muted-foreground" style="background-color: hsl(var(--muted));">
+                <span class="text-xs px-2 py-1 rounded text-gray-400" style="background: #35354a;">
                   No conectado
                 </span>
               {/if}
@@ -261,52 +262,57 @@
         <!-- Local Path (only for desktop when local selected) -->
         {#if isDesktop && saveLocation === 'local'}
           <div class="space-y-2">
-            <Label for="local-path">{$t('budget.folder')}</Label>
+            <label for="local-path" class="text-sm font-medium text-gray-300">{$t('budget.folder')}</label>
             <div class="flex gap-2">
-              <Input
+              <input
                 id="local-path"
                 bind:value={localPath}
                 placeholder="/path/to/YNAB"
                 disabled={isCreating}
-                class="flex-1 h-11 text-sm"
+                class="flex-1 h-11 px-3 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                style="background: #1a1a2e; border: 1px solid #404060;"
               />
-              <Button 
-                variant="outline" 
-                size="icon"
+              <button 
                 onclick={selectFolder}
                 disabled={isCreating}
-                class="h-11 w-11 shrink-0"
+                class="h-11 w-11 rounded-lg flex items-center justify-center text-white hover:bg-white/10 transition-colors"
+                style="border: 1px solid #404060;"
               >
                 <FolderOpen class="h-4 w-4" />
-              </Button>
+              </button>
             </div>
           </div>
         {/if}
 
         <!-- Error -->
         {#if error}
-          <div class="p-3 rounded-lg border border-red-500/30" style="background-color: rgba(220, 38, 38, 0.1);">
-            <p class="text-sm text-red-500">{error}</p>
+          <div class="p-3 rounded-lg" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3);">
+            <p class="text-sm text-red-400">{error}</p>
           </div>
         {/if}
       </div>
 
       <!-- Footer -->
-      <div class="flex justify-end gap-3 px-5 py-4 border-t border-border" style="background-color: hsl(var(--muted));">
-        <Button variant="outline" onclick={onClose} disabled={isCreating}>
+      <div class="flex justify-end gap-3 px-5 py-4" style="background: #1a1a2e; border-top: 1px solid #404060;">
+        <button 
+          onclick={onClose} 
+          disabled={isCreating}
+          class="px-4 py-2 rounded-lg font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+          style="border: 1px solid #404060;"
+        >
           {$t('common.cancel')}
-        </Button>
-        <Button 
+        </button>
+        <button 
           onclick={createBudget} 
           disabled={isCreating || !budgetName.trim()}
-          style="background-color: var(--color-terracota); color: white;"
-          class="hover:opacity-90"
+          class="px-4 py-2 rounded-lg font-medium text-white transition-all hover:opacity-90 disabled:opacity-50"
+          style="background: #C75B39;"
         >
           {#if isCreating}
-            <Loader2 class="mr-2 h-4 w-4 animate-spin" />
+            <Loader2 class="mr-2 h-4 w-4 animate-spin inline" />
           {/if}
           {$t('budget.create')}
-        </Button>
+        </button>
       </div>
     </div>
   </div>
