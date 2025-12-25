@@ -41,7 +41,7 @@
 >
   <!-- Flag indicator -->
   {#if transaction.flag}
-    <div class={cn('absolute left-0 top-0 h-full w-1 rounded-l-lg', flagColors[transaction.flag] || 'bg-gray-400')} />
+    <div class={cn('absolute left-0 top-0 h-full w-1 rounded-l-lg', flagColors[transaction.flag] || 'bg-gray-400')}></div>
   {/if}
 
   <!-- Top row: Payee and Amount -->

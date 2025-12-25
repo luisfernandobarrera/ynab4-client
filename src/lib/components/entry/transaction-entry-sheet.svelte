@@ -300,7 +300,8 @@
                 flag === flagColor.name ? 'ring-2 ring-offset-2 ring-offset-background' : 'opacity-50 hover:opacity-100'
               )}
               onclick={() => (flag = flag === flagColor.name ? null : flagColor.name)}
-            />
+              aria-label="Flag: {flagColor.name}"
+            ></button>
           {/each}
         </div>
       </div>

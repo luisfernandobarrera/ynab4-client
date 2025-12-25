@@ -201,12 +201,10 @@
           class="hidden"
           onchange={handleFileUpload}
         />
-        <Button variant="outline" class="w-full" asChild>
-          <span>
-            <Upload class="mr-2 h-4 w-4" />
-            {importFileName || 'Upload CSV or Import File'}
-          </span>
-        </Button>
+        <span class="flex items-center justify-center h-10 w-full rounded-md border border-input bg-background px-3 cursor-pointer hover:bg-accent hover:text-accent-foreground text-sm">
+          <Upload class="mr-2 h-4 w-4" />
+          {importFileName || 'Upload CSV or Import File'}
+        </span>
       </label>
 
       <select

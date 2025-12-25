@@ -208,8 +208,8 @@
         </div>
 
         <!-- Save Location -->
-        <div class="space-y-3">
-          <label class="text-sm font-medium text-[var(--foreground)]">{$t('budget.saveLocation')}</label>
+        <fieldset class="space-y-3">
+          <legend class="text-sm font-medium text-[var(--foreground)]">{$t('budget.saveLocation')}</legend>
           <div class="space-y-2">
             {#if isDesktop}
               <button
@@ -250,7 +250,7 @@
               {/if}
             </button>
           </div>
-        </div>
+        </fieldset>
 
         <!-- Local Path (only for desktop when local selected) -->
         {#if isDesktop && saveLocation === 'local'}

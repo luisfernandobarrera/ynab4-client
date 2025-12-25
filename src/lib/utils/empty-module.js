@@ -21,6 +21,7 @@ export const randomBytes = () => { throw new Error('crypto not available in brow
 export const createHash = () => { throw new Error('crypto not available in browser') }
 
 // util stub  
+/** @param {Function} fn */
 export const promisify = (fn) => fn
 
 // Default export

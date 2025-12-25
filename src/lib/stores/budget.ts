@@ -211,9 +211,10 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
   const currentMonth = get(selectedMonth);
 
   // Load accounts
-  const accountList = client.getAccounts() || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const accountList: any[] = client.getAccounts() || [];
   accounts.set(
-    accountList.map((acc: Record<string, unknown>) => ({
+    accountList.map((acc) => ({
       id: acc.entityId as string,
       entityId: acc.entityId as string,
       name: acc.accountName as string,
@@ -226,9 +227,10 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
   );
 
   // Load payees
-  const payeeList = client.getPayees() || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payeeList: any[] = client.getPayees() || [];
   payees.set(
-    payeeList.map((p: Record<string, unknown>) => ({
+    payeeList.map((p) => ({
       id: p.entityId as string,
       entityId: p.entityId as string,
       name: p.name as string,
@@ -236,18 +238,20 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
   );
 
   // Load transactions with payee/category names
-  const txList = client.getTransactions() || [];
-  const payeeMap = new Map(payeeList.map((p: Record<string, unknown>) => [p.entityId, p.name]));
-  const accountMap = new Map(accountList.map((a: Record<string, unknown>) => [a.entityId, a.accountName]));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const txList: any[] = client.getTransactions() || [];
+  const payeeMap = new Map(payeeList.map((p) => [p.entityId, p.name]));
+  const accountMap = new Map(accountList.map((a) => [a.entityId, a.accountName]));
 
   // Get category names
-  const categoryList = client.getCategories() || [];
-  const categoryMap = new Map(categoryList.map((c: Record<string, unknown>) => [c.entityId, c.name]));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const categoryList: any[] = client.getCategories() || [];
+  const categoryMap = new Map(categoryList.map((c) => [c.entityId, c.name]));
 
   transactions.set(
     txList
-      .filter((tx: Record<string, unknown>) => !tx.isTombstone)
-      .map((tx: Record<string, unknown>) => ({
+      .filter((tx) => !tx.isTombstone)
+      .map((tx) => ({
         id: tx.entityId as string,
         entityId: tx.entityId as string,
         date: tx.date as string,
@@ -267,10 +271,12 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
   );
 
   // Load categories with budget data
-  const masterCategoryList = client.getMasterCategories() || [];
-  const monthlyBudgets = client.getMonthlyBudgets?.(currentMonth) || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const masterCategoryList: any[] = client.getMasterCategories() || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const monthlyBudgets: any[] = (client as any).getMonthlyBudgets?.(currentMonth) || [];
   const budgetMap = new Map(
-    monthlyBudgets.map((b: Record<string, unknown>) => [b.categoryId, b])
+    monthlyBudgets.map((b) => [b.categoryId, b])
   );
 
   const masters: MasterCategory[] = [];
@@ -279,9 +285,10 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
     if (mc.isTombstone || mc.name === 'Hidden Categories') continue;
 
     const cats = categoryList
-      .filter((c: Record<string, unknown>) => c.masterCategoryId === mc.entityId && !c.isTombstone)
-      .map((c: Record<string, unknown>) => {
-        const budget = budgetMap.get(c.entityId) as Record<string, unknown> | undefined;
+      .filter((c) => c.masterCategoryId === mc.entityId && !c.isTombstone)
+      .map((c) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const budget = budgetMap.get(c.entityId) as any;
         return {
           entityId: c.entityId as string,
           name: c.name as string,
@@ -307,11 +314,12 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
   categories.set(masters.flatMap((m) => m.categories));
 
   // Load scheduled transactions
-  const scheduledList = client.getScheduledTransactions?.() || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scheduledList: any[] = client.getScheduledTransactions?.() || [];
   scheduledTransactions.set(
     scheduledList
-      .filter((st: Record<string, unknown>) => !st.isTombstone)
-      .map((st: Record<string, unknown>) => ({
+      .filter((st) => !st.isTombstone)
+      .map((st) => ({
         entityId: st.entityId as string,
         date: st.date as string,
         dateNext: st.date as string,

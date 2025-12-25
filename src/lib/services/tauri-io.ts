@@ -46,7 +46,7 @@ async function getTauriFS(): Promise<TauriFS> {
 }
 
 export class TauriIO {
-  private readOnly: boolean;
+  readOnly: boolean;
 
   constructor(readOnly = false) {
     this.readOnly = readOnly;
@@ -68,6 +68,11 @@ export class TauriIO {
   async exists(filepath: string): Promise<boolean> {
     const fs = await getTauriFS();
     return fs.exists(filepath);
+  }
+
+  // Alias for BaseIO compatibility
+  async fileExists(filepath: string): Promise<boolean> {
+    return this.exists(filepath);
   }
 
   async readdir(dirpath: string): Promise<string[]> {

@@ -20,12 +20,12 @@
     class: className,
   }: Props = $props();
 
-  const keys = [
+  const keys = $derived([
     ['1', '2', '3'],
     ['4', '5', '6'],
     ['7', '8', '9'],
     [allowDecimal ? '.' : '', '0', 'del'],
-  ];
+  ]);
 
   function handleKeyPress(key: string) {
     if (key === '') return;

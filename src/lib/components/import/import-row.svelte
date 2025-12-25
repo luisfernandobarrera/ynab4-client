@@ -18,7 +18,12 @@
   let { transaction, selected = false, onUpdate, onSelect, onMSI }: Props = $props();
 
   let editingPayee = $state(false);
-  let payeeSearch = $state(transaction.payeeName || transaction.description);
+  let payeeSearch = $state('');
+  
+  // Initialize payeeSearch when transaction changes
+  $effect(() => {
+    payeeSearch = transaction.payeeName || transaction.description;
+  });
 
   const filteredPayees = $derived(
     $payees

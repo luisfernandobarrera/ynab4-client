@@ -117,8 +117,8 @@
         <!-- MSI options -->
         <div class="space-y-4">
           <!-- Months selection -->
-          <div>
-            <label class="text-sm font-medium mb-2 block">Número de meses</label>
+          <fieldset>
+            <legend class="text-sm font-medium mb-2 block">Número de meses</legend>
             <div class="grid grid-cols-3 gap-2">
               {#each MSI_MONTH_OPTIONS as option}
                 <button
@@ -135,23 +135,24 @@
                 </button>
               {/each}
             </div>
-          </div>
+          </fieldset>
 
           <!-- Start date -->
           <div>
-            <label class="text-sm font-medium mb-2 block">
+            <label for="msi-start-date" class="text-sm font-medium mb-2 block">
               <Calendar class="h-4 w-4 inline mr-1" />
               Fecha primer pago
             </label>
-            <Input type="date" bind:value={startDate} />
+            <Input id="msi-start-date" type="date" bind:value={startDate} />
           </div>
 
           <!-- Counter category (optional) -->
           <div>
-            <label class="text-sm font-medium mb-2 block">
+            <label for="msi-counter-category" class="text-sm font-medium mb-2 block">
               Categoría para contrapartida (opcional)
             </label>
             <select
+              id="msi-counter-category"
               class="w-full h-10 rounded-md border border-input bg-background px-3"
               bind:value={counterCategoryId}
             >
@@ -167,8 +168,8 @@
         </div>
 
         <!-- Preview -->
-        {#if preview()}
-          {@const result = preview()}
+        {@const result = preview()}
+        {#if result}
           {#if 'error' in result}
             <div class="rounded-lg bg-destructive/10 border border-destructive p-4 text-sm text-destructive">
               {result.error}

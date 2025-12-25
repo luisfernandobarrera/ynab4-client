@@ -158,8 +158,8 @@
   {#if showOptions}
     <div class="ap-options">
       <div class="ap-option-row">
-        <label>{$t('accounts.groupBy')}:</label>
-        <select bind:value={groupBy}>
+        <label for="ap-group-by">{$t('accounts.groupBy')}:</label>
+        <select id="ap-group-by" bind:value={groupBy}>
           <option value="budget">{$t('accounts.byBudget')}</option>
           <option value="type">{$t('accounts.byType')}</option>
         </select>
@@ -183,8 +183,7 @@
       <div class="ap-group">
         <button class="ap-group-header" onclick={() => toggleGroup(key)}>
           <ChevronRight 
-            class="h-3 w-3 ap-chevron" 
-            class:expanded={expandedGroups.has(key)}
+            class="h-3 w-3 ap-chevron {expandedGroups.has(key) ? 'expanded' : ''}"
           />
           <span class="ap-group-name">{group.label}</span>
           <span class="ap-group-total {getBalanceClass(group.total)}">
