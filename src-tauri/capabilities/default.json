@@ -7,12 +7,12 @@
   ],
   "permissions": [
     "core:default",
+    "core:path:default",
     "shell:allow-open",
-    "dialog:allow-open",
-    "dialog:allow-save",
-    "dialog:allow-message",
+    "dialog:default",
+    "fs:default",
     {
-      "identifier": "fs:allow-read-file",
+      "identifier": "fs:allow-read-text-file",
       "allow": [
         { "path": "$HOME/Dropbox/**" },
         { "path": "$HOME/Documents/**" },
@@ -20,7 +20,7 @@
       ]
     },
     {
-      "identifier": "fs:allow-write-file",
+      "identifier": "fs:allow-write-text-file",
       "allow": [
         { "path": "$HOME/Dropbox/**" },
         { "path": "$HOME/Documents/**" },
@@ -44,7 +44,7 @@
       ]
     },
     {
-      "identifier": "fs:allow-create-dir",
+      "identifier": "fs:allow-mkdir",
       "allow": [
         { "path": "$HOME/Dropbox/**" },
         { "path": "$HOME/Documents/**" },
