@@ -11,7 +11,7 @@ import { browser } from '$app/environment';
 
 // Get app key from environment variable
 const DROPBOX_CLIENT_ID = import.meta.env.PUBLIC_DROPBOX_APP_KEY || '';
-const REDIRECT_URI = browser ? window.location.origin : '';
+const REDIRECT_URI = browser ? `${window.location.origin}/callback` : '';
 
 // Check if running in Tauri
 const IS_TAURI = browser && typeof (window as { __TAURI__?: unknown }).__TAURI__ !== 'undefined';
