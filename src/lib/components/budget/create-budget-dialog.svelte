@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { onMount } from 'svelte';
   import { X, Loader2, Cloud, HardDrive, FolderOpen } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
-  import { t, locale, supportedLocales, localeNames } from '$lib/i18n';
-  import { isTauri, openBudgetFolderDialog, getDropboxPath } from '$lib/services';
+  import { t, locale } from '$lib/i18n';
+  import { isTauri, getDropboxPath } from '$lib/services';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
 
   interface Props {
@@ -17,19 +17,34 @@
   let { open = false, onClose, onCreated }: Props = $props();
 
   // Form state
-  let budgetName = $state('My Budget');
+  let budgetName = $state('');
   let saveLocation = $state<'local' | 'dropbox'>('local');
   let localPath = $state('');
   let isCreating = $state(false);
   let error = $state<string | null>(null);
-  
-  const isDesktop = $derived(isTauri());
-  const isDropboxConnected = $derived(DropboxAuth.isAuthenticated());
+  let isDesktop = $state(false);
+  let isDropboxConnected = $state(false);
+
+  // Check platform on mount
+  onMount(() => {
+    isDesktop = isTauri();
+    isDropboxConnected = DropboxAuth.isAuthenticated();
+  });
 
   // Set default path when opened
   $effect(() => {
-    if (open && isDesktop) {
-      loadDefaultPath();
+    if (open) {
+      // Reset form
+      budgetName = '';
+      error = null;
+      isDropboxConnected = DropboxAuth.isAuthenticated();
+      
+      if (isDesktop) {
+        loadDefaultPath();
+      } else {
+        // Browser only: force Dropbox if connected
+        saveLocation = isDropboxConnected ? 'dropbox' : 'local';
+      }
     }
   });
 
@@ -38,12 +53,15 @@
       const dropboxPath = await getDropboxPath();
       if (dropboxPath) {
         localPath = `${dropboxPath}/YNAB`;
-        saveLocation = 'dropbox';
       } else {
         // Fallback to Documents
-        const { documentDir } = await import('@tauri-apps/api/path');
-        const docs = await documentDir();
-        localPath = `${docs}/YNAB`;
+        try {
+          const { documentDir } = await import('@tauri-apps/api/path');
+          const docs = await documentDir();
+          localPath = `${docs}YNAB`;
+        } catch {
+          localPath = '';
+        }
       }
     } catch {
       localPath = '';
@@ -56,7 +74,7 @@
       const selected = await openDialog({
         directory: true,
         multiple: false,
-        title: 'Seleccionar carpeta para guardar el presupuesto',
+        title: $t('budget.selectFolderTitle') || 'Select folder to save budget',
       });
       if (selected) {
         localPath = selected as string;
@@ -68,7 +86,7 @@
 
   async function createBudget() {
     if (!budgetName.trim()) {
-      error = 'Budget name is required';
+      error = $t('budget.nameRequired') || 'Budget name is required';
       return;
     }
 
@@ -83,7 +101,7 @@
       let basePath: string;
       if (saveLocation === 'local' && isDesktop) {
         if (!localPath) {
-          error = 'Please select a folder';
+          error = $t('budget.folderRequired') || 'Please select a folder';
           isCreating = false;
           return;
         }
@@ -91,7 +109,7 @@
       } else if (saveLocation === 'dropbox' && isDropboxConnected) {
         basePath = '/YNAB';
       } else {
-        error = 'Please select a valid save location';
+        error = $t('budget.selectLocationError') || 'Please select a valid save location';
         isCreating = false;
         return;
       }
@@ -138,7 +156,7 @@
       onClose?.();
     } catch (e) {
       console.error('[CreateBudget] Error:', e);
-      error = e instanceof Error ? e.message : 'Failed to create budget';
+      error = e instanceof Error ? e.message : $t('budget.createError') || 'Failed to create budget';
     } finally {
       isCreating = false;
     }
@@ -162,15 +180,15 @@
   ></div>
   
   <!-- Dialog -->
-  <div class="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-md">
-    <div class="bg-card rounded-lg shadow-xl border border-border">
+  <div class="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-md px-4">
+    <div class="bg-card rounded-xl shadow-2xl border border-border">
       <!-- Header -->
-      <div class="flex items-center justify-between p-4 border-b border-border">
-        <h2 class="text-lg font-heading font-semibold">
-          {$t('budget.createNew') || 'Create New Budget'}
+      <div class="flex items-center justify-between p-5 border-b border-border">
+        <h2 class="text-xl font-heading font-bold">
+          {$t('budget.createNew')}
         </h2>
         <button 
-          class="p-1 rounded-md hover:bg-accent transition-colors"
+          class="p-1.5 rounded-lg hover:bg-accent transition-colors"
           onclick={onClose}
           aria-label="Close"
         >
@@ -179,67 +197,86 @@
       </div>
 
       <!-- Content -->
-      <div class="p-4 space-y-4">
+      <div class="p-5 space-y-5">
         <!-- Budget Name -->
         <div class="space-y-2">
-          <Label for="budget-name">{$t('budget.name') || 'Budget Name'}</Label>
+          <Label for="budget-name">{$t('budget.name')}</Label>
           <Input
             id="budget-name"
             bind:value={budgetName}
-            placeholder="My Budget"
+            placeholder={$t('budget.namePlaceholder') || 'Mi Presupuesto'}
             disabled={isCreating}
+            class="h-11"
           />
         </div>
 
         <!-- Save Location -->
-        <div class="space-y-2">
-          <Label>{$t('budget.saveLocation') || 'Save Location'}</Label>
-          <div class="grid grid-cols-2 gap-2">
+        <div class="space-y-3">
+          <Label>{$t('budget.saveLocation')}</Label>
+          <div class="space-y-2">
             {#if isDesktop}
               <button
                 type="button"
-                class="flex items-center gap-2 p-3 rounded-lg border transition-colors {saveLocation === 'local' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}"
+                class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all {saveLocation === 'local' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30 hover:bg-accent/50'}"
                 onclick={() => saveLocation = 'local'}
                 disabled={isCreating}
               >
-                <HardDrive class="h-5 w-5 text-orange-500" />
-                <span class="text-sm font-medium">Local</span>
+                <div class="p-2 rounded-lg bg-orange-500/10">
+                  <HardDrive class="h-5 w-5 text-orange-500" />
+                </div>
+                <div class="text-left">
+                  <p class="font-medium">{$t('localFiles.title')}</p>
+                  <p class="text-xs text-muted-foreground">{$t('budget.saveLocalDescription') || 'Guardar en disco local'}</p>
+                </div>
               </button>
             {/if}
+            
             <button
               type="button"
-              class="flex items-center gap-2 p-3 rounded-lg border transition-colors {saveLocation === 'dropbox' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'} {!isDropboxConnected ? 'opacity-50 cursor-not-allowed' : ''}"
+              class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all {saveLocation === 'dropbox' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30 hover:bg-accent/50'} {!isDropboxConnected ? 'opacity-50' : ''}"
               onclick={() => { if (isDropboxConnected) saveLocation = 'dropbox' }}
               disabled={isCreating || !isDropboxConnected}
             >
-              <Cloud class="h-5 w-5 text-blue-500" />
-              <span class="text-sm font-medium">Dropbox</span>
+              <div class="p-2 rounded-lg bg-blue-500/10">
+                <Cloud class="h-5 w-5 text-blue-500" />
+              </div>
+              <div class="text-left flex-1">
+                <p class="font-medium">Dropbox</p>
+                <p class="text-xs text-muted-foreground">
+                  {#if isDropboxConnected}
+                    {$t('budget.saveDropboxDescription') || 'Sincronizar con Dropbox'}
+                  {:else}
+                    {$t('dropbox.connectToSave')}
+                  {/if}
+                </p>
+              </div>
+              {#if !isDropboxConnected}
+                <span class="text-xs px-2 py-1 rounded bg-muted text-muted-foreground">
+                  {$t('settings.notConnected') || 'No conectado'}
+                </span>
+              {/if}
             </button>
           </div>
-          {#if !isDropboxConnected}
-            <p class="text-xs text-muted-foreground">
-              {$t('dropbox.connectToSave') || 'Connect Dropbox to save budgets there'}
-            </p>
-          {/if}
         </div>
 
-        <!-- Local Path (only for desktop) -->
+        <!-- Local Path (only for desktop when local selected) -->
         {#if isDesktop && saveLocation === 'local'}
           <div class="space-y-2">
-            <Label for="local-path">{$t('budget.folder') || 'Folder'}</Label>
+            <Label for="local-path">{$t('budget.folder')}</Label>
             <div class="flex gap-2">
               <Input
                 id="local-path"
                 bind:value={localPath}
                 placeholder="/path/to/YNAB"
                 disabled={isCreating}
-                class="flex-1"
+                class="flex-1 h-11 text-sm"
               />
               <Button 
                 variant="outline" 
                 size="icon"
                 onclick={selectFolder}
                 disabled={isCreating}
+                class="h-11 w-11 shrink-0"
               >
                 <FolderOpen class="h-4 w-4" />
               </Button>
@@ -249,23 +286,24 @@
 
         <!-- Error -->
         {#if error}
-          <p class="text-sm text-destructive">{error}</p>
+          <div class="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+            <p class="text-sm text-destructive">{error}</p>
+          </div>
         {/if}
       </div>
 
       <!-- Footer -->
-      <div class="flex justify-end gap-2 p-4 border-t border-border">
+      <div class="flex justify-end gap-3 p-5 border-t border-border bg-muted/30 rounded-b-xl">
         <Button variant="ghost" onclick={onClose} disabled={isCreating}>
           {$t('common.cancel')}
         </Button>
-        <Button onclick={createBudget} disabled={isCreating}>
+        <Button onclick={createBudget} disabled={isCreating || !budgetName.trim()}>
           {#if isCreating}
             <Loader2 class="mr-2 h-4 w-4 animate-spin" />
           {/if}
-          {$t('budget.create') || 'Create'}
+          {$t('budget.create')}
         </Button>
       </div>
     </div>
   </div>
 {/if}
-
