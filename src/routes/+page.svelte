@@ -29,6 +29,7 @@
   let loadingBudgetList = $state(false);
   let dropboxError = $state<string | null>(null);
   let budgetFilter = $state<'all' | 'dropbox' | 'local'>('all');
+  let loadingBudgetPath = $state<string | null>(null); // Track which budget is loading
 
   // Check Tauri
   const checkTauri = () => {
@@ -108,18 +109,21 @@
   async function selectDropboxBudget(path: string) {
     if (!accessToken) return;
     loadingDropbox = true;
+    loadingBudgetPath = path;
     try {
       await loadFromDropbox(accessToken, path);
     } catch (error) {
       console.error('Error loading budget:', error);
     } finally {
       loadingDropbox = false;
+      loadingBudgetPath = null;
     }
   }
 
   async function selectLocalBudget(path: string) {
     console.log('[Page] Selecting local budget:', path);
     loadingLocal = true;
+    loadingBudgetPath = path;
     try {
       await loadFromLocal(path);
       console.log('[Page] Budget loaded successfully');
@@ -128,6 +132,7 @@
       alert(`Error loading budget: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       loadingLocal = false;
+      loadingBudgetPath = null;
     }
   }
 
@@ -280,18 +285,20 @@
         {:else}
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {#each filteredBudgets as budget}
+              {@const isLoadingThis = loadingBudgetPath === budget.path}
               <button
-                class="group p-4 rounded-xl text-left transition-all hover:scale-[1.02] bg-[var(--card)] border border-[var(--border)] hover:border-[var(--primary)] disabled:opacity-50 disabled:cursor-wait"
+                class="group p-4 rounded-xl text-left transition-all hover:scale-[1.02] bg-[var(--card)] border border-[var(--border)] hover:border-[var(--primary)] disabled:opacity-50 disabled:cursor-wait relative overflow-hidden"
                 onclick={() => budget.source === 'dropbox' ? selectDropboxBudget(budget.path) : selectLocalBudget(budget.path)}
-                disabled={loadingLocal || loadingDropbox}
+                disabled={loadingBudgetPath !== null}
               >
+                {#if isLoadingThis}
+                  <div class="absolute inset-0 bg-[var(--card)]/90 flex items-center justify-center z-10">
+                    <Loader2 class="h-6 w-6 animate-spin text-[var(--primary)]" />
+                  </div>
+                {/if}
                 <div class="flex items-start justify-between mb-3">
                   <h3 class="font-semibold text-[var(--foreground)] truncate pr-2">{budget.name}</h3>
-                  {#if loadingLocal && budget.source === 'local'}
-                    <Loader2 class="h-4 w-4 animate-spin text-[var(--primary)]" />
-                  {:else if loadingDropbox && budget.source === 'dropbox'}
-                    <Loader2 class="h-4 w-4 animate-spin text-blue-500" />
-                  {:else if budget.source === 'dropbox'}
+                  {#if budget.source === 'dropbox'}
                     <Cloud class="h-4 w-4 text-blue-500 shrink-0" />
                   {:else}
                     <HardDrive class="h-4 w-4 shrink-0 text-[var(--primary)]" />
@@ -306,6 +313,19 @@
         {/if}
       </div>
     </main>
+    
+    <!-- Loading overlay when opening a budget -->
+    {#if loadingBudgetPath}
+      <div class="fixed inset-0 bg-[var(--background)]/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="flex flex-col items-center gap-4 p-8 rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-2xl">
+          <Loader2 class="h-12 w-12 animate-spin text-[var(--primary)]" />
+          <p class="text-lg font-medium text-[var(--foreground)]">{$t('budget.loading')}</p>
+          <p class="text-sm text-[var(--muted-foreground)] max-w-xs text-center truncate">
+            {loadingBudgetPath.split('/').pop() || loadingBudgetPath}
+          </p>
+        </div>
+      </div>
+    {/if}
   </div>
 {:else}
   <!-- Budget loaded - content only (layout handles sidebar) -->
