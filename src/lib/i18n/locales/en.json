@@ -7,7 +7,8 @@
     "connect": "Connect Dropbox",
     "disconnect": "Disconnect Dropbox",
     "selectBudget": "Select Budget from Dropbox",
-    "connected": "Connected"
+    "connected": "Connected",
+    "connectToSave": "Connect Dropbox to save budgets there"
   },
   "localFiles": {
     "title": "Local Budgets",
@@ -59,6 +60,11 @@
     "dropboxBudgets": "View Budgets",
     "localBudgets": "Local Budgets",
     "noBudgetsFound": "No budgets found",
+    "createNew": "Create New Budget",
+    "create": "Create",
+    "name": "Budget Name",
+    "saveLocation": "Save Location",
+    "folder": "Folder",
     "dragDropHint": "Or drag & drop a .ynab4 folder here",
     "refreshBudget": "Refresh budget",
     "dropboxDescription": "Access your cloud-synced budgets",

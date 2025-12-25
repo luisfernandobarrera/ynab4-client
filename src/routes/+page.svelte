@@ -3,7 +3,7 @@
   import { browser } from '$app/environment';
   import { FolderOpen, Cloud, Loader2, Plus, HardDrive, RefreshCw } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
-  import { BudgetPicker, BudgetView } from '$lib/components/budget';
+  import { BudgetPicker, BudgetView, CreateBudgetDialog } from '$lib/components/budget';
   import { TransactionList } from '$lib/components/transactions';
   import { TransactionEntrySheet } from '$lib/components/entry';
   import { ScheduledList } from '$lib/components/scheduled';
@@ -340,19 +340,19 @@
   </div>
 {/if}
 
-{#if $activeModal === 'create-budget'}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-    <div class="bg-card rounded-lg p-6 max-w-md w-full">
-      <h2 class="text-xl font-heading font-bold mb-4">Create New Budget</h2>
-      <p class="text-muted-foreground mb-4">
-        Budget creation is coming soon. For now, you can create a budget in YNAB4 desktop app.
-      </p>
-      <Button onclick={closeModal} class="w-full">
-        {$t('common.close')}
-      </Button>
-    </div>
-  </div>
-{/if}
+<CreateBudgetDialog
+  open={$activeModal === 'create-budget'}
+  onClose={closeModal}
+  onCreated={async (path) => {
+    closeModal();
+    // Load the newly created budget
+    if (accessToken && path.startsWith('/')) {
+      await loadFromDropbox(accessToken, path);
+    } else {
+      await loadFromLocal(path);
+    }
+  }}
+/>
 
 <!-- Transaction Entry Sheet -->
 <TransactionEntrySheet

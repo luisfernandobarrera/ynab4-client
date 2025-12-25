@@ -7,7 +7,8 @@
     "connect": "Conectar Dropbox",
     "disconnect": "Desconectar Dropbox",
     "selectBudget": "Seleccionar Presupuesto de Dropbox",
-    "connected": "Conectado"
+    "connected": "Conectado",
+    "connectToSave": "Conecta Dropbox para guardar presupuestos ahí"
   },
   "localFiles": {
     "title": "Presupuestos Locales",
@@ -59,6 +60,11 @@
     "dropboxBudgets": "Ver Presupuestos",
     "localBudgets": "Presupuestos Locales",
     "noBudgetsFound": "No se encontraron presupuestos",
+    "createNew": "Crear Nuevo Presupuesto",
+    "create": "Crear",
+    "name": "Nombre del Presupuesto",
+    "saveLocation": "Ubicación",
+    "folder": "Carpeta",
     "dragDropHint": "O arrastra una carpeta .ynab4 aquí",
     "refreshBudget": "Actualizar presupuesto",
     "dropboxDescription": "Accede a tus presupuestos sincronizados en la nube",
