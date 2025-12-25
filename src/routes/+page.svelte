@@ -6,6 +6,7 @@
   import { BudgetPicker, BudgetView } from '$lib/components/budget';
   import { TransactionList } from '$lib/components/transactions';
   import { TransactionEntrySheet } from '$lib/components/entry';
+  import { ScheduledList } from '$lib/components/scheduled';
   import { budgetInfo, currentView, isLoading } from '$lib/stores/budget';
   import { activeModal, openModal, closeModal, modalData } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
@@ -179,10 +180,7 @@
           onEditTransaction={(id) => console.log('Edit:', id)}
         />
       {:else if $currentView === 'scheduled'}
-        <div class="container mx-auto p-6">
-          <h2 class="text-2xl font-heading font-bold">Scheduled Transactions</h2>
-          <p class="text-muted-foreground mt-2">Coming soon...</p>
-        </div>
+        <ScheduledList />
       {:else if $currentView === 'reports'}
         <div class="container mx-auto p-6">
           <h2 class="text-2xl font-heading font-bold">Reports</h2>
