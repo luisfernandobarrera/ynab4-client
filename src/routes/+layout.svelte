@@ -6,6 +6,9 @@
 	import { budgetInfo } from '$lib/stores/budget';
 
 	let { children } = $props();
+	
+	// Only show full app chrome when a budget is loaded
+	const hasBudget = $derived(!!$budgetInfo.client);
 </script>
 
 <svelte:head>
@@ -15,26 +18,26 @@
 </svelte:head>
 
 <div class="min-h-screen bg-background text-foreground dark">
-	<div class="flex h-screen">
-		<!-- Sidebar (drawer on mobile) -->
-		<Sidebar />
-
-		<!-- Main content area -->
-		<div class="flex flex-1 flex-col overflow-hidden">
-			<!-- Mobile header -->
-			{#if $isMobile}
-				<MobileHeader />
-			{/if}
-
-			<!-- Page content -->
-			<main class="flex-1 overflow-y-auto pb-16 md:pb-0">
-				{@render children()}
-			</main>
-
-			<!-- Mobile tab bar -->
-			{#if $isMobile}
-				<MobileTabBar />
-			{/if}
+	{#if hasBudget}
+		<!-- Full app with sidebar when budget is loaded -->
+		<div class="flex h-screen">
+			<Sidebar />
+			<div class="flex flex-1 flex-col overflow-hidden">
+				{#if $isMobile}
+					<MobileHeader />
+				{/if}
+				<main class="flex-1 overflow-y-auto pb-16 md:pb-0">
+					{@render children()}
+				</main>
+				{#if $isMobile}
+					<MobileTabBar />
+				{/if}
+			</div>
 		</div>
-	</div>
+	{:else}
+		<!-- Clean welcome screen without app chrome -->
+		<main class="h-screen overflow-y-auto">
+			{@render children()}
+		</main>
+	{/if}
 </div>

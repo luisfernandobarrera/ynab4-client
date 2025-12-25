@@ -1,28 +1,32 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { FolderOpen, Cloud, HardDrive, Loader2 } from 'lucide-svelte';
+  import { browser } from '$app/environment';
+  import { FolderOpen, Cloud, Loader2 } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
-  import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card';
   import { BudgetPicker, BudgetView } from '$lib/components/budget';
   import { TransactionList } from '$lib/components/transactions';
   import { TransactionEntrySheet } from '$lib/components/entry';
   import { ScheduledList } from '$lib/components/scheduled';
   import { ReportsView } from '$lib/components/reports';
   import { budgetInfo, currentView, isLoading, loadFromLocal } from '$lib/stores/budget';
-  import { activeModal, openModal, closeModal, modalData } from '$lib/stores/ui';
+  import { activeModal, openModal, closeModal } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
-  import { isTauri, openBudgetFolderDialog } from '$lib/services';
-  import { t, locale, locales, setLocale } from '$lib/i18n';
+  import { openBudgetFolderDialog } from '$lib/services';
+  import { t, locale, supportedLocales, setLocale, localeNames } from '$lib/i18n';
 
   let isDropboxConnected = $state(false);
   let accessToken = $state<string | null>(null);
   let showTransactionEntry = $state(false);
   let isDesktop = $state(false);
   let loadingLocal = $state(false);
+  let loadingDropbox = $state(false);
 
   onMount(async () => {
     // Check if running in Tauri (desktop)
-    isDesktop = isTauri();
+    if (browser) {
+      isDesktop = typeof (window as { __TAURI__?: unknown }).__TAURI__ !== 'undefined';
+      console.log('[Page] isDesktop:', isDesktop);
+    }
     
     // Check Dropbox connection
     isDropboxConnected = DropboxAuth.isAuthenticated();
@@ -38,13 +42,12 @@
   });
 
   async function connectDropbox() {
-    await DropboxAuth.authorize();
-  }
-
-  function disconnectDropbox() {
-    DropboxAuth.signOut();
-    isDropboxConnected = false;
-    accessToken = null;
+    loadingDropbox = true;
+    try {
+      await DropboxAuth.authorize();
+    } finally {
+      loadingDropbox = false;
+    }
   }
 
   function openBudgetPicker() {
@@ -73,177 +76,106 @@
 
   function handleSaveTransaction(data: unknown) {
     console.log('Save transaction:', data);
-    // TODO: Implement save
     showTransactionEntry = false;
   }
 </script>
 
-<div class="h-full">
-  {#if !$budgetInfo.client}
-    <!-- No budget loaded - show welcome screen -->
-    <div class="container mx-auto p-6 max-w-4xl">
-      <div class="space-y-8">
-        <div class="text-center space-y-4">
-          <h1 class="text-4xl font-heading font-bold">Welcome to YNAB4 Client</h1>
-          <p class="text-lg text-muted-foreground">
-            A modern client for your YNAB4 budgets
-          </p>
-        </div>
+{#if !$budgetInfo.client}
+  <!-- Welcome screen - clean and focused -->
+  <div class="flex min-h-screen flex-col items-center justify-center p-6 bg-gradient-to-b from-background to-background/95">
+    <div class="w-full max-w-md space-y-8">
+      <!-- Logo/Title -->
+      <div class="text-center space-y-2">
+        <h1 class="text-3xl font-heading font-bold tracking-tight">YNAB4</h1>
+        <p class="text-muted-foreground">{$t('welcome.subtitle')}</p>
+      </div>
 
-        <div class="grid gap-6 md:grid-cols-2">
-          <!-- Dropbox -->
-          <Card>
-            <CardHeader>
-              <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-blue-500/10 p-2">
-                  <Cloud class="h-6 w-6 text-blue-500" />
-                </div>
-                <div>
-                  <CardTitle>Dropbox</CardTitle>
-                  <CardDescription>Sync budgets from Dropbox</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent class="space-y-4">
-              {#if isDropboxConnected}
-                <div class="flex items-center gap-2 text-sm text-ynab-green">
-                  <span class="h-2 w-2 rounded-full bg-ynab-green"></span>
-                  Connected
-                </div>
-                <div class="flex gap-2">
-                  <Button class="flex-1" onclick={openBudgetPicker}>
-                    <FolderOpen class="mr-2 h-4 w-4" />
-                    Select Budget
-                  </Button>
-                  <Button variant="outline" onclick={disconnectDropbox}>
-                    Disconnect
-                  </Button>
-                </div>
-              {:else}
-                <p class="text-sm text-muted-foreground">
-                  Connect to Dropbox to access your YNAB4 budgets synced in the cloud.
-                </p>
-                <Button class="w-full" onclick={connectDropbox}>
-                  <Cloud class="mr-2 h-4 w-4" />
-                  Connect Dropbox
-                </Button>
-              {/if}
-            </CardContent>
-          </Card>
-
-          <!-- Local Files -->
-          <Card>
-            <CardHeader>
-              <div class="flex items-center gap-3">
-                <div class="rounded-lg bg-orange-500/10 p-2">
-                  <HardDrive class="h-6 w-6 text-orange-500" />
-                </div>
-                <div>
-                  <CardTitle>{$t('localFiles.title')}</CardTitle>
-                  <CardDescription>{$t('localFiles.subtitle')}</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent class="space-y-4">
-              <p class="text-sm text-muted-foreground">
-                {$t('localFiles.description')}
-              </p>
-              <Button 
-                variant="outline" 
-                class="w-full" 
-                disabled={!isDesktop || loadingLocal}
-                onclick={openLocalBudget}
-              >
-                {#if loadingLocal}
-                  <Loader2 class="mr-2 h-4 w-4 animate-spin" />
-                {:else}
-                  <FolderOpen class="mr-2 h-4 w-4" />
-                {/if}
-                {$t('localFiles.open')}
-                {#if !isDesktop}
-                  <span class="ml-2 text-xs">({$t('localFiles.desktopOnly')})</span>
-                {/if}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-
-        <!-- Language Selector -->
-        <div class="flex justify-center">
-          <select 
-            class="bg-card border rounded px-3 py-1.5 text-sm"
-            value={$locale}
-            onchange={(e) => setLocale(e.currentTarget.value)}
+      <!-- Primary actions -->
+      <div class="space-y-3">
+        {#if isDropboxConnected}
+          <!-- Dropbox connected - show budget picker -->
+          <Button 
+            class="w-full h-14 text-base gap-3" 
+            onclick={openBudgetPicker}
           >
-            {#each $locales as loc}
-              <option value={loc}>{loc.toUpperCase()}</option>
-            {/each}
-          </select>
-        </div>
+            <Cloud class="h-5 w-5" />
+            {$t('dropbox.selectBudget')}
+          </Button>
+        {:else}
+          <!-- Dropbox not connected -->
+          <Button 
+            class="w-full h-14 text-base gap-3" 
+            onclick={connectDropbox}
+            disabled={loadingDropbox}
+          >
+            {#if loadingDropbox}
+              <Loader2 class="h-5 w-5 animate-spin" />
+            {:else}
+              <Cloud class="h-5 w-5" />
+            {/if}
+            {$t('dropbox.connect')}
+          </Button>
+        {/if}
 
-        <!-- Features -->
-        <div class="rounded-lg border bg-card p-6 space-y-4">
-          <h2 class="text-xl font-heading font-semibold">Features</h2>
-          <ul class="grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
-            <li class="flex items-center gap-2">
-              <span class="h-1.5 w-1.5 rounded-full bg-ynab-green"></span>
-              Full YNAB4 compatibility
-            </li>
-            <li class="flex items-center gap-2">
-              <span class="h-1.5 w-1.5 rounded-full bg-ynab-green"></span>
-              Read and write budgets
-            </li>
-            <li class="flex items-center gap-2">
-              <span class="h-1.5 w-1.5 rounded-full bg-ynab-green"></span>
-              Dropbox sync support
-            </li>
-            <li class="flex items-center gap-2">
-              <span class="h-1.5 w-1.5 rounded-full bg-ynab-green"></span>
-              Works offline
-            </li>
-            <li class="flex items-center gap-2">
-              <span class="h-1.5 w-1.5 rounded-full bg-ynab-green"></span>
-              Mobile-first design
-            </li>
-            <li class="flex items-center gap-2">
-              <span class="h-1.5 w-1.5 rounded-full bg-ynab-green"></span>
-              Cross-platform (Web, Android, iOS, Desktop)
-            </li>
-          </ul>
-        </div>
+        {#if isDesktop}
+          <Button 
+            variant="outline" 
+            class="w-full h-14 text-base gap-3"
+            onclick={openLocalBudget}
+            disabled={loadingLocal}
+          >
+            {#if loadingLocal}
+              <Loader2 class="h-5 w-5 animate-spin" />
+            {:else}
+              <FolderOpen class="h-5 w-5" />
+            {/if}
+            {$t('localFiles.open')}
+          </Button>
+        {/if}
+      </div>
+
+      <!-- Language selector - simple -->
+      <div class="flex justify-center pt-4">
+        <select 
+          class="bg-transparent border-none text-sm text-muted-foreground cursor-pointer hover:text-foreground focus:outline-none"
+          value={$locale}
+          onchange={(e) => setLocale(e.currentTarget.value)}
+        >
+          {#each supportedLocales as loc}
+            <option value={loc}>{localeNames[loc]}</option>
+          {/each}
+        </select>
       </div>
     </div>
-  {:else}
-    <!-- Budget loaded - show current view -->
-    <div class="h-full">
-      {#if $isLoading}
-        <div class="flex items-center justify-center h-full">
-          <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      {:else if $currentView === 'budget'}
-        <BudgetView />
-      {:else if $currentView === 'transactions'}
-        <TransactionList
-          onAddTransaction={handleAddTransaction}
-          onEditTransaction={(id) => console.log('Edit:', id)}
-        />
-      {:else if $currentView === 'scheduled'}
-        <ScheduledList />
-      {:else if $currentView === 'reports'}
-        <ReportsView />
-      {:else if $currentView === 'settings'}
-        <div class="container mx-auto p-6">
-          <h2 class="text-2xl font-heading font-bold">Settings</h2>
-          <p class="text-muted-foreground mt-2">Coming soon...</p>
-        </div>
-      {:else}
-        <div class="container mx-auto p-6">
-          <p class="text-muted-foreground">Select a view from the sidebar</p>
-        </div>
-      {/if}
-    </div>
-  {/if}
-</div>
+  </div>
+{:else}
+  <!-- Budget loaded - show current view -->
+  <div class="h-full">
+    {#if $isLoading}
+      <div class="flex items-center justify-center h-full">
+        <Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    {:else if $currentView === 'budget'}
+      <BudgetView />
+    {:else if $currentView === 'transactions'}
+      <TransactionList
+        onAddTransaction={handleAddTransaction}
+        onEditTransaction={(id) => console.log('Edit:', id)}
+      />
+    {:else if $currentView === 'scheduled'}
+      <ScheduledList />
+    {:else if $currentView === 'reports'}
+      <ReportsView />
+    {:else if $currentView === 'settings'}
+      <div class="container mx-auto p-6">
+        <h2 class="text-2xl font-heading font-bold">{$t('settings.title')}</h2>
+        <p class="text-muted-foreground mt-2">Coming soon...</p>
+      </div>
+    {:else}
+      <BudgetView />
+    {/if}
+  </div>
+{/if}
 
 <!-- Modals -->
 {#if $activeModal === 'budget-picker' && accessToken}
