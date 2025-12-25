@@ -350,9 +350,10 @@
 />
 
 {#if $activeModal === 'settings'}
-  <!-- Backdrop -->
+  <!-- Backdrop - completely opaque -->
   <div 
-    class="fixed inset-0 z-50 bg-black/80"
+    class="fixed inset-0 z-[100]"
+    style="background-color: rgba(0, 0, 0, 0.9);"
     onclick={() => {
       closeModal();
       if (isDesktop) loadLocalBudgetList();
@@ -360,9 +361,9 @@
     role="presentation"
   ></div>
   <!-- Dialog Window -->
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-    <div class="bg-background border-2 border-border rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden pointer-events-auto flex flex-col">
-      <div class="flex items-center justify-between px-5 py-4 bg-[--color-sodalita] text-white shrink-0">
+  <div class="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+    <div class="border-2 border-border rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden pointer-events-auto flex flex-col" style="background-color: hsl(var(--card));">
+      <div class="flex items-center justify-between px-5 py-4 text-white shrink-0" style="background-color: var(--color-sodalita);">
         <h2 class="text-lg font-heading font-bold">{$t('settings.title')}</h2>
         <button
           class="p-1.5 rounded-lg hover:bg-white/20 transition-colors"
@@ -375,7 +376,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
         </button>
       </div>
-      <div class="flex-1 overflow-y-auto">
+      <div class="flex-1 overflow-y-auto" style="background-color: hsl(var(--background));">
         <SettingsView />
       </div>
     </div>

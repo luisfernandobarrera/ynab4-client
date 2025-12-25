@@ -172,18 +172,19 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-  <!-- Backdrop -->
+  <!-- Backdrop - completely opaque -->
   <div 
-    class="fixed inset-0 z-50 bg-black/80"
+    class="fixed inset-0 z-[100]"
+    style="background-color: rgba(0, 0, 0, 0.9);"
     onclick={onClose}
     role="presentation"
   ></div>
   
   <!-- Dialog Window -->
-  <div class="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-full max-w-md px-4">
-    <div class="bg-background rounded-lg shadow-2xl border-2 border-border overflow-hidden">
-      <!-- Header - Sodalita style -->
-      <div class="flex items-center justify-between px-5 py-4 bg-[--color-sodalita] text-white">
+  <div class="fixed left-1/2 top-1/2 z-[101] -translate-x-1/2 -translate-y-1/2 w-full max-w-md px-4">
+    <div class="rounded-lg shadow-2xl border-2 border-border overflow-hidden" style="background-color: hsl(var(--card));">
+      <!-- Header -->
+      <div class="flex items-center justify-between px-5 py-4 text-white" style="background-color: var(--color-sodalita);">
         <h2 class="text-lg font-heading font-bold">
           {$t('budget.createNew')}
         </h2>
@@ -197,16 +198,16 @@
       </div>
 
       <!-- Content -->
-      <div class="p-5 space-y-5 bg-background">
+      <div class="p-5 space-y-5" style="background-color: hsl(var(--card));">
         <!-- Budget Name -->
         <div class="space-y-2">
           <Label for="budget-name">{$t('budget.name')}</Label>
           <Input
             id="budget-name"
             bind:value={budgetName}
-            placeholder={$t('budget.namePlaceholder') || 'Mi Presupuesto'}
+            placeholder="Mi Presupuesto"
             disabled={isCreating}
-            class="h-11 bg-card"
+            class="h-11"
           />
         </div>
 
@@ -217,42 +218,40 @@
             {#if isDesktop}
               <button
                 type="button"
-                class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all bg-card {saveLocation === 'local' ? 'border-[--color-terracota] ring-2 ring-[--color-terracota]/20' : 'border-border hover:border-[--color-terracota]/50'}"
+                class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all {saveLocation === 'local' ? 'border-[--color-terracota]' : 'border-border hover:border-[--color-terracota]/50'}"
+                style="background-color: hsl(var(--background));"
                 onclick={() => saveLocation = 'local'}
                 disabled={isCreating}
               >
-                <div class="p-2 rounded-lg bg-[--color-terracota]/10">
+                <div class="p-2 rounded-lg" style="background-color: rgba(199, 91, 57, 0.15);">
                   <HardDrive class="h-5 w-5 text-[--color-terracota]" />
                 </div>
                 <div class="text-left">
                   <p class="font-medium">{$t('localFiles.title')}</p>
-                  <p class="text-xs text-muted-foreground">{$t('budget.saveLocalDescription') || 'Guardar en disco local'}</p>
+                  <p class="text-xs text-muted-foreground">Guardar en disco local</p>
                 </div>
               </button>
             {/if}
             
             <button
               type="button"
-              class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all bg-card {saveLocation === 'dropbox' ? 'border-[--color-sodalita] ring-2 ring-[--color-sodalita]/20' : 'border-border hover:border-[--color-sodalita]/50'} {!isDropboxConnected ? 'opacity-50' : ''}"
+              class="w-full flex items-center gap-3 p-4 rounded-lg border-2 transition-all {saveLocation === 'dropbox' ? 'border-blue-500' : 'border-border hover:border-blue-500/50'} {!isDropboxConnected ? 'opacity-50' : ''}"
+              style="background-color: hsl(var(--background));"
               onclick={() => { if (isDropboxConnected) saveLocation = 'dropbox' }}
               disabled={isCreating || !isDropboxConnected}
             >
-              <div class="p-2 rounded-lg bg-[--color-sodalita]/10">
-                <Cloud class="h-5 w-5 text-[--color-sodalita]" />
+              <div class="p-2 rounded-lg" style="background-color: rgba(45, 74, 111, 0.15);">
+                <Cloud class="h-5 w-5 text-blue-500" />
               </div>
               <div class="text-left flex-1">
                 <p class="font-medium">Dropbox</p>
                 <p class="text-xs text-muted-foreground">
-                  {#if isDropboxConnected}
-                    {$t('budget.saveDropboxDescription') || 'Sincronizar con Dropbox'}
-                  {:else}
-                    {$t('dropbox.connectToSave')}
-                  {/if}
+                  {isDropboxConnected ? 'Sincronizar con Dropbox' : 'Conectar Dropbox primero'}
                 </p>
               </div>
               {#if !isDropboxConnected}
-                <span class="text-xs px-2 py-1 rounded bg-muted text-muted-foreground">
-                  {$t('settings.notConnected') || 'No conectado'}
+                <span class="text-xs px-2 py-1 rounded text-muted-foreground" style="background-color: hsl(var(--muted));">
+                  No conectado
                 </span>
               {/if}
             </button>
@@ -269,7 +268,7 @@
                 bind:value={localPath}
                 placeholder="/path/to/YNAB"
                 disabled={isCreating}
-                class="flex-1 h-11 text-sm bg-card"
+                class="flex-1 h-11 text-sm"
               />
               <Button 
                 variant="outline" 
@@ -286,21 +285,22 @@
 
         <!-- Error -->
         {#if error}
-          <div class="p-3 rounded-lg bg-destructive/10 border border-destructive/30">
-            <p class="text-sm text-destructive">{error}</p>
+          <div class="p-3 rounded-lg border border-red-500/30" style="background-color: rgba(220, 38, 38, 0.1);">
+            <p class="text-sm text-red-500">{error}</p>
           </div>
         {/if}
       </div>
 
       <!-- Footer -->
-      <div class="flex justify-end gap-3 px-5 py-4 border-t border-border bg-muted">
+      <div class="flex justify-end gap-3 px-5 py-4 border-t border-border" style="background-color: hsl(var(--muted));">
         <Button variant="outline" onclick={onClose} disabled={isCreating}>
           {$t('common.cancel')}
         </Button>
         <Button 
           onclick={createBudget} 
           disabled={isCreating || !budgetName.trim()}
-          class="bg-[--color-terracota] hover:bg-[--color-terracota-dark] text-white"
+          style="background-color: var(--color-terracota); color: white;"
+          class="hover:opacity-90"
         >
           {#if isCreating}
             <Loader2 class="mr-2 h-4 w-4 animate-spin" />
