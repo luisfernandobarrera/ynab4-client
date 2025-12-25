@@ -1,7 +1,8 @@
 {
   "welcome": {
     "title": "YNAB4",
-    "subtitle": "A modern client for your YNAB4 budgets"
+    "subtitle": "A modern client for your YNAB4 budgets",
+    "getStarted": "Create a new budget or connect to Dropbox"
   },
   "dropbox": {
     "connect": "Connect Dropbox",
