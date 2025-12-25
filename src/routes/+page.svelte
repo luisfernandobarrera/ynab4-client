@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { browser } from '$app/environment';
-  import { FolderOpen, Cloud, Loader2 } from 'lucide-svelte';
+  import { FolderOpen, Cloud, Loader2, Plus, History } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { BudgetPicker, BudgetView } from '$lib/components/budget';
   import { TransactionList } from '$lib/components/transactions';
@@ -11,7 +11,7 @@
   import { budgetInfo, currentView, isLoading, loadFromLocal } from '$lib/stores/budget';
   import { activeModal, openModal, closeModal } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
-  import { openBudgetFolderDialog } from '$lib/services';
+  import { openBudgetFolderDialog, findLocalBudgets } from '$lib/services';
   import { t, locale, supportedLocales, setLocale, localeNames } from '$lib/i18n';
 
   let isDropboxConnected = $state(false);
@@ -20,12 +20,30 @@
   let isDesktop = $state(false);
   let loadingLocal = $state(false);
   let loadingDropbox = $state(false);
+  let recentBudgets = $state<Array<{name: string, path: string}>>([]);
+
+  // Check Tauri on script init (before mount)
+  const checkTauri = () => {
+    if (browser) {
+      return typeof (window as { __TAURI__?: unknown }).__TAURI__ !== 'undefined';
+    }
+    return false;
+  };
 
   onMount(async () => {
-    // Check if running in Tauri (desktop)
-    if (browser) {
-      isDesktop = typeof (window as { __TAURI__?: unknown }).__TAURI__ !== 'undefined';
-      console.log('[Page] isDesktop:', isDesktop);
+    // Check if running in Tauri (desktop) - with small delay for Tauri init
+    await new Promise(r => setTimeout(r, 100));
+    isDesktop = checkTauri();
+    console.log('[Page] isDesktop:', isDesktop, 'window.__TAURI__:', typeof (window as any).__TAURI__);
+    
+    // Find local budgets if desktop
+    if (isDesktop) {
+      try {
+        recentBudgets = await findLocalBudgets();
+        console.log('[Page] Found local budgets:', recentBudgets);
+      } catch (e) {
+        console.warn('[Page] Could not find local budgets:', e);
+      }
     }
     
     // Check Dropbox connection
@@ -50,13 +68,17 @@
     }
   }
 
+  function disconnectDropbox() {
+    DropboxAuth.signOut();
+    isDropboxConnected = false;
+    accessToken = null;
+  }
+
   function openBudgetPicker() {
     openModal('budget-picker', { accessToken });
   }
 
   async function openLocalBudget() {
-    if (!isDesktop) return;
-    
     loadingLocal = true;
     try {
       const path = await openBudgetFolderDialog();
@@ -65,6 +87,17 @@
       }
     } catch (error) {
       console.error('Error loading local budget:', error);
+    } finally {
+      loadingLocal = false;
+    }
+  }
+
+  async function openRecentBudget(path: string) {
+    loadingLocal = true;
+    try {
+      await loadFromLocal(path);
+    } catch (error) {
+      console.error('Error loading budget:', error);
     } finally {
       loadingLocal = false;
     }
@@ -92,8 +125,8 @@
 
       <!-- Primary actions -->
       <div class="space-y-3">
+        <!-- Dropbox section -->
         {#if isDropboxConnected}
-          <!-- Dropbox connected - show budget picker -->
           <Button 
             class="w-full h-14 text-base gap-3" 
             onclick={openBudgetPicker}
@@ -101,8 +134,13 @@
             <Cloud class="h-5 w-5" />
             {$t('dropbox.selectBudget')}
           </Button>
+          <button 
+            class="w-full text-sm text-muted-foreground hover:text-foreground"
+            onclick={disconnectDropbox}
+          >
+            {$t('dropbox.disconnect')}
+          </button>
         {:else}
-          <!-- Dropbox not connected -->
           <Button 
             class="w-full h-14 text-base gap-3" 
             onclick={connectDropbox}
@@ -117,27 +155,54 @@
           </Button>
         {/if}
 
+        <!-- Local files section (always show for desktop, with note for web) -->
         {#if isDesktop}
-          <Button 
-            variant="outline" 
-            class="w-full h-14 text-base gap-3"
-            onclick={openLocalBudget}
-            disabled={loadingLocal}
-          >
-            {#if loadingLocal}
-              <Loader2 class="h-5 w-5 animate-spin" />
-            {:else}
-              <FolderOpen class="h-5 w-5" />
-            {/if}
-            {$t('localFiles.open')}
-          </Button>
+          <div class="pt-2 border-t border-border">
+            <Button 
+              variant="outline" 
+              class="w-full h-12 text-base gap-3"
+              onclick={openLocalBudget}
+              disabled={loadingLocal}
+            >
+              {#if loadingLocal}
+                <Loader2 class="h-5 w-5 animate-spin" />
+              {:else}
+                <FolderOpen class="h-5 w-5" />
+              {/if}
+              {$t('localFiles.open')}
+            </Button>
+          </div>
+
+          <!-- Recent budgets -->
+          {#if recentBudgets.length > 0}
+            <div class="pt-2">
+              <p class="text-xs text-muted-foreground mb-2 flex items-center gap-2">
+                <History class="h-3 w-3" />
+                {$t('budget.recent')}
+              </p>
+              <div class="space-y-1">
+                {#each recentBudgets.slice(0, 3) as budget}
+                  <button
+                    class="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-accent transition-colors"
+                    onclick={() => openRecentBudget(budget.path)}
+                  >
+                    {budget.name}
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+        {:else}
+          <p class="text-xs text-center text-muted-foreground pt-2">
+            {$t('localFiles.desktopOnly')}
+          </p>
         {/if}
       </div>
 
-      <!-- Language selector - simple -->
+      <!-- Language selector -->
       <div class="flex justify-center pt-4">
         <select 
-          class="bg-transparent border-none text-sm text-muted-foreground cursor-pointer hover:text-foreground focus:outline-none"
+          class="bg-card border border-border rounded-md px-3 py-1.5 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
           value={$locale}
           onchange={(e) => setLocale(e.currentTarget.value)}
         >

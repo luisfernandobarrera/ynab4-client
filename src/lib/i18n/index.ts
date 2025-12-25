@@ -2,7 +2,7 @@ import { browser } from '$app/environment';
 import { writable, derived, readable } from 'svelte/store';
 
 // Supported locales
-export const supportedLocales = ['en', 'es', 'ja', 'ko'] as const;
+export const supportedLocales = ['en', 'es', 'de', 'fr', 'ja', 'ko', 'nl', 'pt', 'ru', 'zh'] as const;
 export type Locale = (typeof supportedLocales)[number];
 
 // Locales as a readable store for reactivity
@@ -41,12 +41,17 @@ export function setLocale(newLocale: string): void {
 // Translations
 import en from './locales/en.json';
 import es from './locales/es.json';
+import de from './locales/de.json';
+import fr from './locales/fr.json';
+import ja from './locales/ja.json';
+import ko from './locales/ko.json';
+import nl from './locales/nl.json';
+import pt from './locales/pt.json';
+import ru from './locales/ru.json';
+import zh from './locales/zh.json';
 
-const translations: Record<Locale, Record<string, string>> = {
-  en,
-  es,
-  ja: en, // Fallback to English for now
-  ko: en, // Fallback to English for now
+const translations: Record<Locale, Record<string, unknown>> = {
+  en, es, de, fr, ja, ko, nl, pt, ru, zh
 };
 
 // Get translated string
@@ -85,7 +90,13 @@ export const t = derived(locale, ($locale) => {
 export const localeNames: Record<Locale, string> = {
   en: 'English',
   es: 'Español',
+  de: 'Deutsch',
+  fr: 'Français',
   ja: '日本語',
   ko: '한국어',
+  nl: 'Nederlands',
+  pt: 'Português',
+  ru: 'Русский',
+  zh: '中文',
 };
 
