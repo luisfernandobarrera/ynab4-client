@@ -241,6 +241,7 @@
   // Inline entry state (for new transactions)
   let isEditing = $state(false);
   let entryDate = $state(new Date().toISOString().split('T')[0]);
+  let entryAccount = $state('');
   let entryPayee = $state('');
   let entryCategory = $state('');
   let entryMemo = $state('');
@@ -260,6 +261,14 @@
     flag: string | null;
   } | null>(null);
   
+  // Autocomplete options for accounts
+  const accountOptions = $derived(
+    $accounts
+      .filter(a => !a.closed && !a.hidden)
+      .map(a => ({ value: a.id, label: a.name }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  );
+
   // Autocomplete options for payees
   const payeeOptions = $derived(
     $payees
@@ -564,6 +573,8 @@
     cancelEdit();
     isEditing = true;
     entryDate = new Date().toISOString().split('T')[0];
+    // Use selected account ID or first account ID
+    entryAccount = selectedAccount?.id || $accounts[0]?.id || '';
     entryPayee = '';
     entryCategory = '';
     entryMemo = '';
@@ -574,6 +585,7 @@
 
   function cancelEntry() {
     isEditing = false;
+    entryAccount = '';
   }
 
   function saveEntry() {
@@ -589,7 +601,8 @@
       return;
     }
 
-    const accountId = selectedAccount?.id || $accounts[0]?.id;
+    // Use entry account or selected account or first account
+    const accountId = entryAccount || selectedAccount?.id || $accounts[0]?.id;
     if (!accountId) {
       addToast({ type: 'error', message: 'Please select an account' });
       return;
@@ -1125,7 +1138,12 @@
                 </td>
                 {#if !selectedAccount}
                   <td class="col-account">
-                    <span class="entry-account-auto">{$accounts[0]?.name || '-'}</span>
+                    <Autocomplete
+                      options={accountOptions}
+                      value={entryAccount}
+                      placeholder={$t('transactions.account')}
+                      onSelect={(v) => entryAccount = v}
+                    />
                   </td>
                 {/if}
                 <td class="col-icon"></td>
@@ -1190,7 +1208,7 @@
                 </td>
               </tr>
             {:else}
-              <!-- Add transaction row (discrete) -->
+              <!-- Add transaction row (discrete) TOP -->
               <tr class="tx-add-row">
                 <td class="col-flag">
                   <button class="add-btn" onclick={startEntry}>
@@ -1491,7 +1509,12 @@
                 </td>
                 {#if !selectedAccount}
                   <td class="col-account">
-                    <span class="entry-account-auto">{$accounts[0]?.name || '-'}</span>
+                    <Autocomplete
+                      options={accountOptions}
+                      value={entryAccount}
+                      placeholder={$t('transactions.account')}
+                      onSelect={(v) => entryAccount = v}
+                    />
                   </td>
                 {/if}
                 <td class="col-icon"></td>
@@ -1837,11 +1860,6 @@
   .flag-option.flag-blue { background: #3498db !important; }
   .flag-option.flag-purple { background: #9b59b6 !important; }
 
-  .entry-account-auto {
-    font-size: 0.65rem;
-    color: var(--muted-foreground);
-    font-style: italic;
-  }
 
   .account-item-balance {
     font-family: var(--font-family-mono);
