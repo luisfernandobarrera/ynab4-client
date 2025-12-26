@@ -54,7 +54,8 @@
     "payees": "Payees",
     "import": "Import",
     "createAccount": "Create Account",
-    "settings": "Settings"
+    "settings": "Settings",
+    "accounts": "Accounts"
   },
   "sidebar": {
     "change": "Change",

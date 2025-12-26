@@ -10,6 +10,14 @@
   let showDateNav = $state(false);
   let accountFilter = $state<'all' | 'checking' | 'savings'>('all');
   let selectedAccountId = $state<string | null>(null);
+  let displayLimit = $state(100); // Limit displayed transactions for performance
+  
+  // Reset display limit when filters change
+  $effect(() => {
+    // When any filter changes, reset the display limit
+    selectedYear; selectedMonth; accountFilter; selectedAccountId;
+    displayLimit = 100;
+  });
 
   // Get month names
   const monthsLong = $derived($tArray('months.long'));
@@ -76,11 +84,52 @@
     return new Set([...checking, ...savings]);
   });
 
-  // Calculate account data for the month
+  // Pre-compute account balances in a single pass (optimized)
   const accountsData = $derived.by(() => {
     const { from, to } = getDateRange();
     const { checking, savings } = accountTypes;
     
+    // Build a map of account data - single pass through transactions
+    const accountMap = new Map<string, {
+      beforeBalance: number;
+      inflows: number;
+      outflows: number;
+      txCount: number;
+    }>();
+    
+    // Initialize accounts
+    for (const acc of $accounts) {
+      if (acc.closed) continue;
+      if (!checking.has(acc.id) && !savings.has(acc.id)) continue;
+      
+      accountMap.set(acc.id, {
+        beforeBalance: 0,
+        inflows: 0,
+        outflows: 0,
+        txCount: 0
+      });
+    }
+    
+    // Single pass through transactions
+    for (const tx of $transactions) {
+      const accData = accountMap.get(tx.accountId);
+      if (!accData) continue;
+      
+      if (tx.date < from) {
+        // Before period - add to initial balance
+        accData.beforeBalance += tx.amount;
+      } else if (tx.date <= to) {
+        // In period - count inflows/outflows
+        if (tx.amount >= 0) {
+          accData.inflows += tx.amount;
+        } else {
+          accData.outflows += Math.abs(tx.amount);
+        }
+        accData.txCount++;
+      }
+    }
+    
+    // Convert to array and filter by current filter
     const data: Array<{
       id: string;
       name: string;
@@ -93,38 +142,32 @@
       transactionCount: number;
     }> = [];
     
-    const relevantAccounts = $accounts.filter(a => {
-      if (a.closed) return false;
-      if (accountFilter === 'checking') return checking.has(a.id);
-      if (accountFilter === 'savings') return savings.has(a.id);
-      return checking.has(a.id) || savings.has(a.id);
-    });
-    
-    for (const acc of relevantAccounts) {
-      // Calculate balance before the selected month
-      const beforeBalance = $transactions
-        .filter(tx => tx.accountId === acc.id && tx.date < from)
-        .reduce((sum, tx) => sum + tx.amount, 0);
+    for (const acc of $accounts) {
+      if (acc.closed) continue;
       
-      // Get transactions in the period
-      const monthTx = $transactions.filter(tx => 
-        tx.accountId === acc.id && tx.date >= from && tx.date <= to
-      );
+      const isChecking = checking.has(acc.id);
+      const isSavings = savings.has(acc.id);
       
-      const inflows = monthTx.filter(tx => tx.amount >= 0).reduce((sum, tx) => sum + tx.amount, 0);
-      const outflows = monthTx.filter(tx => tx.amount < 0).reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
-      const change = inflows - outflows;
+      // Apply filter
+      if (accountFilter === 'checking' && !isChecking) continue;
+      if (accountFilter === 'savings' && !isSavings) continue;
+      if (accountFilter === 'all' && !isChecking && !isSavings) continue;
+      
+      const accData = accountMap.get(acc.id);
+      if (!accData) continue;
+      
+      const change = accData.inflows - accData.outflows;
       
       data.push({
         id: acc.id,
         name: acc.name,
-        type: checking.has(acc.id) ? 'checking' : 'savings',
-        initialBalance: beforeBalance,
-        finalBalance: beforeBalance + change,
-        inflows,
-        outflows,
+        type: isChecking ? 'checking' : 'savings',
+        initialBalance: accData.beforeBalance,
+        finalBalance: accData.beforeBalance + change,
+        inflows: accData.inflows,
+        outflows: accData.outflows,
         change,
-        transactionCount: monthTx.length
+        transactionCount: accData.txCount
       });
     }
     
@@ -157,22 +200,37 @@
   // Filter transactions for the selected period and accounts
   const filteredTransactions = $derived.by(() => {
     const { from, to } = getDateRange();
+    const { checking, savings } = accountTypes;
     
     // Get the account IDs to include
     let accountIds: Set<string>;
     if (selectedAccountId) {
       accountIds = new Set([selectedAccountId]);
+    } else if (accountFilter === 'checking') {
+      accountIds = checking;
+    } else if (accountFilter === 'savings') {
+      accountIds = savings;
     } else {
-      accountIds = activeAccountIds;
+      accountIds = new Set([...checking, ...savings]);
     }
     
-    return $transactions
-      .filter(tx => {
-        if (tx.date < from || tx.date > to) return false;
-        return accountIds.has(tx.accountId);
-      })
-      .sort((a, b) => b.date.localeCompare(a.date)); // Most recent first
+    const result = [];
+    for (const tx of $transactions) {
+      if (tx.date < from || tx.date > to) continue;
+      if (!accountIds.has(tx.accountId)) continue;
+      result.push(tx);
+    }
+    
+    return result.sort((a, b) => b.date.localeCompare(a.date)); // Most recent first
   });
+  
+  // Displayed transactions (limited for performance)
+  const displayedTransactions = $derived(filteredTransactions.slice(0, displayLimit));
+  const hasMoreTransactions = $derived(filteredTransactions.length > displayLimit);
+  
+  function loadMore() {
+    displayLimit += 100;
+  }
 
   // Get payee name
   function getPayeeName(payeeId: string | null): string {
@@ -368,7 +426,7 @@
               </tr>
             </thead>
             <tbody>
-              {#each filteredTransactions as tx (tx.id)}
+              {#each displayedTransactions as tx (tx.id)}
                 <tr>
                   <td class="col-date">{formatDate(tx.date)}</td>
                   {#if !selectedAccountId}
@@ -383,6 +441,13 @@
               {/each}
             </tbody>
           </table>
+          {#if hasMoreTransactions}
+            <div class="load-more">
+              <button class="load-more-btn" onclick={loadMore}>
+                {$t('common.loadMore')} ({filteredTransactions.length - displayLimit} {$t('common.remaining')})
+              </button>
+            </div>
+          {/if}
         {/if}
       </div>
     </div>
@@ -841,6 +906,28 @@
 
   .zero {
     color: var(--muted-foreground);
+  }
+
+  /* Load More */
+  .load-more {
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .load-more-btn {
+    padding: 0.5rem 1rem;
+    background: var(--muted);
+    color: var(--foreground);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .load-more-btn:hover {
+    background: var(--accent);
+    border-color: var(--primary);
   }
 
   /* Mobile */

@@ -54,7 +54,8 @@
     "payees": "Beneficiarios",
     "import": "Importar",
     "createAccount": "Crear Cuenta",
-    "settings": "Configuración"
+    "settings": "Configuración",
+    "accounts": "Cuentas"
   },
   "sidebar": {
     "change": "Cambiar",
