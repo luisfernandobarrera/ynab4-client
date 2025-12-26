@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, tick } from 'svelte';
   import { ChevronLeft, ChevronRight, Building2, PiggyBank, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, CreditCard, Wallet, PiggyBankIcon, Percent } from 'lucide-svelte';
   import { accounts, transactions, payees, categories } from '$lib/stores/budget';
   import { transactionSortOrder, toggleTransactionSortOrder } from '$lib/stores/ui';
@@ -20,13 +21,68 @@
   let displayLimit = $state(100);
   let showChanges = $state(false); // Toggle for showing account changes
   
+  // Table container ref for scroll management
+  let tableContainer: HTMLDivElement | null = $state(null);
+  let prevSortDirection = $state<'asc' | 'desc'>('asc');
+  
   // Use user preference for sort direction
   const sortDirection = $derived($transactionSortOrder);
+  
+  // Scroll to bottom when switching to 'asc' mode (oldest first = most recent at bottom)
+  $effect(() => {
+    if (sortDirection === 'asc' && prevSortDirection === 'desc' && tableContainer) {
+      tick().then(() => {
+        tableContainer?.scrollTo({ top: tableContainer.scrollHeight, behavior: 'smooth' });
+      });
+    }
+    prevSortDirection = sortDirection;
+  });
+  
+  // Handle scroll for infinite loading
+  function handleTableScroll(e: Event) {
+    const container = e.target as HTMLDivElement;
+    if (!container) return;
+    
+    const threshold = 100;
+    
+    if (sortDirection === 'asc') {
+      // In 'asc' mode, load more when scrolling UP (near top)
+      if (container.scrollTop < threshold && displayLimit < filteredTransactions.length) {
+        const scrollHeightBefore = container.scrollHeight;
+        displayLimit += 100;
+        // Maintain scroll position after loading more
+        tick().then(() => {
+          const scrollHeightAfter = container.scrollHeight;
+          container.scrollTop = scrollHeightAfter - scrollHeightBefore + container.scrollTop;
+        });
+      }
+    } else {
+      // In 'desc' mode, load more when scrolling DOWN (near bottom)
+      if (container.scrollHeight - container.scrollTop - container.clientHeight < threshold && displayLimit < filteredTransactions.length) {
+        displayLimit += 100;
+      }
+    }
+  }
+  
+  // Initial scroll to bottom when in 'asc' mode
+  onMount(() => {
+    if (sortDirection === 'asc' && tableContainer) {
+      tick().then(() => {
+        tableContainer?.scrollTo({ top: tableContainer.scrollHeight });
+      });
+    }
+  });
   
   // Reset display limit when filters change
   $effect(() => {
     selectedYear; selectedMonth; accountFilter; selectedAccountId; selectedCategory;
     displayLimit = 100;
+    // Scroll appropriately after filter change
+    tick().then(() => {
+      if (sortDirection === 'asc' && tableContainer) {
+        tableContainer.scrollTo({ top: tableContainer.scrollHeight });
+      }
+    });
   });
 
   // Get month names
@@ -367,7 +423,18 @@
     return result;
   });
   
-  const displayedTransactions = $derived(filteredTransactions.slice(0, displayLimit));
+  // In 'asc' mode, we show the END of the array (most recent) and scroll to bottom
+  // In 'desc' mode, we show the BEGINNING of the array (most recent)
+  const displayedTransactions = $derived.by(() => {
+    if (sortDirection === 'asc') {
+      // Take from the end (most recent transactions first in display, scroll to bottom)
+      const startIndex = Math.max(0, filteredTransactions.length - displayLimit);
+      return filteredTransactions.slice(startIndex);
+    }
+    return filteredTransactions.slice(0, displayLimit);
+  });
+  
+  // Check if there are more transactions to load
   const hasMore = $derived(filteredTransactions.length > displayLimit);
 
   // Group accounts by type
@@ -681,7 +748,14 @@
           <p>Sin transacciones en este período</p>
         </div>
       {:else}
-        <div class="table-container">
+        <div class="table-container" bind:this={tableContainer} onscroll={handleTableScroll}>
+          <!-- Load more indicator at top for asc mode -->
+          {#if hasMore && sortDirection === 'asc'}
+            <div class="load-more-indicator top">
+              <span>{filteredTransactions.length - displayLimit} anteriores...</span>
+            </div>
+          {/if}
+          
           <table class="tx-table">
             <thead>
               <tr>
@@ -697,8 +771,8 @@
               </tr>
             </thead>
             <tbody>
-              <!-- Initial balance row (at top if ascending, bottom if descending) -->
-              {#if sortDirection === 'asc'}
+              <!-- Initial balance row (only show when all transactions are loaded) -->
+              {#if sortDirection === 'asc' && !hasMore}
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
@@ -744,8 +818,8 @@
                 </tr>
               {/each}
               
-              <!-- Initial balance row (at bottom if descending) -->
-              {#if sortDirection === 'desc' && displayedTransactions.length >= filteredTransactions.length}
+              <!-- Initial balance row (at bottom if descending, only when all loaded) -->
+              {#if sortDirection === 'desc' && !hasMore}
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
@@ -758,15 +832,14 @@
               {/if}
             </tbody>
           </table>
+          
+          <!-- Load more indicator at bottom for desc mode -->
+          {#if hasMore && sortDirection === 'desc'}
+            <div class="load-more-indicator bottom">
+              <span>{filteredTransactions.length - displayLimit} más...</span>
+            </div>
+          {/if}
         </div>
-        
-        {#if hasMore}
-          <div class="load-more">
-            <button onclick={() => displayLimit += 100}>
-              Cargar más ({filteredTransactions.length - displayLimit} restantes)
-            </button>
-          </div>
-        {/if}
       {/if}
     </main>
   </div>
@@ -1217,22 +1290,25 @@
     color: var(--muted-foreground);
   }
 
-  .load-more {
-    padding: 1rem;
+  .load-more-indicator {
+    padding: 0.5rem;
     text-align: center;
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    opacity: 0.6;
   }
-
-  .load-more button {
-    padding: 0.5rem 1.5rem;
-    border: 1px solid var(--border);
+  
+  .load-more-indicator.top {
+    position: sticky;
+    top: 0;
     background: var(--background);
-    color: var(--foreground);
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.8rem;
+    border-bottom: 1px solid var(--border);
+    z-index: 5;
   }
-
-  .load-more button:hover { background: var(--accent); }
+  
+  .load-more-indicator.bottom {
+    border-top: 1px solid var(--border);
+  }
 
   /* Responsive */
   @media (max-width: 768px) {
