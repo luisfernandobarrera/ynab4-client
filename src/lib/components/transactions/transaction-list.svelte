@@ -1638,38 +1638,46 @@
     font-weight: 600;
   }
 
-  /* Flag Tag (solid color vertical rectangle) */
+  /* Flag Tag (solid color vertical rectangle) - like YNAB4 */
   .flag-tag-wrapper {
     position: relative;
     display: flex;
     justify-content: center;
+    align-items: center;
+    height: 100%;
   }
 
   .flag-tag {
     display: block;
-    width: 6px;
-    height: 20px;
+    width: 8px;
+    height: 100%;
+    min-height: 24px;
     border: none;
-    border-radius: 2px;
+    border-radius: 0;
     cursor: pointer;
     transition: all 0.15s;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
   }
 
   .flag-tag.flag-empty {
-    background: var(--muted);
-    border: 1px dashed var(--border);
+    background: transparent;
+    border: none;
   }
 
   .flag-tag.flag-empty:hover {
-    border-color: var(--muted-foreground);
+    background: var(--muted);
   }
 
-  .flag-tag.flag-red { background: #ef4444; }
-  .flag-tag.flag-orange { background: #f97316; }
-  .flag-tag.flag-yellow { background: #eab308; }
-  .flag-tag.flag-green { background: #22c55e; }
-  .flag-tag.flag-blue { background: #3b82f6; }
-  .flag-tag.flag-purple { background: #a855f7; }
+  /* Flag colors - solid bright colors */
+  .flag-tag.flag-red { background: #e74c3c !important; }
+  .flag-tag.flag-orange { background: #e67e22 !important; }
+  .flag-tag.flag-yellow { background: #f1c40f !important; }
+  .flag-tag.flag-green { background: #27ae60 !important; }
+  .flag-tag.flag-blue { background: #3498db !important; }
+  .flag-tag.flag-purple { background: #9b59b6 !important; }
 
   .flag-picker {
     position: absolute;
@@ -1710,12 +1718,13 @@
     line-height: 18px;
   }
 
-  .flag-option.flag-red { background: #ef4444; }
-  .flag-option.flag-orange { background: #f97316; }
-  .flag-option.flag-yellow { background: #eab308; }
-  .flag-option.flag-green { background: #22c55e; }
-  .flag-option.flag-blue { background: #3b82f6; }
-  .flag-option.flag-purple { background: #a855f7; }
+  /* Flag option colors - solid bright colors matching YNAB4 */
+  .flag-option.flag-red { background: #e74c3c !important; }
+  .flag-option.flag-orange { background: #e67e22 !important; }
+  .flag-option.flag-yellow { background: #f1c40f !important; }
+  .flag-option.flag-green { background: #27ae60 !important; }
+  .flag-option.flag-blue { background: #3498db !important; }
+  .flag-option.flag-purple { background: #9b59b6 !important; }
 
   .entry-account-auto {
     font-size: 0.65rem;
@@ -1885,7 +1894,7 @@
     background: var(--accent);
   }
 
-  .col-flag { text-align: center; padding: 0 !important; }
+  .col-flag { text-align: center; padding: 0 !important; position: relative; }
   .col-date { font-size: 0.75rem; white-space: nowrap; }
   .col-account { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-payee { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2227,16 +2236,35 @@
     color: var(--success);
   }
 
+  /* Status bar - full height colored bar on the right side of row */
   .status-bar {
-    width: 4px;
-    height: 16px;
-    border-radius: 2px;
-    margin: 0 auto;
+    display: block;
+    width: 6px;
+    height: 100%;
+    min-height: 20px;
+    border-radius: 0;
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
   }
 
-  .status-bar.reconciled { background: var(--success); }
-  .status-bar.cleared { background: var(--success); opacity: 0.5; }
-  .status-bar.uncleared { background: var(--muted-foreground); opacity: 0.3; }
+  .col-status {
+    position: relative;
+  }
+
+  /* Status colors - match YNAB4 */
+  .status-bar.reconciled { 
+    background: #10b981 !important; /* Green - locked */
+  }
+  .status-bar.cleared { 
+    background: #10b981 !important; /* Green but thinner */
+    width: 4px;
+  }
+  .status-bar.uncleared { 
+    background: #d1d5db !important; /* Light gray */
+    width: 3px;
+  }
 
   /* Cards (Mobile) */
   .tx-cards-container {
