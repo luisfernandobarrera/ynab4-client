@@ -136,15 +136,16 @@
     
     const accountMap = new Map<string, {
       beforeBalance: number;
-      inflows: number;
-      outflows: number;
+      monthTotal: number;  // All transactions in month (for final balance)
+      inflows: number;     // Non-internal inflows (for display)
+      outflows: number;    // Non-internal outflows (for display)
       txCount: number;
     }>();
     
     // Initialize accounts in pool
     for (const acc of $accounts) {
       if (!pool.has(acc.id)) continue;
-      accountMap.set(acc.id, { beforeBalance: 0, inflows: 0, outflows: 0, txCount: 0 });
+      accountMap.set(acc.id, { beforeBalance: 0, monthTotal: 0, inflows: 0, outflows: 0, txCount: 0 });
     }
     
     // Calculate balances
@@ -158,6 +159,10 @@
       if (tx.date < from) {
         accData.beforeBalance += tx.amount;
       } else if (tx.date <= to) {
+        // Always add to monthTotal for accurate final balance
+        accData.monthTotal += tx.amount;
+        
+        // Only count non-internal transfers for inflows/outflows display
         if (!isInternalTransfer) {
           if (tx.amount >= 0) accData.inflows += tx.amount;
           else accData.outflows += Math.abs(tx.amount);
@@ -185,7 +190,10 @@
       if (!pool.has(acc.id)) continue;
       const accData = accountMap.get(acc.id);
       if (!accData) continue;
-      if (accData.txCount === 0 && Math.abs(accData.beforeBalance) < 0.01) continue;
+      // Show account if it has activity OR has a balance
+      const hasActivity = accData.txCount > 0 || Math.abs(accData.monthTotal) > 0.01;
+      const hasBalance = Math.abs(accData.beforeBalance) > 0.01 || Math.abs(accData.beforeBalance + accData.monthTotal) > 0.01;
+      if (!hasActivity && !hasBalance) continue;
       
       const change = accData.inflows - accData.outflows;
       const isChecking = checking.has(acc.id);
@@ -195,7 +203,7 @@
         name: acc.name,
         type: isChecking ? 'checking' : 'savings',
         initialBalance: accData.beforeBalance,
-        finalBalance: accData.beforeBalance + change,
+        finalBalance: accData.beforeBalance + accData.monthTotal,  // Use actual total, not just non-internal
         inflows: accData.inflows,
         outflows: accData.outflows,
         activity: accData.inflows + accData.outflows,
