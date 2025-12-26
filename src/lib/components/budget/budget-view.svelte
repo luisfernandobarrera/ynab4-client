@@ -12,7 +12,7 @@
     budgetInfo
   } from '$lib/stores/budget';
   import { isMobile, isEditMode, addPendingChange, addToast } from '$lib/stores/ui';
-  import { t } from '$lib/i18n';
+  import { t, tArray } from '$lib/i18n';
 
   // Initialize calculator
   const budgetCalculator = new MonthlyBudgetCalculator();
@@ -45,8 +45,8 @@
   } | null>(null);
 
   // Get months short/long names from translations
-  const monthsShort = $derived(($t('months.short') as unknown) as string[]);
-  const monthsLong = $derived(($t('months.long') as unknown) as string[]);
+  const monthsShort = $derived($tArray('months.short'));
+  const monthsLong = $derived($tArray('months.long'));
 
   // Calculate visible months range
   const monthRange = $derived.by(() => {

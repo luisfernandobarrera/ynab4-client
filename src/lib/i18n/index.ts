@@ -44,8 +44,8 @@ import es from './locales/es.json';
 
 const translations: Record<Locale, Record<string, unknown>> = { en, es };
 
-// Get translated string
-function getNestedValue(obj: Record<string, unknown>, path: string): string {
+// Get translated value (string, array, or object)
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
   const keys = path.split('.');
   let current: unknown = obj;
   
@@ -53,26 +53,45 @@ function getNestedValue(obj: Record<string, unknown>, path: string): string {
     if (current && typeof current === 'object' && key in current) {
       current = (current as Record<string, unknown>)[key];
     } else {
-      return path; // Return key if translation not found
+      return undefined; // Return undefined if translation not found
     }
   }
   
-  return typeof current === 'string' ? current : path;
+  return current;
 }
 
-// Translation function store
+// Translation function store - returns string
 export const t = derived(locale, ($locale) => {
   return (key: string, params?: Record<string, string | number>): string => {
-    let translation = getNestedValue(translations[$locale] || translations[defaultLocale], key);
+    const value = getNestedValue(translations[$locale] || translations[defaultLocale], key);
     
-    // Replace parameters
-    if (params) {
-      for (const [param, value] of Object.entries(params)) {
-        translation = translation.replace(new RegExp(`{${param}}`, 'g'), String(value));
+    // For strings, replace parameters
+    if (typeof value === 'string') {
+      let translation = value;
+      if (params) {
+        for (const [param, paramValue] of Object.entries(params)) {
+          translation = translation.replace(new RegExp(`{${param}}`, 'g'), String(paramValue));
+        }
       }
+      return translation;
     }
     
-    return translation;
+    // For other types, return the key
+    return key;
+  };
+});
+
+// Translation function for arrays (like months)
+export const tArray = derived(locale, ($locale) => {
+  return (key: string): string[] => {
+    const value = getNestedValue(translations[$locale] || translations[defaultLocale], key);
+    
+    if (Array.isArray(value)) {
+      return value as string[];
+    }
+    
+    // Return empty array if not found or not an array
+    return [];
   };
 });
 

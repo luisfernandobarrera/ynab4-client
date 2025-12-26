@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ChevronLeft, ChevronRight, Building2, PiggyBank, Filter } from 'lucide-svelte';
   import { accounts, transactions, payees, categories } from '$lib/stores/budget';
-  import { t } from '$lib/i18n';
+  import { t, tArray } from '$lib/i18n';
   import DateNavigation from '$lib/components/transactions/date-navigation.svelte';
 
   // State
@@ -12,7 +12,7 @@
   let selectedAccountId = $state<string | null>(null);
 
   // Get month names
-  const monthsLong = $derived(($t('months.long') as unknown) as string[]);
+  const monthsLong = $derived($tArray('months.long'));
 
   // Format amount
   function formatAmount(amount: number): string {
