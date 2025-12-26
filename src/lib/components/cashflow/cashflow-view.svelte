@@ -84,10 +84,22 @@
   });
 
   // Pre-compute account balances in a single pass (optimized)
-  // When in checking/savings mode, exclude internal transfers from calculations
+  // Hide internal transfers that don't change the pool's total
   const accountsData = $derived.by(() => {
     const { from, to } = getDateRange();
     const { checking, savings } = accountTypes;
+    
+    // Define the pool ONCE based on filter
+    // Pool = the group of accounts we're analyzing
+    let pool: Set<string>;
+    if (accountFilter === 'checking') {
+      pool = checking;
+    } else if (accountFilter === 'savings') {
+      pool = savings;
+    } else {
+      // "All" mode = checking + savings together
+      pool = new Set([...checking, ...savings]);
+    }
     
     // Build a map of account data - single pass through transactions
     const accountMap = new Map<string, {
@@ -97,9 +109,9 @@
       txCount: number;
     }>();
     
-    // Initialize accounts (all checking/savings accounts for balance calculation)
+    // Initialize only accounts in the current pool
     for (const acc of $accounts) {
-      if (!checking.has(acc.id) && !savings.has(acc.id)) continue;
+      if (!pool.has(acc.id)) continue;
       
       accountMap.set(acc.id, {
         beforeBalance: 0,
@@ -112,26 +124,19 @@
     // Single pass through transactions
     for (const tx of $transactions) {
       const accData = accountMap.get(tx.accountId);
-      if (!accData) continue;
+      if (!accData) continue; // Transaction not in our pool
       
-      // Define the pool for this filter
-      let pool: Set<string>;
-      if (accountFilter === 'checking') {
-        pool = checking;
-      } else if (accountFilter === 'savings') {
-        pool = savings;
-      } else {
-        pool = new Set([...checking, ...savings]);
-      }
-      
-      // Check if this is an internal transfer (both source and target in pool)
+      // An "internal" transfer is when BOTH source AND target are in the pool
+      // These don't change the pool's total balance, so we exclude them from calculations
+      // Example: in "checking" mode, a transfer between two checking accounts is internal
+      // But a transfer from checking to credit card is NOT internal (changes checking total)
       const isInternalTransfer = tx.transferAccountId && pool.has(tx.transferAccountId);
       
       if (tx.date < from) {
         // Before period - add to initial balance (always include for accurate starting balance)
         accData.beforeBalance += tx.amount;
       } else if (tx.date <= to) {
-        // In period - count inflows/outflows (but skip internal transfers for filter modes)
+        // In period - count inflows/outflows (but skip internal transfers)
         if (!isInternalTransfer) {
           if (tx.amount >= 0) {
             accData.inflows += tx.amount;
@@ -158,20 +163,17 @@
     }> = [];
     
     for (const acc of $accounts) {
-      const isChecking = checking.has(acc.id);
-      const isSavings = savings.has(acc.id);
+      // Only include accounts in the pool
+      if (!pool.has(acc.id)) continue;
       
-      // Apply account type filter
-      if (accountFilter === 'checking' && !isChecking) continue;
-      if (accountFilter === 'savings' && !isSavings) continue;
-      if (accountFilter === 'all' && !isChecking && !isSavings) continue;
-      
-      // Only show accounts that had activity in the period (or have a balance)
       const accData = accountMap.get(acc.id);
       if (!accData) continue;
+      
+      // Only show accounts that had activity in the period (or have a balance)
       if (accData.txCount === 0 && Math.abs(accData.beforeBalance) < 0.01) continue;
       
       const change = accData.inflows - accData.outflows;
+      const isChecking = checking.has(acc.id);
       
       data.push({
         id: acc.id,
