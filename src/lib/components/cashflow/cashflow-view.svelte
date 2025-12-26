@@ -55,14 +55,12 @@
     return { from, to };
   }
 
-  // Classify accounts by type
+  // Classify accounts by type (include all accounts, even closed ones for historical data)
   const accountTypes = $derived.by(() => {
     const checking = new Set<string>();
     const savings = new Set<string>();
     
     $accounts.forEach(a => {
-      if (a.closed) return;
-      
       const type = a.type?.toLowerCase() || '';
       
       if (type.includes('checking') || type === 'Checking') {
@@ -74,6 +72,7 @@
     
     return { checking, savings };
   });
+  
 
   // Get active account IDs based on filter
   const activeAccountIds = $derived.by(() => {
@@ -85,6 +84,7 @@
   });
 
   // Pre-compute account balances in a single pass (optimized)
+  // When in checking/savings mode, exclude internal transfers from calculations
   const accountsData = $derived.by(() => {
     const { from, to } = getDateRange();
     const { checking, savings } = accountTypes;
@@ -97,9 +97,8 @@
       txCount: number;
     }>();
     
-    // Initialize accounts
+    // Initialize accounts (all checking/savings accounts for balance calculation)
     for (const acc of $accounts) {
-      if (acc.closed) continue;
       if (!checking.has(acc.id) && !savings.has(acc.id)) continue;
       
       accountMap.set(acc.id, {
@@ -115,17 +114,25 @@
       const accData = accountMap.get(tx.accountId);
       if (!accData) continue;
       
+      // Check if this is an internal transfer that should be excluded
+      const isInternalTransfer = tx.transferAccountId && (
+        (accountFilter === 'checking' && savings.has(tx.transferAccountId)) ||
+        (accountFilter === 'savings' && checking.has(tx.transferAccountId))
+      );
+      
       if (tx.date < from) {
-        // Before period - add to initial balance
+        // Before period - add to initial balance (always include for accurate starting balance)
         accData.beforeBalance += tx.amount;
       } else if (tx.date <= to) {
-        // In period - count inflows/outflows
-        if (tx.amount >= 0) {
-          accData.inflows += tx.amount;
-        } else {
-          accData.outflows += Math.abs(tx.amount);
+        // In period - count inflows/outflows (but skip internal transfers for filter modes)
+        if (!isInternalTransfer) {
+          if (tx.amount >= 0) {
+            accData.inflows += tx.amount;
+          } else {
+            accData.outflows += Math.abs(tx.amount);
+          }
+          accData.txCount++;
         }
-        accData.txCount++;
       }
     }
     
@@ -140,21 +147,22 @@
       outflows: number;
       change: number;
       transactionCount: number;
+      isClosed: boolean;
     }> = [];
     
     for (const acc of $accounts) {
-      if (acc.closed) continue;
-      
       const isChecking = checking.has(acc.id);
       const isSavings = savings.has(acc.id);
       
-      // Apply filter
+      // Apply account type filter
       if (accountFilter === 'checking' && !isChecking) continue;
       if (accountFilter === 'savings' && !isSavings) continue;
       if (accountFilter === 'all' && !isChecking && !isSavings) continue;
       
+      // Only show accounts that had activity in the period (or have a balance)
       const accData = accountMap.get(acc.id);
       if (!accData) continue;
+      if (accData.txCount === 0 && Math.abs(accData.beforeBalance) < 0.01) continue;
       
       const change = accData.inflows - accData.outflows;
       
@@ -167,11 +175,16 @@
         inflows: accData.inflows,
         outflows: accData.outflows,
         change,
-        transactionCount: accData.txCount
+        transactionCount: accData.txCount,
+        isClosed: acc.closed || false
       });
     }
     
-    return data.sort((a, b) => a.name.localeCompare(b.name));
+    // Sort: active accounts first, then by name
+    return data.sort((a, b) => {
+      if (a.isClosed !== b.isClosed) return a.isClosed ? 1 : -1;
+      return a.name.localeCompare(b.name);
+    });
   });
 
   // Calculate totals
@@ -198,6 +211,7 @@
   });
 
   // Filter transactions for the selected period and accounts
+  // Key logic: In checking/savings mode, exclude internal transfers between checking<->savings
   const filteredTransactions = $derived.by(() => {
     const { from, to } = getDateRange();
     const { checking, savings } = accountTypes;
@@ -218,6 +232,19 @@
     for (const tx of $transactions) {
       if (tx.date < from || tx.date > to) continue;
       if (!accountIds.has(tx.accountId)) continue;
+      
+      // For specific account filters, exclude internal transfers
+      // "Internal" means transfers between checking and savings
+      if (accountFilter !== 'all' && tx.transferAccountId) {
+        const targetIsChecking = checking.has(tx.transferAccountId);
+        const targetIsSavings = savings.has(tx.transferAccountId);
+        
+        // In checking mode: skip if transferring to/from savings
+        // In savings mode: skip if transferring to/from checking
+        if (accountFilter === 'checking' && targetIsSavings) continue;
+        if (accountFilter === 'savings' && targetIsChecking) continue;
+      }
+      
       result.push(tx);
     }
     
