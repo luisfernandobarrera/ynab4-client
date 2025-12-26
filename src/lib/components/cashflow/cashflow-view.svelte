@@ -5,7 +5,7 @@
   import DateNavigation from '$lib/components/transactions/date-navigation.svelte';
 
   // Types
-  type TxCategory = 'income' | 'expense' | 'cc_payment' | 'savings_transfer' | 'interest' | 'other';
+  type TxCategory = 'income' | 'expense' | 'cc_payment' | 'savings_transfer' | 'savings_withdrawal' | 'interest' | 'other';
   type AccountSort = 'name' | 'balance' | 'activity';
 
   // State
@@ -14,13 +14,15 @@
   let showDateNav = $state(false);
   let accountFilter = $state<'all' | 'checking' | 'savings'>('all');
   let selectedAccountId = $state<string | null>(null);
+  let selectedCategory = $state<TxCategory | null>(null);
   let accountSort = $state<AccountSort>('balance');
   let displayLimit = $state(100);
   let sortDirection = $state<'desc' | 'asc'>('desc'); // desc = newest first
+  let showChanges = $state(false); // Toggle for showing account changes
   
   // Reset display limit when filters change
   $effect(() => {
-    selectedYear; selectedMonth; accountFilter; selectedAccountId;
+    selectedYear; selectedMonth; accountFilter; selectedAccountId; selectedCategory;
     displayLimit = 100;
   });
 
@@ -98,9 +100,14 @@
       return 'cc_payment';
     }
     
-    // Transfer to savings
+    // Transfer to savings (from checking to savings)
     if (transferTargetId && savings.has(transferTargetId) && checking.has(tx.accountId)) {
       return 'savings_transfer';
+    }
+    
+    // Withdrawal from savings (from savings to checking)
+    if (transferTargetId && checking.has(transferTargetId) && savings.has(tx.accountId)) {
+      return 'savings_withdrawal';
     }
     
     // Income vs Expense
@@ -115,6 +122,7 @@
       expense: 'Gasto',
       cc_payment: 'Pago TC',
       savings_transfer: 'A Ahorro',
+      savings_withdrawal: 'De Ahorro',
       interest: 'Interés',
       other: 'Otro'
     };
@@ -236,7 +244,7 @@
   // Categorized totals for summary
   const categorizedTotals = $derived.by(() => {
     const { from, to } = getDateRange();
-    let income = 0, expenses = 0, ccPayments = 0, savingsTransfers = 0, interest = 0;
+    let income = 0, expenses = 0, ccPayments = 0, savingsTransfers = 0, savingsWithdrawals = 0, interest = 0;
     
     for (const tx of $transactions) {
       if (tx.date < from || tx.date > to) continue;
@@ -253,11 +261,12 @@
         case 'expense': expenses += amount; break;
         case 'cc_payment': ccPayments += amount; break;
         case 'savings_transfer': savingsTransfers += amount; break;
+        case 'savings_withdrawal': savingsWithdrawals += amount; break;
         case 'interest': interest += tx.amount; break;
       }
     }
     
-    return { income, expenses, ccPayments, savingsTransfers, interest };
+    return { income, expenses, ccPayments, savingsTransfers, savingsWithdrawals, interest };
   });
 
   // Get initial balance for transactions
@@ -297,7 +306,12 @@
       if (!targetPool.has(tx.accountId)) continue;
       
       const transferTargetId = getTransferTargetId(tx);
-      if (!selectedAccountId && transferTargetId && pool.has(transferTargetId)) continue;
+      if (!selectedAccountId && !selectedCategory && transferTargetId && pool.has(transferTargetId)) continue;
+      
+      const txCat = categorizeTransaction(tx);
+      
+      // Filter by selected category if set
+      if (selectedCategory && txCat !== selectedCategory) continue;
       
       result.push({
         id: tx.id,
@@ -307,7 +321,7 @@
         categoryId: tx.categoryId,
         amount: tx.amount,
         memo: tx.memo || '',
-        txCategory: categorizeTransaction(tx),
+        txCategory: txCat,
         transferAccountId: tx.transferAccountId,
         runningBalance: 0 // Will be calculated after sorting
       });
@@ -464,10 +478,19 @@
     <aside class="accounts-panel">
       <div class="panel-header">
         <h3>Cuentas</h3>
-        <button class="sort-btn" onclick={cycleSort} title="Ordenar por {accountSort}">
-          <ArrowUpDown class="h-4 w-4" />
-          <span class="sort-label">{accountSort === 'balance' ? 'Saldo' : accountSort === 'activity' ? 'Actividad' : 'Nombre'}</span>
-        </button>
+        <div class="panel-controls">
+          <button 
+            class="toggle-btn" 
+            class:active={showChanges}
+            onclick={() => showChanges = !showChanges}
+            title="Mostrar cambios del mes"
+          >
+            ±
+          </button>
+          <button class="sort-btn" onclick={cycleSort} title="Ordenar por {accountSort}">
+            <ArrowUpDown class="h-4 w-4" />
+          </button>
+        </div>
       </div>
       
       <!-- Summary Card -->
@@ -476,54 +499,81 @@
           <span class="label">Inicial</span>
           <span class="value">{formatAmount(totals.initial)}</span>
         </div>
-        <div class="summary-row income">
-          <span class="label"><TrendingUp class="h-3.5 w-3.5" /> Ingresos</span>
-          <span class="value">+{formatAmount(totals.inflows)}</span>
-        </div>
-        <div class="summary-row expense">
-          <span class="label"><TrendingDown class="h-3.5 w-3.5" /> Gastos</span>
-          <span class="value">-{formatAmount(totals.outflows)}</span>
-        </div>
         <div class="summary-row final">
           <span class="label">Final</span>
-          <span class="value" class:positive={totals.final >= 0} class:negative={totals.final < 0}>
-            {formatAmount(totals.final)}
-          </span>
+          <span class="value">{formatAmount(totals.final)}</span>
         </div>
-      </div>
-      
-      <!-- Categories Summary -->
-      <div class="categories-summary">
-        <div class="cat-row">
-          <span class="cat-icon income"><Wallet class="h-3.5 w-3.5" /></span>
-          <span class="cat-label">Ingresos</span>
-          <span class="cat-value income">+{formatAmount(categorizedTotals.income)}</span>
-        </div>
-        <div class="cat-row">
-          <span class="cat-icon expense"><TrendingDown class="h-3.5 w-3.5" /></span>
-          <span class="cat-label">Gastos</span>
-          <span class="cat-value expense">-{formatAmount(categorizedTotals.expenses)}</span>
-        </div>
-        <div class="cat-row">
-          <span class="cat-icon cc"><CreditCard class="h-3.5 w-3.5" /></span>
-          <span class="cat-label">Pagos TC</span>
-          <span class="cat-value cc">-{formatAmount(categorizedTotals.ccPayments)}</span>
-        </div>
-        {#if accountFilter !== 'savings'}
-          <div class="cat-row">
-            <span class="cat-icon savings"><PiggyBank class="h-3.5 w-3.5" /></span>
-            <span class="cat-label">A Ahorro</span>
-            <span class="cat-value savings">-{formatAmount(categorizedTotals.savingsTransfers)}</span>
-          </div>
-        {/if}
-        {#if categorizedTotals.interest !== 0}
-          <div class="cat-row">
-            <span class="cat-icon interest"><Percent class="h-3.5 w-3.5" /></span>
-            <span class="cat-label">Intereses</span>
-            <span class="cat-value" class:positive={categorizedTotals.interest > 0} class:negative={categorizedTotals.interest < 0}>
-              {categorizedTotals.interest > 0 ? '+' : '-'}{formatAmount(categorizedTotals.interest)}
+        {#if showChanges}
+          <div class="summary-row change">
+            <span class="label">Cambio</span>
+            <span class="value" class:positive={totals.final - totals.initial >= 0} class:negative={totals.final - totals.initial < 0}>
+              {totals.final - totals.initial >= 0 ? '+' : ''}{formatAmount(totals.final - totals.initial)}
             </span>
           </div>
+        {/if}
+      </div>
+      
+      <!-- Categories Summary - Clickable -->
+      <div class="categories-summary">
+        <button 
+          class="cat-row" 
+          class:selected={selectedCategory === 'income'}
+          onclick={() => selectedCategory = selectedCategory === 'income' ? null : 'income'}
+        >
+          <span class="cat-icon income"><TrendingUp class="h-3.5 w-3.5" /></span>
+          <span class="cat-label">Ingresos</span>
+          <span class="cat-value">{formatAmount(categorizedTotals.income)}</span>
+        </button>
+        <button 
+          class="cat-row"
+          class:selected={selectedCategory === 'expense'}
+          onclick={() => selectedCategory = selectedCategory === 'expense' ? null : 'expense'}
+        >
+          <span class="cat-icon expense"><TrendingDown class="h-3.5 w-3.5" /></span>
+          <span class="cat-label">Gastos</span>
+          <span class="cat-value">{formatAmount(categorizedTotals.expenses)}</span>
+        </button>
+        <button 
+          class="cat-row"
+          class:selected={selectedCategory === 'cc_payment'}
+          onclick={() => selectedCategory = selectedCategory === 'cc_payment' ? null : 'cc_payment'}
+        >
+          <span class="cat-icon cc"><CreditCard class="h-3.5 w-3.5" /></span>
+          <span class="cat-label">Pagos TC</span>
+          <span class="cat-value">{formatAmount(categorizedTotals.ccPayments)}</span>
+        </button>
+        {#if accountFilter !== 'savings'}
+          <button 
+            class="cat-row"
+            class:selected={selectedCategory === 'savings_transfer'}
+            onclick={() => selectedCategory = selectedCategory === 'savings_transfer' ? null : 'savings_transfer'}
+          >
+            <span class="cat-icon savings"><PiggyBank class="h-3.5 w-3.5" /></span>
+            <span class="cat-label">A Ahorro</span>
+            <span class="cat-value">{formatAmount(categorizedTotals.savingsTransfers)}</span>
+          </button>
+        {/if}
+        {#if accountFilter !== 'checking' && categorizedTotals.savingsWithdrawals > 0}
+          <button 
+            class="cat-row"
+            class:selected={selectedCategory === 'savings_withdrawal'}
+            onclick={() => selectedCategory = selectedCategory === 'savings_withdrawal' ? null : 'savings_withdrawal'}
+          >
+            <span class="cat-icon withdrawal"><Wallet class="h-3.5 w-3.5" /></span>
+            <span class="cat-label">De Ahorro</span>
+            <span class="cat-value">{formatAmount(categorizedTotals.savingsWithdrawals)}</span>
+          </button>
+        {/if}
+        {#if categorizedTotals.interest !== 0}
+          <button 
+            class="cat-row"
+            class:selected={selectedCategory === 'interest'}
+            onclick={() => selectedCategory = selectedCategory === 'interest' ? null : 'interest'}
+          >
+            <span class="cat-icon interest"><Percent class="h-3.5 w-3.5" /></span>
+            <span class="cat-label">Intereses</span>
+            <span class="cat-value">{categorizedTotals.interest >= 0 ? '' : '-'}{formatAmount(categorizedTotals.interest)}</span>
+          </button>
         {/if}
       </div>
       
@@ -533,10 +583,8 @@
         {#if checkingAccounts.length > 0}
           <div class="account-group">
             <div class="group-header">
-              <span class="group-name">Cheques</span>
-              <span class="group-total" class:positive={checkingTotal >= 0} class:negative={checkingTotal < 0}>
-                {formatAmount(checkingTotal)}
-              </span>
+              <span class="group-name"><Building2 class="h-3.5 w-3.5" /> Cheques</span>
+              <span class="group-total">{formatAmount(checkingTotal)}</span>
             </div>
             {#each checkingAccounts as acc (acc.id)}
               <button 
@@ -548,9 +596,11 @@
                 <span class="acc-name">{acc.name}</span>
                 <div class="acc-amounts">
                   <span class="acc-balance">{formatAmount(acc.finalBalance)}</span>
-                  <span class="acc-change" class:positive={acc.change >= 0} class:negative={acc.change < 0}>
-                    {acc.change >= 0 ? '+' : ''}{formatAmount(acc.change)}
-                  </span>
+                  {#if showChanges}
+                    <span class="acc-change" class:positive={acc.change >= 0} class:negative={acc.change < 0}>
+                      {acc.change >= 0 ? '+' : ''}{formatAmount(acc.change)}
+                    </span>
+                  {/if}
                 </div>
               </button>
             {/each}
@@ -560,10 +610,8 @@
         {#if savingsAccounts.length > 0}
           <div class="account-group">
             <div class="group-header">
-              <span class="group-name">Ahorros</span>
-              <span class="group-total" class:positive={savingsTotal >= 0} class:negative={savingsTotal < 0}>
-                {formatAmount(savingsTotal)}
-              </span>
+              <span class="group-name"><PiggyBank class="h-3.5 w-3.5" /> Ahorros</span>
+              <span class="group-total">{formatAmount(savingsTotal)}</span>
             </div>
             {#each savingsAccounts as acc (acc.id)}
               <button 
@@ -575,9 +623,11 @@
                 <span class="acc-name">{acc.name}</span>
                 <div class="acc-amounts">
                   <span class="acc-balance">{formatAmount(acc.finalBalance)}</span>
-                  <span class="acc-change" class:positive={acc.change >= 0} class:negative={acc.change < 0}>
-                    {acc.change >= 0 ? '+' : ''}{formatAmount(acc.change)}
-                  </span>
+                  {#if showChanges}
+                    <span class="acc-change" class:positive={acc.change >= 0} class:negative={acc.change < 0}>
+                      {acc.change >= 0 ? '+' : ''}{formatAmount(acc.change)}
+                    </span>
+                  {/if}
                 </div>
               </button>
             {/each}
@@ -813,15 +863,40 @@
     margin: 0;
   }
 
-  .sort-btn {
+  .panel-controls {
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
+  }
+
+  .toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+
+  .toggle-btn:hover { background: var(--accent); color: var(--foreground); }
+  .toggle-btn.active { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+
+  .sort-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
     border: none;
     background: transparent;
     color: var(--muted-foreground);
-    font-size: 0.7rem;
     cursor: pointer;
     border-radius: 4px;
   }
@@ -856,15 +931,14 @@
     color: var(--foreground);
   }
 
-  .summary-row.income .value { color: var(--success); }
-  .summary-row.expense .value { color: var(--destructive); }
   .summary-row.final { border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.25rem; }
   .summary-row.final .label { font-weight: 600; color: var(--foreground); }
-  .summary-row.final .value { font-size: 0.9rem; font-weight: 600; }
+  .summary-row.final .value { font-size: 0.85rem; font-weight: 600; }
+  .summary-row.change { font-size: 0.75rem; }
 
   /* Categories Summary */
   .categories-summary {
-    padding: 0.75rem 1rem;
+    padding: 0.5rem;
     border-bottom: 1px solid var(--border);
   }
 
@@ -872,31 +946,42 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.25rem 0;
-    font-size: 0.75rem;
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.8rem;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+    text-align: left;
+    transition: background 0.15s;
   }
+
+  .cat-row:hover { background: var(--accent); }
+  .cat-row.selected { background: var(--primary); }
+  .cat-row.selected .cat-label,
+  .cat-row.selected .cat-value { color: var(--primary-foreground); }
+  .cat-row.selected .cat-icon { background: rgba(255, 255, 255, 0.2); color: var(--primary-foreground); }
 
   .cat-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     border-radius: 4px;
+    flex-shrink: 0;
   }
 
   .cat-icon.income { background: rgba(34, 197, 94, 0.15); color: var(--success); }
   .cat-icon.expense { background: rgba(239, 68, 68, 0.15); color: var(--destructive); }
   .cat-icon.cc { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
   .cat-icon.savings { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+  .cat-icon.withdrawal { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
   .cat-icon.interest { background: rgba(234, 179, 8, 0.15); color: #eab308; }
 
-  .cat-label { flex: 1; color: var(--muted-foreground); }
-  .cat-value { font-family: var(--font-family-mono); font-weight: 500; }
-  .cat-value.income { color: var(--success); }
-  .cat-value.expense { color: var(--destructive); }
-  .cat-value.cc { color: #a855f7; }
-  .cat-value.savings { color: #3b82f6; }
+  .cat-label { flex: 1; color: var(--foreground); font-weight: 500; }
+  .cat-value { font-family: var(--font-family-mono); font-weight: 600; color: var(--foreground); }
 
   /* Account List */
   .accounts-list {
@@ -923,6 +1008,9 @@
   }
 
   .group-name {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -934,6 +1022,7 @@
     font-family: var(--font-family-mono);
     font-size: 0.75rem;
     font-weight: 600;
+    color: var(--foreground);
   }
 
   .account-item {
