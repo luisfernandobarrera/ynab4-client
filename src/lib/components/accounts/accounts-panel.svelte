@@ -307,9 +307,9 @@
 
 <style>
   .accounts-panel {
-    width: 180px;
-    min-width: 160px;
-    max-width: 200px;
+    width: 220px;
+    min-width: 200px;
+    max-width: 260px;
     background: var(--card);
     border-right: 1px solid var(--border);
     display: flex;

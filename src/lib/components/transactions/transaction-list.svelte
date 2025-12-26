@@ -1987,14 +1987,21 @@
     letter-spacing: 0.05em;
     color: var(--muted-foreground);
     border-bottom: 2px solid var(--border);
+    border-right: 1px solid var(--border);
     white-space: nowrap;
   }
 
   .tx-table td {
     padding: 0.5rem 0.375rem;
     border-bottom: 1px solid var(--border);
+    border-right: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
     vertical-align: middle;
     color: var(--foreground);
+  }
+  
+  .tx-table th:last-child,
+  .tx-table td:last-child {
+    border-right: none;
   }
 
   .tx-row {

@@ -138,19 +138,24 @@
     addToast({ type: 'info', message: 'Adjustment transaction created' });
   }
 
-  // Account type configuration
+  // Account type configuration - all YNAB4 types from pynab reference
   function getTypeConfig(type: string): { label: string; icon: string; order: number } {
     const configs: Record<string, { labelKey: string; icon: string; order: number }> = {
-      'CreditCard': { labelKey: 'accountTypes.creditCards', icon: 'TC', order: 1 },
+      'Cash': { labelKey: 'accountTypes.cash', icon: 'EF', order: 1 },
       'Checking': { labelKey: 'accountTypes.checking', icon: 'CH', order: 2 },
       'Savings': { labelKey: 'accountTypes.savings', icon: 'AH', order: 3 },
-      'Cash': { labelKey: 'accountTypes.cash', icon: 'EF', order: 4 },
+      'CreditCard': { labelKey: 'accountTypes.creditCards', icon: 'TC', order: 4 },
       'LineOfCredit': { labelKey: 'accountTypes.lineOfCredit', icon: 'LC', order: 5 },
-      'OtherAsset': { labelKey: 'accountTypes.otherAssets', icon: 'OA', order: 6 },
-      'OtherLiability': { labelKey: 'accountTypes.otherLiabilities', icon: 'OD', order: 7 },
+      'PayPal': { labelKey: 'accountTypes.paypal', icon: 'PP', order: 6 },
+      'Merchant': { labelKey: 'accountTypes.merchant', icon: 'TD', order: 7 },
+      'Investment': { labelKey: 'accountTypes.investments', icon: 'IN', order: 8 },
       'InvestmentAccount': { labelKey: 'accountTypes.investments', icon: 'IN', order: 8 },
+      'Mortgage': { labelKey: 'accountTypes.mortgage', icon: 'HI', order: 9 },
+      'OtherAsset': { labelKey: 'accountTypes.otherAssets', icon: 'OA', order: 10 },
+      'OtherLiability': { labelKey: 'accountTypes.otherLiabilities', icon: 'OD', order: 11 },
+      'OtherCredit': { labelKey: 'accountTypes.lineOfCredit', icon: 'LC', order: 5 },
     };
-    const config = configs[type] || { labelKey: 'accountTypes.other', icon: '··', order: 99 };
+    const config = configs[type] || { labelKey: 'accountTypes.otherAssets', icon: 'OA', order: 10 };
     return { label: $t(config.labelKey), icon: config.icon, order: config.order };
   }
 
