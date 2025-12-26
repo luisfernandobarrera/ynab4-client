@@ -265,6 +265,61 @@
     flag: string | null;
   } | null>(null);
   
+  // Selection state for transaction sums
+  let selectedTxIds = $state<Set<string>>(new Set());
+  
+  // Selection totals
+  const selectionTotals = $derived.by(() => {
+    if (selectedTxIds.size === 0) return null;
+    let inflow = 0, outflow = 0;
+    for (const tx of visibleTransactions) {
+      if (selectedTxIds.has(tx.id)) {
+        if (tx.amount >= 0) inflow += tx.amount;
+        else outflow += tx.amount;
+      }
+    }
+    return { count: selectedTxIds.size, inflow, outflow, net: inflow + outflow };
+  });
+  
+  // Toggle transaction selection
+  function toggleTxSelection(txId: string, event: MouseEvent) {
+    const newSet = new Set(selectedTxIds);
+    if (event.shiftKey && selectedTxIds.size > 0) {
+      // Shift-click: select range
+      const txIds = visibleTransactions.map(t => t.id);
+      const lastSelected = Array.from(selectedTxIds).pop();
+      const lastIdx = txIds.indexOf(lastSelected || '');
+      const currentIdx = txIds.indexOf(txId);
+      if (lastIdx >= 0 && currentIdx >= 0) {
+        const [start, end] = lastIdx < currentIdx ? [lastIdx, currentIdx] : [currentIdx, lastIdx];
+        for (let i = start; i <= end; i++) {
+          newSet.add(txIds[i]);
+        }
+      }
+    } else if (event.ctrlKey || event.metaKey) {
+      // Ctrl/Cmd-click: toggle single
+      if (newSet.has(txId)) newSet.delete(txId);
+      else newSet.add(txId);
+    } else {
+      // Regular click: toggle single (clear others if not already selected)
+      if (newSet.has(txId) && newSet.size === 1) {
+        newSet.clear();
+      } else {
+        newSet.clear();
+        newSet.add(txId);
+      }
+    }
+    selectedTxIds = newSet;
+  }
+  
+  function clearTxSelection() {
+    selectedTxIds = new Set();
+  }
+  
+  function selectAllTx() {
+    selectedTxIds = new Set(visibleTransactions.map(t => t.id));
+  }
+  
   // Autocomplete options for accounts
   const accountOptions = $derived(
     $accounts
@@ -1368,14 +1423,16 @@
               {@const transferName = tx.payee?.replace(/^Transfer\s*:\s*/, '') || ''}
               {@const transferTargetId = isTransfer ? getTransferTargetId(tx) : null}
               {@const txIndicator = getTxIndicator(tx)}
+              {@const isTxSelected = selectedTxIds.has(tx.id)}
               <!-- Display row -->
               <tr 
                 class="tx-row"
                 class:has-splits={txHasSplits}
                 class:compact={compactMode}
                 class:needs-approval={txIndicator === 'needsApproval'}
+                class:selected={isTxSelected}
                 ondblclick={() => startEdit(tx)}
-                onclick={() => txHasSplits && toggleSplit(tx.id)}
+                onclick={(e) => { toggleTxSelection(tx.id, e); if (txHasSplits && !e.ctrlKey && !e.metaKey && !e.shiftKey) toggleSplit(tx.id); }}
               >
                 {#if isColumnVisible('flag')}
                   <td class="col-flag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : ''}"></td>
@@ -1630,6 +1687,31 @@
         </tbody>
       </table>
     </div>
+    
+    <!-- Selection summary bar -->
+    {#if selectionTotals}
+      <div class="selection-bar">
+        <div class="selection-info">
+          <span class="selection-count">{selectionTotals.count} seleccionadas</span>
+          <button class="selection-action" onclick={selectAllTx}>Todas</button>
+          <button class="selection-action" onclick={clearTxSelection}>Limpiar</button>
+        </div>
+        <div class="selection-totals">
+          <span class="total-item outflow">
+            <span class="total-label">Cargo:</span>
+            <span class="total-value">{formatCurrency(selectionTotals.outflow)}</span>
+          </span>
+          <span class="total-item inflow">
+            <span class="total-label">Abono:</span>
+            <span class="total-value">{formatCurrency(selectionTotals.inflow)}</span>
+          </span>
+          <span class="total-item net" class:positive={selectionTotals.net >= 0} class:negative={selectionTotals.net < 0}>
+            <span class="total-label">Neto:</span>
+            <span class="total-value">{formatCurrency(selectionTotals.net)}</span>
+          </span>
+        </div>
+      </div>
+    {/if}
 
     <!-- Cards (Mobile) -->
     <div class="tx-cards-container">
@@ -2776,6 +2858,99 @@
     font-weight: 400;
   }
 
+  /* Selection styles */
+  .tx-row {
+    cursor: pointer;
+    user-select: none;
+  }
+  
+  .tx-row.selected {
+    background: color-mix(in srgb, var(--primary) 20%, transparent) !important;
+  }
+  
+  .tx-row.selected:hover {
+    background: color-mix(in srgb, var(--primary) 30%, transparent) !important;
+  }
+
+  /* Selection summary bar */
+  .selection-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: var(--card);
+    border-top: 2px solid var(--primary);
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  
+  .selection-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  
+  .selection-count {
+    font-weight: 600;
+    color: var(--primary);
+    font-size: 0.875rem;
+  }
+  
+  .selection-action {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  
+  .selection-action:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+  
+  .selection-totals {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  
+  .total-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  
+  .total-label {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+  }
+  
+  .total-value {
+    font-family: var(--font-family-mono);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  
+  .total-item.outflow .total-value {
+    color: var(--destructive);
+  }
+  
+  .total-item.inflow .total-value {
+    color: var(--success);
+  }
+  
+  .total-item.net.positive .total-value {
+    color: var(--success);
+  }
+  
+  .total-item.net.negative .total-value {
+    color: var(--destructive);
+  }
+
   /* Mobile */
   @media (max-width: 768px) {
     .tx-toolbar {
@@ -2811,6 +2986,16 @@
 
     .tx-status-bar {
       display: none;
+    }
+    
+    .selection-bar {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .selection-totals {
+      flex-wrap: wrap;
+      gap: 0.75rem;
     }
   }
 </style>

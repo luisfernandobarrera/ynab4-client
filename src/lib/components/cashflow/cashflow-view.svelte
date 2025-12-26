@@ -23,6 +23,61 @@
   // Table container ref for scroll management
   let tableContainer: HTMLDivElement | null = $state(null);
   
+  // Selection state for transaction sums
+  let selectedTxIds = $state<Set<string>>(new Set());
+  
+  // Selection totals
+  const selectionTotals = $derived.by(() => {
+    if (selectedTxIds.size === 0) return null;
+    let inflow = 0, outflow = 0;
+    for (const tx of displayedTransactions) {
+      if (selectedTxIds.has(tx.id)) {
+        if (tx.amount >= 0) inflow += tx.amount;
+        else outflow += tx.amount;
+      }
+    }
+    return { count: selectedTxIds.size, inflow, outflow, net: inflow + outflow };
+  });
+  
+  // Toggle transaction selection
+  function toggleTxSelection(txId: string, event: MouseEvent) {
+    const newSet = new Set(selectedTxIds);
+    if (event.shiftKey && selectedTxIds.size > 0) {
+      // Shift-click: select range
+      const txIds = displayedTransactions.map(t => t.id);
+      const lastSelected = Array.from(selectedTxIds).pop();
+      const lastIdx = txIds.indexOf(lastSelected || '');
+      const currentIdx = txIds.indexOf(txId);
+      if (lastIdx >= 0 && currentIdx >= 0) {
+        const [start, end] = lastIdx < currentIdx ? [lastIdx, currentIdx] : [currentIdx, lastIdx];
+        for (let i = start; i <= end; i++) {
+          newSet.add(txIds[i]);
+        }
+      }
+    } else if (event.ctrlKey || event.metaKey) {
+      // Ctrl/Cmd-click: toggle single
+      if (newSet.has(txId)) newSet.delete(txId);
+      else newSet.add(txId);
+    } else {
+      // Regular click: toggle single (clear others if not already selected)
+      if (newSet.has(txId) && newSet.size === 1) {
+        newSet.clear();
+      } else {
+        newSet.clear();
+        newSet.add(txId);
+      }
+    }
+    selectedTxIds = newSet;
+  }
+  
+  function clearSelection() {
+    selectedTxIds = new Set();
+  }
+  
+  function selectAll() {
+    selectedTxIds = new Set(displayedTransactions.map(t => t.id));
+  }
+  
   // Use user preference for sort direction
   const sortDirection = $derived($transactionSortOrder);
   
@@ -784,7 +839,13 @@
                 {@const isOutflow = tx.amount < 0}
                 {@const isTransfer = !!getTransferTargetId(tx)}
                 {@const transferTarget = getTransferTargetId(tx)}
-                <tr class="tx-row">
+                {@const isSelected = selectedTxIds.has(tx.id)}
+                <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                <tr 
+                  class="tx-row" 
+                  class:selected={isSelected}
+                  onclick={(e) => toggleTxSelection(tx.id, e)}
+                >
                   <td class="col-date">{formatDate(tx.date)}</td>
                   {#if !selectedAccountId}
                     <td class="col-account">{getAccountName(tx.accountId)}</td>
@@ -838,6 +899,31 @@
             </div>
           {/if}
         </div>
+        
+        <!-- Selection summary bar -->
+        {#if selectionTotals}
+          <div class="selection-bar">
+            <div class="selection-info">
+              <span class="selection-count">{selectionTotals.count} seleccionadas</span>
+              <button class="selection-action" onclick={selectAll}>Todas</button>
+              <button class="selection-action" onclick={clearSelection}>Limpiar</button>
+            </div>
+            <div class="selection-totals">
+              <span class="total-item outflow">
+                <span class="total-label">Cargo:</span>
+                <span class="total-value">{formatAmount(selectionTotals.outflow)}</span>
+              </span>
+              <span class="total-item inflow">
+                <span class="total-label">Abono:</span>
+                <span class="total-value">{formatAmount(selectionTotals.inflow)}</span>
+              </span>
+              <span class="total-item net" class:positive={selectionTotals.net >= 0} class:negative={selectionTotals.net < 0}>
+                <span class="total-label">Neto:</span>
+                <span class="total-value">{formatAmount(selectionTotals.net)}</span>
+              </span>
+            </div>
+          </div>
+        {/if}
       {/if}
     </main>
   </div>
@@ -1323,5 +1409,98 @@
     .col-account { display: none; }
     .col-category { display: none; }
     .col-type { display: none; }
+  }
+
+  /* Selection styles */
+  .tx-row {
+    cursor: pointer;
+    user-select: none;
+  }
+  
+  .tx-row.selected {
+    background: color-mix(in srgb, var(--primary) 20%, transparent);
+  }
+  
+  .tx-row.selected:hover {
+    background: color-mix(in srgb, var(--primary) 30%, transparent);
+  }
+
+  /* Selection summary bar */
+  .selection-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: var(--card);
+    border-top: 2px solid var(--primary);
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  
+  .selection-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  
+  .selection-count {
+    font-weight: 600;
+    color: var(--primary);
+    font-size: 0.875rem;
+  }
+  
+  .selection-action {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  
+  .selection-action:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+  
+  .selection-totals {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+  
+  .total-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  
+  .total-label {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+  }
+  
+  .total-value {
+    font-family: var(--font-family-mono);
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  
+  .total-item.outflow .total-value {
+    color: var(--destructive);
+  }
+  
+  .total-item.inflow .total-value {
+    color: var(--success);
+  }
+  
+  .total-item.net.positive .total-value {
+    color: var(--success);
+  }
+  
+  .total-item.net.negative .total-value {
+    color: var(--destructive);
   }
 </style>
