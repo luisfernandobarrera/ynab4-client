@@ -11,6 +11,59 @@
   import { t } from '$lib/i18n';
   import { browser } from '$app/environment';
   
+  // Account type classification
+  function getAccountType(accountId: string): string {
+    const acc = $accounts.find(a => a.id === accountId);
+    if (!acc) return 'other';
+    const type = acc.type?.toLowerCase() || '';
+    if (type.includes('checking')) return 'checking';
+    if (type.includes('savings')) return 'savings';
+    if (type.includes('creditcard') || type.includes('credit card')) return 'creditCard';
+    if (type.includes('cash')) return 'cash';
+    if (type.includes('lineofcredit') || type.includes('line of credit')) return 'lineOfCredit';
+    if (type.includes('merchant') || type.includes('store')) return 'merchant';
+    if (type.includes('investment')) return 'investment';
+    if (type.includes('mortgage')) return 'mortgage';
+    if (type.includes('otherasset') || type.includes('other asset')) return 'otherAsset';
+    if (type.includes('otherliability') || type.includes('other liability')) return 'otherLiability';
+    return 'other';
+  }
+  
+  // Get transfer category label based on target account type
+  function getTransferCategoryLabel(accountId: string | null): string {
+    if (!accountId) return 'Transferencia';
+    const type = getAccountType(accountId);
+    const labels: Record<string, string> = {
+      checking: 'Cuenta Cheques',
+      savings: 'Cuenta Ahorro',
+      creditCard: 'Tarjeta de Crédito',
+      cash: 'Efectivo',
+      lineOfCredit: 'Línea de Crédito',
+      merchant: 'Tarjeta Departamental',
+      investment: 'Inversión',
+      mortgage: 'Hipoteca',
+      otherAsset: 'Otros Activos',
+      otherLiability: 'Otros Pasivos',
+      other: 'Transferencia'
+    };
+    return labels[type] || 'Transferencia';
+  }
+  
+  // Get transfer target account ID from payee
+  function getTransferTargetId(tx: { transferAccountId?: string | null; payeeId?: string | null; payee?: string | null }): string | null {
+    if (tx.transferAccountId) return tx.transferAccountId;
+    if (tx.payeeId?.startsWith('Payee/Transfer:')) {
+      return tx.payeeId.replace('Payee/Transfer:', '');
+    }
+    // Try to extract from payee name "Transfer: AccountName"
+    if (tx.payee?.startsWith('Transfer')) {
+      const accName = tx.payee.replace(/^Transfer\s*:\s*/, '');
+      const acc = $accounts.find(a => a.name === accName);
+      return acc?.id || null;
+    }
+    return null;
+  }
+  
   // Column configuration
   interface ColumnConfig {
     id: string;
@@ -1257,6 +1310,9 @@
             {:else}
               {@const txHasSplits = hasSplits(tx)}
               {@const isExpanded = expandedSplits.has(tx.id)}
+              {@const isTransfer = !!(tx.transferAccountId || tx.payee?.startsWith('Transfer'))}
+              {@const transferName = tx.payee?.replace(/^Transfer\s*:\s*/, '') || ''}
+              {@const transferTargetId = isTransfer ? getTransferTargetId(tx) : null}
               <!-- Display row -->
               <tr 
                 class="tx-row"
@@ -1273,14 +1329,13 @@
                   <td class="col-account">{tx.accountName}</td>
                 {/if}
                 <td class="col-payee">
-                  {#if tx.transferAccountId || tx.payee?.startsWith('Transfer')}
-                    {@const transferName = tx.payee?.replace(/^Transfer\s*:\s*/, '') || 'Transfer'}
+                  {#if isTransfer}
                     <span class="transfer-display">
                       <span class="transfer-icon">↔</span>
-                      <span>{transferName}</span>
+                      <span class="payee-name">{transferName}</span>
                     </span>
                   {:else}
-                    {tx.payee || ''}
+                    <span class="payee-name">{tx.payee || ''}</span>
                   {/if}
                 </td>
                 <td class="col-category">
@@ -1290,8 +1345,8 @@
                         <Split class="h-3 w-3" />
                         <span>{$t('transactions.split')} ({tx.subTransactions?.length})</span>
                       </span>
-                    {:else if tx.transferAccountId || tx.payee?.startsWith('Transfer')}
-                      <span class="transfer-category">Transferencia</span>
+                    {:else if isTransfer}
+                      <span class="transfer-category">{getTransferCategoryLabel(transferTargetId)}</span>
                     {:else if subCategory}
                       <span class="category-display">
                         <strong class="cat-sub">{subCategory}</strong>
@@ -1989,27 +2044,22 @@
   .transfer-display {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    color: var(--foreground);
+    gap: 0.25rem;
   }
   
   .transfer-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    background: rgba(59, 130, 246, 0.15);
-    color: #3b82f6;
-    border-radius: 3px;
-    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--muted-foreground);
+    font-size: 0.8rem;
+  }
+  
+  .payee-name {
     font-weight: 600;
-    flex-shrink: 0;
+    color: var(--foreground);
   }
   
   .transfer-category {
     color: var(--muted-foreground);
-    font-style: italic;
     font-size: 0.7rem;
   }
   .col-outflow, .col-inflow, .col-balance { 
