@@ -3,6 +3,7 @@
   import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
+  import DateNavigation from './date-navigation.svelte';
   import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories } from '$lib/stores/budget';
   import { isMobile } from '$lib/stores/ui';
   import { formatCurrency } from '$lib/utils';
@@ -18,19 +19,16 @@
   let searchQuery = $state('');
   let hideReconciled = $state(false);
   let showAccountsPanel = $state(true);
-  let showDateFilter = $state(false);
+  let showDateNav = $state(false);
   
   // Sort order: 'desc' = newest first (default), 'asc' = oldest first
   let sortOrder = $state<'asc' | 'desc'>('desc');
   
-  // Entry position: 'top' or 'bottom'
-  let entryPosition = $state<'top' | 'bottom'>('top');
-  
-  // Date filter with presets
-  type DatePreset = 'all' | 'thisMonth' | 'last3' | 'thisYear' | 'lastYear' | 'custom';
-  let datePreset = $state<DatePreset>('all');
-  let customDateFrom = $state('');
-  let customDateTo = $state('');
+  // Date filter state
+  const currentDate = new Date();
+  let selectedYear = $state(currentDate.getFullYear());
+  let selectedMonth = $state(currentDate.getMonth());
+  let showAllDates = $state(true);
   
   // Flag colors
   const FLAG_COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'] as const;
@@ -45,6 +43,28 @@
   let entryOutflow = $state('');
   let entryInflow = $state('');
   let entryFlag = $state<string | null>(null);
+  
+  // Handle outflow/inflow exclusivity
+  function handleOutflowInput(e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    entryOutflow = value;
+    if (value) entryInflow = '';
+  }
+  
+  function handleInflowInput(e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    entryInflow = value;
+    if (value) entryOutflow = '';
+  }
+  
+  // Handle keyboard events for entry
+  function handleEntryKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      cancelEntry();
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      saveEntry();
+    }
+  }
   
   // Pagination for performance with infinite scroll
   const PAGE_SIZE = 100;
@@ -67,42 +87,16 @@
     sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
   }
   
-  // Calculate date range from preset
-  function getDateRange(preset: DatePreset): { from: string; to: string } {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    
-    switch (preset) {
-      case 'thisMonth': {
-        const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-        const lastDay = new Date(year, month + 1, 0).getDate();
-        const to = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
-        return { from, to };
-      }
-      case 'last3': {
-        const fromDate = new Date(year, month - 2, 1);
-        const from = fromDate.toISOString().split('T')[0];
-        const lastDay = new Date(year, month + 1, 0).getDate();
-        const to = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
-        return { from, to };
-      }
-      case 'thisYear': {
-        return { from: `${year}-01-01`, to: `${year}-12-31` };
-      }
-      case 'lastYear': {
-        return { from: `${year - 1}-01-01`, to: `${year - 1}-12-31` };
-      }
-      case 'custom': {
-        return { from: customDateFrom, to: customDateTo };
-      }
-      default:
-        return { from: '', to: '' };
+  // Calculate date range from year/month selection
+  const dateFilter = $derived.by(() => {
+    if (showAllDates) {
+      return { from: '', to: '' };
     }
-  }
-  
-  // Effective date filter
-  const dateFilter = $derived(getDateRange(datePreset));
+    const from = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    const to = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${lastDay}`;
+    return { from, to };
+  });
 
   const selectedAccount = $derived(
     $selectedAccountId ? $accounts.find((a) => a.id === $selectedAccountId) : null
@@ -365,35 +359,18 @@
       </div>
       
       <div class="tx-toolbar-actions">
-        <!-- Date filter with presets -->
-        <div class="date-filter-wrapper">
-          <select 
-            class="date-preset-select"
-            bind:value={datePreset}
-          >
-            <option value="all">{$t('transactions.allDates')}</option>
-            <option value="thisMonth">{$t('transactions.thisMonth')}</option>
-            <option value="last3">{$t('transactions.last3Months')}</option>
-            <option value="thisYear">{$t('transactions.thisYear')}</option>
-            <option value="lastYear">{$t('transactions.lastYear')}</option>
-            <option value="custom">{$t('transactions.customRange')}</option>
-          </select>
-          
-          {#if datePreset === 'custom'}
-            <input 
-              type="date" 
-              class="date-input"
-              bind:value={customDateFrom}
-              placeholder="De"
-            />
-            <input 
-              type="date" 
-              class="date-input"
-              bind:value={customDateTo}
-              placeholder="A"
-            />
+        <!-- Date nav toggle -->
+        <button 
+          class="tx-icon-btn"
+          class:active={showDateNav}
+          onclick={() => showDateNav = !showDateNav}
+          title={$t('transactions.toggleDateFilter')}
+        >
+          <Calendar class="h-4 w-4" />
+          {#if !showAllDates}
+            <span class="date-indicator">{selectedYear}/{selectedMonth + 1}</span>
           {/if}
-        </div>
+        </button>
         
         <button 
           class="tx-icon-btn"
@@ -430,6 +407,18 @@
         </div>
       </div>
     </div>
+    
+    <!-- Date Navigation -->
+    {#if showDateNav}
+      <DateNavigation
+        {selectedYear}
+        {selectedMonth}
+        showAll={showAllDates}
+        onYearChange={(year) => selectedYear = year}
+        onMonthChange={(month) => selectedMonth = month}
+        onShowAllChange={(show) => showAllDates = show}
+      />
+    {/if}
 
     <!-- Table (Desktop) -->
     <div class="tx-table-container" bind:this={tableContainer} onscroll={handleScroll}>
@@ -497,6 +486,7 @@
                     bind:value={entryDate}
                     placeholder="DD/MM"
                     onblur={handleDateInput}
+                    onkeydown={handleEntryKeydown}
                   />
                 </td>
                 {#if !selectedAccount}
@@ -511,6 +501,7 @@
                     placeholder={$t('transactions.payee')}
                     bind:value={entryPayee}
                     list="payees-list"
+                    onkeydown={handleEntryKeydown}
                   />
                   <datalist id="payees-list">
                     {#each $payees as payee}
@@ -526,6 +517,7 @@
                       placeholder={$t('transactions.category')}
                       bind:value={entryCategory}
                       list="categories-list"
+                      onkeydown={handleEntryKeydown}
                     />
                     <datalist id="categories-list">
                       {#each $categories as cat}
@@ -538,6 +530,7 @@
                       class="inline-input memo-input" 
                       placeholder={$t('transactions.memo')}
                       bind:value={entryMemo}
+                      onkeydown={handleEntryKeydown}
                     />
                   </div>
                 </td>
@@ -546,7 +539,9 @@
                     type="text" 
                     class="inline-input amount-input" 
                     placeholder=""
-                    bind:value={entryOutflow}
+                    value={entryOutflow}
+                    oninput={handleOutflowInput}
+                    onkeydown={handleEntryKeydown}
                   />
                 </td>
                 <td class="col-inflow">
@@ -554,7 +549,9 @@
                     type="text" 
                     class="inline-input amount-input" 
                     placeholder=""
-                    bind:value={entryInflow}
+                    value={entryInflow}
+                    oninput={handleInflowInput}
+                    onkeydown={handleEntryKeydown}
                   />
                 </td>
                 {#if selectedAccount}
@@ -565,7 +562,7 @@
                     <button class="entry-save-btn" onclick={saveEntry} title={$t('common.save')}>
                       <Save class="h-3 w-3" />
                     </button>
-                    <button class="entry-cancel-btn" onclick={cancelEntry} title={$t('common.cancel')}>
+                    <button class="entry-cancel-btn" onclick={cancelEntry} title={$t('common.cancel')} onkeydown={handleEntryKeydown}>
                       <X class="h-3 w-3" />
                     </button>
                   </div>
@@ -695,6 +692,7 @@
                     bind:value={entryDate}
                     placeholder="DD/MM"
                     onblur={handleDateInput}
+                    onkeydown={handleEntryKeydown}
                   />
                 </td>
                 {#if !selectedAccount}
@@ -709,6 +707,7 @@
                     placeholder={$t('transactions.payee')}
                     bind:value={entryPayee}
                     list="payees-list-bottom"
+                    onkeydown={handleEntryKeydown}
                   />
                   <datalist id="payees-list-bottom">
                     {#each $payees as payee}
@@ -724,6 +723,7 @@
                       placeholder={$t('transactions.category')}
                       bind:value={entryCategory}
                       list="categories-list-bottom"
+                      onkeydown={handleEntryKeydown}
                     />
                     <datalist id="categories-list-bottom">
                       {#each $categories as cat}
@@ -736,6 +736,7 @@
                       class="inline-input memo-input" 
                       placeholder={$t('transactions.memo')}
                       bind:value={entryMemo}
+                      onkeydown={handleEntryKeydown}
                     />
                   </div>
                 </td>
@@ -744,7 +745,9 @@
                     type="text" 
                     class="inline-input amount-input" 
                     placeholder=""
-                    bind:value={entryOutflow}
+                    value={entryOutflow}
+                    oninput={handleOutflowInput}
+                    onkeydown={handleEntryKeydown}
                   />
                 </td>
                 <td class="col-inflow">
@@ -752,7 +755,9 @@
                     type="text" 
                     class="inline-input amount-input" 
                     placeholder=""
-                    bind:value={entryInflow}
+                    value={entryInflow}
+                    oninput={handleInflowInput}
+                    onkeydown={handleEntryKeydown}
                   />
                 </td>
                 {#if selectedAccount}
@@ -761,10 +766,10 @@
                 <td class="col-status">
                   <div class="entry-actions">
                     <button class="entry-save-btn" onclick={saveEntry} title={$t('common.save')}>
-                      <Save class="h-3.5 w-3.5" />
+                      <Save class="h-3 w-3" />
                     </button>
-                    <button class="entry-cancel-btn" onclick={cancelEntry} title={$t('common.cancel')}>
-                      <X class="h-3.5 w-3.5" />
+                    <button class="entry-cancel-btn" onclick={cancelEntry} title={$t('common.cancel')} onkeydown={handleEntryKeydown}>
+                      <X class="h-3 w-3" />
                     </button>
                   </div>
                 </td>
@@ -949,56 +954,41 @@
     text-overflow: ellipsis;
   }
 
-  /* Date Filter */
-  .date-filter-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
+  /* Date Indicator */
+  .date-indicator {
+    font-size: 0.6rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    padding: 0.125rem 0.25rem;
+    border-radius: 3px;
+    margin-left: 0.25rem;
+    font-weight: 600;
   }
 
-  .date-preset-select {
-    padding: 0.25rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-size: 0.7rem;
-    background: var(--background);
-    color: var(--foreground);
-    cursor: pointer;
-  }
-
-  .date-input {
-    padding: 0.25rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-size: 0.7rem;
-    background: var(--background);
-    color: var(--foreground);
-    width: 100px;
-  }
-
-  /* Flag Tag (solid color rectangle) */
+  /* Flag Tag (solid color vertical rectangle) */
   .flag-tag-wrapper {
     position: relative;
+    display: flex;
+    justify-content: center;
   }
 
   .flag-tag {
     display: block;
-    width: 4px;
-    height: 16px;
+    width: 6px;
+    height: 20px;
     border: none;
-    border-radius: 1px;
+    border-radius: 2px;
     cursor: pointer;
     transition: all 0.15s;
-    margin: 0 auto;
   }
 
   .flag-tag.flag-empty {
-    background: var(--border);
-    opacity: 0.3;
+    background: var(--muted);
+    border: 1px dashed var(--border);
   }
 
   .flag-tag.flag-empty:hover {
-    opacity: 0.6;
+    border-color: var(--muted-foreground);
   }
 
   .flag-tag.flag-red { background: #ef4444; }
@@ -1081,29 +1071,6 @@
   .tx-balance.positive { color: var(--success); }
   .tx-balance.negative { color: var(--destructive); }
 
-  /* Date Filter */
-  .date-filter-wrapper {
-    position: relative;
-  }
-
-  .date-filter-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-  }
-
-  .date-filter-popup {
-    position: absolute;
-    top: calc(100% + 4px);
-    right: 0;
-    z-index: 50;
-    padding: 0.75rem;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-    min-width: 200px;
-  }
 
   .date-filter-row {
     display: flex;
