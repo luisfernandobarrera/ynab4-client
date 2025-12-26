@@ -270,9 +270,6 @@
           <ChevronRight 
             class="h-3 w-3 ap-chevron {expandedGroups.has(key) ? 'expanded' : ''}"
           />
-          {#if group.icon}
-            <span class="ap-group-icon">{group.icon}</span>
-          {/if}
           <span class="ap-group-name">{group.label}</span>
           <span class="ap-group-total {getBalanceClass(group.total)}">
             {group.total < 0 ? '-' : ''}{formatBalance(group.total)}
