@@ -309,7 +309,9 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
   const masterCatList: any[] = client.getMasterCategories() || [];
   const masterCatMap = new Map(masterCatList.map((mc) => [mc.entityId, mc.name]));
   const categoryMap = new Map(categoryList.map((c) => {
-    const masterName = masterCatMap.get(c.masterCategoryId);
+    // Category uses categoryGroupId to reference master category
+    const masterId = c.categoryGroupId || c.masterCategoryId;
+    const masterName = masterCatMap.get(masterId);
     const fullName = masterName ? `${masterName}: ${c.name}` : c.name;
     return [c.entityId, fullName];
   }));
@@ -353,7 +355,8 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
     categoryList.map((c) => ({
       entityId: c.entityId as string,
       name: c.name as string,
-      masterCategoryId: c.masterCategoryId as string,
+      // Category uses categoryGroupId to reference master category
+      masterCategoryId: (c.categoryGroupId || c.masterCategoryId) as string,
       isTombstone: c.isTombstone as boolean | undefined,
       sortableIndex: c.sortableIndex as number | undefined,
     }))
@@ -402,7 +405,7 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
     if (mc.isTombstone || mc.name === 'Hidden Categories') continue;
 
     const cats = categoryList
-      .filter((c) => c.masterCategoryId === mc.entityId && !c.isTombstone)
+      .filter((c) => (c.categoryGroupId || c.masterCategoryId) === mc.entityId && !c.isTombstone)
       .map((c) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const budget = budgetMap.get(c.entityId) as any;
