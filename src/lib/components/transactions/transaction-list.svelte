@@ -235,7 +235,11 @@
   function formatDate(dateStr: string): string {
     if (dateStr === 'No date') return dateStr;
     try {
-      return new Date(dateStr).toISOString().split('T')[0];
+      const d = new Date(dateStr + 'T12:00:00');
+      const day = d.getDate().toString().padStart(2, '0');
+      const month = (d.getMonth() + 1).toString().padStart(2, '0');
+      const year = d.getFullYear().toString().slice(-2);
+      return `${day}/${month}/${year}`;
     } catch {
       return dateStr;
     }
@@ -784,7 +788,7 @@
         </thead>
         <tbody>
           <!-- Top entry row (when sortOrder is desc - newest first) -->
-          {#if sortOrder === 'desc'}
+          {#if sortOrder === 'desc' && $isEditMode}
             {#if isEditing}
               <tr class="tx-entry-row">
                 <td class="col-flag">
@@ -1135,7 +1139,7 @@
           {/each}
           
           <!-- Bottom entry row (when sortOrder is asc - oldest first) -->
-          {#if sortOrder === 'asc'}
+          {#if sortOrder === 'asc' && $isEditMode}
             {#if isEditing}
               <tr class="tx-entry-row">
                 <td class="col-flag">
@@ -1680,7 +1684,7 @@
   }
 
   .col-flag { width: 22px; text-align: center; padding: 0 !important; }
-  .col-date { width: 72px; font-size: 0.7rem; }
+  .col-date { width: 85px; font-size: 0.75rem; white-space: nowrap; }
   .col-account { width: 80px; font-size: 0.7rem; }
   .col-payee { min-width: 100px; font-size: 0.75rem; }
   .col-category { min-width: 120px; font-size: 0.7rem; }
