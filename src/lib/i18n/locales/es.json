@@ -162,6 +162,8 @@
     "thisYear": "Este Año",
     "lastYear": "Año Pasado",
     "customRange": "Personalizado",
+    "newestFirst": "Más recientes primero",
+    "oldestFirst": "Más antiguos primero",
     "selectPayee": "Seleccionar beneficiario",
     "selectCategory": "Seleccionar categoría",
     "selectAccount": "Seleccionar cuenta",

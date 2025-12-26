@@ -162,6 +162,8 @@
     "thisYear": "This Year",
     "lastYear": "Last Year",
     "customRange": "Custom",
+    "newestFirst": "Newest first",
+    "oldestFirst": "Oldest first",
     "selectPayee": "Select payee",
     "selectCategory": "Select category",
     "selectAccount": "Select account",

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { Plus, Search, Lock, ChevronDown, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag } from 'lucide-svelte';
+  import { onMount } from 'svelte';
+  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
   import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories } from '$lib/stores/budget';
@@ -18,6 +19,12 @@
   let hideReconciled = $state(false);
   let showAccountsPanel = $state(true);
   let showDateFilter = $state(false);
+  
+  // Sort order: 'desc' = newest first (default), 'asc' = oldest first
+  let sortOrder = $state<'asc' | 'desc'>('desc');
+  
+  // Entry position: 'top' or 'bottom'
+  let entryPosition = $state<'top' | 'bottom'>('top');
   
   // Date filter with presets
   type DatePreset = 'all' | 'thisMonth' | 'last3' | 'thisYear' | 'lastYear' | 'custom';
@@ -39,9 +46,26 @@
   let entryInflow = $state('');
   let entryFlag = $state<string | null>(null);
   
-  // Pagination for performance
+  // Pagination for performance with infinite scroll
   const PAGE_SIZE = 100;
   let visibleCount = $state(PAGE_SIZE);
+  let tableContainer: HTMLDivElement;
+  
+  // Infinite scroll handler
+  function handleScroll(e: Event) {
+    const target = e.target as HTMLDivElement;
+    const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+    
+    // Load more when within 200px of bottom
+    if (scrollBottom < 200 && hasMore) {
+      visibleCount += PAGE_SIZE;
+    }
+  }
+  
+  // Toggle sort order
+  function toggleSortOrder() {
+    sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+  }
   
   // Calculate date range from preset
   function getDateRange(preset: DatePreset): { from: string; to: string } {
@@ -173,9 +197,16 @@
 
   // Calculate running balance
   const transactionsWithBalance = $derived.by(() => {
-    if (!$selectedAccountId) return filteredTransactions.map(tx => ({ ...tx, runningBalance: 0 }));
+    if (!$selectedAccountId) {
+      // Sort by date based on sortOrder
+      const sorted = [...filteredTransactions].sort((a, b) => {
+        const cmp = (a.date || '').localeCompare(b.date || '');
+        return sortOrder === 'desc' ? -cmp : cmp;
+      });
+      return sorted.map(tx => ({ ...tx, runningBalance: 0 }));
+    }
     
-    // Get all transactions for this account sorted by date ascending
+    // Get all transactions for this account sorted by date ascending (for running balance)
     const accountTxs = [...$transactions]
       .filter(tx => tx.accountId === $selectedAccountId)
       .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -188,10 +219,19 @@
       balanceMap.set(tx.id, runningBalance);
     }
     
-    return filteredTransactions.map(tx => ({
+    // Apply sort order for display
+    const withBalance = filteredTransactions.map(tx => ({
       ...tx,
       runningBalance: balanceMap.get(tx.id) || 0
     }));
+    
+    // Sort by date based on sortOrder
+    withBalance.sort((a, b) => {
+      const cmp = (a.date || '').localeCompare(b.date || '');
+      return sortOrder === 'desc' ? -cmp : cmp;
+    });
+    
+    return withBalance;
   });
 
   // Visible transactions (limited for performance)
@@ -357,6 +397,19 @@
         
         <button 
           class="tx-icon-btn"
+          class:active={sortOrder === 'asc'}
+          onclick={toggleSortOrder}
+          title={sortOrder === 'desc' ? $t('transactions.oldestFirst') : $t('transactions.newestFirst')}
+        >
+          {#if sortOrder === 'desc'}
+            <ChevronDown class="h-4 w-4" />
+          {:else}
+            <ChevronUp class="h-4 w-4" />
+          {/if}
+        </button>
+        
+        <button 
+          class="tx-icon-btn"
           class:active={hideReconciled}
           onclick={() => hideReconciled = !hideReconciled}
           title={hideReconciled ? $t('transactions.showAll') : $t('transactions.hideReconciled')}
@@ -379,12 +432,21 @@
     </div>
 
     <!-- Table (Desktop) -->
-    <div class="tx-table-container">
+    <div class="tx-table-container" bind:this={tableContainer} onscroll={handleScroll}>
       <table class="tx-table">
         <thead>
           <tr>
             <th class="col-flag"></th>
-            <th class="col-date">{$t('transactions.date')}</th>
+            <th class="col-date">
+              <button class="sort-header" onclick={toggleSortOrder}>
+                {$t('transactions.date')}
+                {#if sortOrder === 'desc'}
+                  <ChevronDown class="h-3 w-3" />
+                {:else}
+                  <ChevronUp class="h-3 w-3" />
+                {/if}
+              </button>
+            </th>
             {#if !selectedAccount}
               <th class="col-account">{$t('transactions.account')}</th>
             {/if}
@@ -399,138 +461,140 @@
           </tr>
         </thead>
         <tbody>
-          <!-- Inline entry row -->
-          {#if isEditing}
-            <tr class="tx-entry-row">
-              <td class="col-flag">
-                <div class="flag-picker-wrapper">
-                  <button 
-                    class="flag-btn {entryFlag ? `flag-${entryFlag}` : ''}"
-                    onclick={() => showFlagPicker = showFlagPicker === 'entry' ? null : 'entry'}
-                    type="button"
-                  >
-                    <Flag class="h-3 w-3" />
-                  </button>
-                  {#if showFlagPicker === 'entry'}
-                    <div class="flag-picker">
-                      <button 
-                        class="flag-option flag-none" 
-                        onclick={() => { entryFlag = null; showFlagPicker = null; }}
-                        type="button"
-                      >✕</button>
-                      {#each FLAG_COLORS as color}
-                        <button
-                          class="flag-option flag-{color}"
-                          onclick={() => { entryFlag = color; showFlagPicker = null; }}
+          <!-- Top entry row (when sortOrder is desc - newest first) -->
+          {#if sortOrder === 'desc'}
+            {#if isEditing}
+              <tr class="tx-entry-row">
+                <td class="col-flag">
+                  <div class="flag-picker-wrapper">
+                    <button 
+                      class="flag-btn {entryFlag ? `flag-${entryFlag}` : ''}"
+                      onclick={() => showFlagPicker = showFlagPicker === 'entry' ? null : 'entry'}
+                      type="button"
+                    >
+                      <Flag class="h-3 w-3" />
+                    </button>
+                    {#if showFlagPicker === 'entry'}
+                      <div class="flag-picker">
+                        <button 
+                          class="flag-option flag-none" 
+                          onclick={() => { entryFlag = null; showFlagPicker = null; }}
                           type="button"
-                        ></button>
-                      {/each}
-                    </div>
-                  {/if}
-                </div>
-              </td>
-              <td class="col-date">
-                <input 
-                  type="text" 
-                  class="entry-input date-entry" 
-                  bind:value={entryDate}
-                  placeholder="DD/MM"
-                  onblur={handleDateInput}
-                />
-              </td>
-              {#if !selectedAccount}
-                <td class="col-account">
-                  <span class="entry-account-auto">{$accounts[0]?.name || '-'}</span>
+                        >✕</button>
+                        {#each FLAG_COLORS as color}
+                          <button
+                            class="flag-option flag-{color}"
+                            onclick={() => { entryFlag = color; showFlagPicker = null; }}
+                            type="button"
+                          ></button>
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
                 </td>
-              {/if}
-              <td class="col-payee">
-                <input 
-                  type="text" 
-                  class="entry-input" 
-                  placeholder={$t('transactions.payee')}
-                  bind:value={entryPayee}
-                  list="payees-list"
-                />
-                <datalist id="payees-list">
-                  {#each $payees as payee}
-                    <option value={payee.name}></option>
-                  {/each}
-                </datalist>
-              </td>
-              <td class="col-category">
-                <input 
-                  type="text" 
-                  class="entry-input" 
-                  placeholder={$t('transactions.category')}
-                  bind:value={entryCategory}
-                  list="categories-list"
-                />
-                <datalist id="categories-list">
-                  {#each $categories as cat}
-                    {@const masterName = cat.masterCategoryName || ''}
-                    <option value={masterName ? `${masterName}: ${cat.name}` : cat.name}></option>
-                  {/each}
-                </datalist>
-                <input 
-                  type="text" 
-                  class="entry-input entry-memo" 
-                  placeholder={$t('transactions.memo')}
-                  bind:value={entryMemo}
-                />
-              </td>
-              <td class="col-outflow">
-                <input 
-                  type="text" 
-                  class="entry-input entry-amount" 
-                  placeholder="0.00"
-                  bind:value={entryOutflow}
-                />
-              </td>
-              <td class="col-inflow">
-                <input 
-                  type="text" 
-                  class="entry-input entry-amount" 
-                  placeholder="0.00"
-                  bind:value={entryInflow}
-                />
-              </td>
-              {#if selectedAccount}
-                <td class="col-balance"></td>
-              {/if}
-              <td class="col-status">
-                <div class="entry-actions">
-                  <button class="entry-save-btn" onclick={saveEntry} title={$t('common.save')}>
-                    <Save class="h-3.5 w-3.5" />
+                <td class="col-date">
+                  <input 
+                    type="text" 
+                    class="entry-input date-entry" 
+                    bind:value={entryDate}
+                    placeholder="DD/MM"
+                    onblur={handleDateInput}
+                  />
+                </td>
+                {#if !selectedAccount}
+                  <td class="col-account">
+                    <span class="entry-account-auto">{$accounts[0]?.name || '-'}</span>
+                  </td>
+                {/if}
+                <td class="col-payee">
+                  <input 
+                    type="text" 
+                    class="entry-input" 
+                    placeholder={$t('transactions.payee')}
+                    bind:value={entryPayee}
+                    list="payees-list"
+                  />
+                  <datalist id="payees-list">
+                    {#each $payees as payee}
+                      <option value={payee.name}></option>
+                    {/each}
+                  </datalist>
+                </td>
+                <td class="col-category">
+                  <input 
+                    type="text" 
+                    class="entry-input" 
+                    placeholder={$t('transactions.category')}
+                    bind:value={entryCategory}
+                    list="categories-list"
+                  />
+                  <datalist id="categories-list">
+                    {#each $categories as cat}
+                      {@const masterName = cat.masterCategoryName || ''}
+                      <option value={masterName ? `${masterName}: ${cat.name}` : cat.name}></option>
+                    {/each}
+                  </datalist>
+                  <input 
+                    type="text" 
+                    class="entry-input entry-memo" 
+                    placeholder={$t('transactions.memo')}
+                    bind:value={entryMemo}
+                  />
+                </td>
+                <td class="col-outflow">
+                  <input 
+                    type="text" 
+                    class="entry-input entry-amount" 
+                    placeholder="0.00"
+                    bind:value={entryOutflow}
+                  />
+                </td>
+                <td class="col-inflow">
+                  <input 
+                    type="text" 
+                    class="entry-input entry-amount" 
+                    placeholder="0.00"
+                    bind:value={entryInflow}
+                  />
+                </td>
+                {#if selectedAccount}
+                  <td class="col-balance"></td>
+                {/if}
+                <td class="col-status">
+                  <div class="entry-actions">
+                    <button class="entry-save-btn" onclick={saveEntry} title={$t('common.save')}>
+                      <Save class="h-3.5 w-3.5" />
+                    </button>
+                    <button class="entry-cancel-btn" onclick={cancelEntry} title={$t('common.cancel')}>
+                      <X class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {:else}
+              <!-- Add transaction row (discrete) -->
+              <tr class="tx-add-row">
+                <td class="col-flag">
+                  <button class="add-btn" onclick={startEntry}>
+                    <Plus class="h-3.5 w-3.5" />
                   </button>
-                  <button class="entry-cancel-btn" onclick={cancelEntry} title={$t('common.cancel')}>
-                    <X class="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          {:else}
-            <!-- Add transaction row (discrete) -->
-            <tr class="tx-add-row">
-              <td class="col-flag">
-                <button class="add-btn" onclick={startEntry}>
-                  <Plus class="h-3.5 w-3.5" />
-                </button>
-              </td>
-              <td class="col-date">
-                <button class="add-btn add-text" onclick={startEntry}>{$t('transactions.addTransaction')}</button>
-              </td>
-              {#if !selectedAccount}
-                <td class="col-account"></td>
-              {/if}
-              <td class="col-payee"></td>
-              <td class="col-category"></td>
-              <td class="col-outflow"></td>
-              <td class="col-inflow"></td>
-              {#if selectedAccount}
-                <td class="col-balance"></td>
-              {/if}
-              <td class="col-status"></td>
-            </tr>
+                </td>
+                <td class="col-date">
+                  <button class="add-btn add-text" onclick={startEntry}>{$t('transactions.addTransaction')}</button>
+                </td>
+                {#if !selectedAccount}
+                  <td class="col-account"></td>
+                {/if}
+                <td class="col-payee"></td>
+                <td class="col-category"></td>
+                <td class="col-outflow"></td>
+                <td class="col-inflow"></td>
+                {#if selectedAccount}
+                  <td class="col-balance"></td>
+                {/if}
+                <td class="col-status"></td>
+              </tr>
+            {/if}
           {/if}
           
           {#each visibleTransactions as tx (tx.id)}
@@ -555,7 +619,7 @@
                     {tx.payee || 'Transfer'}
                   </span>
                 {:else}
-                  {tx.payee || '-'}
+                  {tx.payee || ''}
                 {/if}
               </td>
               <td class="col-category">
@@ -589,13 +653,147 @@
             </tr>
           {/each}
           
-          <!-- Load More Row -->
+          <!-- Bottom entry row (when sortOrder is asc - oldest first) -->
+          {#if sortOrder === 'asc'}
+            {#if isEditing}
+              <tr class="tx-entry-row">
+                <td class="col-flag">
+                  <div class="flag-picker-wrapper">
+                    <button 
+                      class="flag-btn {entryFlag ? `flag-${entryFlag}` : ''}"
+                      onclick={() => showFlagPicker = showFlagPicker === 'entry-bottom' ? null : 'entry-bottom'}
+                      type="button"
+                    >
+                      <Flag class="h-3 w-3" />
+                    </button>
+                    {#if showFlagPicker === 'entry-bottom'}
+                      <div class="flag-picker flag-picker-up">
+                        <button 
+                          class="flag-option flag-none" 
+                          onclick={() => { entryFlag = null; showFlagPicker = null; }}
+                          type="button"
+                        >✕</button>
+                        {#each FLAG_COLORS as color}
+                          <button
+                            class="flag-option flag-{color}"
+                            onclick={() => { entryFlag = color; showFlagPicker = null; }}
+                            type="button"
+                          ></button>
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
+                </td>
+                <td class="col-date">
+                  <input 
+                    type="text" 
+                    class="entry-input date-entry" 
+                    bind:value={entryDate}
+                    placeholder="DD/MM"
+                    onblur={handleDateInput}
+                  />
+                </td>
+                {#if !selectedAccount}
+                  <td class="col-account">
+                    <span class="entry-account-auto">{$accounts[0]?.name || '-'}</span>
+                  </td>
+                {/if}
+                <td class="col-payee">
+                  <input 
+                    type="text" 
+                    class="entry-input" 
+                    placeholder={$t('transactions.payee')}
+                    bind:value={entryPayee}
+                    list="payees-list-bottom"
+                  />
+                  <datalist id="payees-list-bottom">
+                    {#each $payees as payee}
+                      <option value={payee.name}></option>
+                    {/each}
+                  </datalist>
+                </td>
+                <td class="col-category">
+                  <input 
+                    type="text" 
+                    class="entry-input" 
+                    placeholder={$t('transactions.category')}
+                    bind:value={entryCategory}
+                    list="categories-list-bottom"
+                  />
+                  <datalist id="categories-list-bottom">
+                    {#each $categories as cat}
+                      {@const masterName = cat.masterCategoryName || ''}
+                      <option value={masterName ? `${masterName}: ${cat.name}` : cat.name}></option>
+                    {/each}
+                  </datalist>
+                  <input 
+                    type="text" 
+                    class="entry-input entry-memo" 
+                    placeholder={$t('transactions.memo')}
+                    bind:value={entryMemo}
+                  />
+                </td>
+                <td class="col-outflow">
+                  <input 
+                    type="text" 
+                    class="entry-input entry-amount" 
+                    placeholder="0.00"
+                    bind:value={entryOutflow}
+                  />
+                </td>
+                <td class="col-inflow">
+                  <input 
+                    type="text" 
+                    class="entry-input entry-amount" 
+                    placeholder="0.00"
+                    bind:value={entryInflow}
+                  />
+                </td>
+                {#if selectedAccount}
+                  <td class="col-balance"></td>
+                {/if}
+                <td class="col-status">
+                  <div class="entry-actions">
+                    <button class="entry-save-btn" onclick={saveEntry} title={$t('common.save')}>
+                      <Save class="h-3.5 w-3.5" />
+                    </button>
+                    <button class="entry-cancel-btn" onclick={cancelEntry} title={$t('common.cancel')}>
+                      <X class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {:else}
+              <!-- Add transaction row (discrete) at bottom -->
+              <tr class="tx-add-row">
+                <td class="col-flag">
+                  <button class="add-btn" onclick={startEntry}>
+                    <Plus class="h-3.5 w-3.5" />
+                  </button>
+                </td>
+                <td class="col-date">
+                  <button class="add-btn add-text" onclick={startEntry}>{$t('transactions.addTransaction')}</button>
+                </td>
+                {#if !selectedAccount}
+                  <td class="col-account"></td>
+                {/if}
+                <td class="col-payee"></td>
+                <td class="col-category"></td>
+                <td class="col-outflow"></td>
+                <td class="col-inflow"></td>
+                {#if selectedAccount}
+                  <td class="col-balance"></td>
+                {/if}
+                <td class="col-status"></td>
+              </tr>
+            {/if}
+          {/if}
+          
+          <!-- Loading indicator for infinite scroll -->
           {#if hasMore}
-            <tr class="tx-load-more-row">
+            <tr class="tx-loading-row">
               <td colspan={selectedAccount ? 9 : 9}>
-                <button class="load-more-btn" onclick={loadMore}>
-                  {$t('common.loadMore')} ({transactionsWithBalance.length - visibleCount} {$t('common.remaining')})
-                </button>
+                <span class="loading-text">{$t('common.loading')}</span>
               </td>
             </tr>
           {/if}
@@ -816,6 +1014,11 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
+  .flag-picker.flag-picker-up {
+    top: auto;
+    bottom: 100%;
+  }
+
   .flag-option {
     width: 18px;
     height: 18px;
@@ -992,6 +1195,33 @@
   .tx-table-container {
     flex: 1;
     overflow: auto;
+  }
+
+  .sort-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .sort-header:hover {
+    color: var(--primary);
+  }
+
+  .tx-loading-row td {
+    padding: 0.75rem;
+    text-align: center;
+    color: var(--muted-foreground);
+  }
+
+  .loading-text {
+    font-size: 0.75rem;
+    font-style: italic;
   }
 
   .tx-table {
