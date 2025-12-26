@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
   import { ChevronLeft, ChevronRight, Building2, PiggyBank, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, CreditCard, Wallet, PiggyBankIcon, Percent } from 'lucide-svelte';
   import { accounts, transactions, payees, categories } from '$lib/stores/budget';
   import { transactionSortOrder, toggleTransactionSortOrder } from '$lib/stores/ui';
@@ -23,66 +22,27 @@
   
   // Table container ref for scroll management
   let tableContainer: HTMLDivElement | null = $state(null);
-  let prevSortDirection = $state<'asc' | 'desc'>('asc');
   
   // Use user preference for sort direction
   const sortDirection = $derived($transactionSortOrder);
   
-  // Scroll to bottom when switching to 'asc' mode (oldest first = most recent at bottom)
-  $effect(() => {
-    if (sortDirection === 'asc' && prevSortDirection === 'desc' && tableContainer) {
-      tick().then(() => {
-        tableContainer?.scrollTo({ top: tableContainer.scrollHeight, behavior: 'smooth' });
-      });
-    }
-    prevSortDirection = sortDirection;
-  });
-  
-  // Handle scroll for infinite loading
+  // Handle scroll for infinite loading - always load more from bottom
   function handleTableScroll(e: Event) {
     const container = e.target as HTMLDivElement;
     if (!container) return;
     
     const threshold = 100;
     
-    if (sortDirection === 'asc') {
-      // In 'asc' mode, load more when scrolling UP (near top)
-      if (container.scrollTop < threshold && displayLimit < filteredTransactions.length) {
-        const scrollHeightBefore = container.scrollHeight;
-        displayLimit += 100;
-        // Maintain scroll position after loading more
-        tick().then(() => {
-          const scrollHeightAfter = container.scrollHeight;
-          container.scrollTop = scrollHeightAfter - scrollHeightBefore + container.scrollTop;
-        });
-      }
-    } else {
-      // In 'desc' mode, load more when scrolling DOWN (near bottom)
-      if (container.scrollHeight - container.scrollTop - container.clientHeight < threshold && displayLimit < filteredTransactions.length) {
-        displayLimit += 100;
-      }
+    // Always load more when scrolling to the bottom
+    if (container.scrollHeight - container.scrollTop - container.clientHeight < threshold && displayLimit < filteredTransactions.length) {
+      displayLimit += 100;
     }
   }
-  
-  // Initial scroll to bottom when in 'asc' mode
-  onMount(() => {
-    if (sortDirection === 'asc' && tableContainer) {
-      tick().then(() => {
-        tableContainer?.scrollTo({ top: tableContainer.scrollHeight });
-      });
-    }
-  });
   
   // Reset display limit when filters change
   $effect(() => {
     selectedYear; selectedMonth; accountFilter; selectedAccountId; selectedCategory;
     displayLimit = 100;
-    // Scroll appropriately after filter change
-    tick().then(() => {
-      if (sortDirection === 'asc' && tableContainer) {
-        tableContainer.scrollTo({ top: tableContainer.scrollHeight });
-      }
-    });
   });
 
   // Get month names
@@ -117,13 +77,14 @@
   const accountTypes = $derived.by(() => {
     const checking = new Set<string>();
     const savings = new Set<string>();
-    const creditCards = new Set<string>();
+    const creditCards = new Set<string>(); // Includes credit cards AND department stores (Merchant)
     
     $accounts.forEach(a => {
       const type = a.type?.toLowerCase() || '';
       if (type.includes('checking')) checking.add(a.id);
       else if (type.includes('savings')) savings.add(a.id);
-      else if (type.includes('credit')) creditCards.add(a.id);
+      // Credit cards AND Merchant (department stores) go to credit payments
+      else if (type.includes('credit') || type.includes('merchant')) creditCards.add(a.id);
     });
     
     return { checking, savings, creditCards };
@@ -441,8 +402,15 @@
       });
     }
     
-    // Sort by date (always calculate balance from oldest to newest)
-    result.sort((a, b) => a.date.localeCompare(b.date));
+    // Sort by date, then inflows before outflows on same date (to avoid negative intermediate balances)
+    result.sort((a, b) => {
+      const dateCompare = a.date.localeCompare(b.date);
+      if (dateCompare !== 0) return dateCompare;
+      // On same date: deposits (positive) before expenses (negative)
+      if (a.amount >= 0 && b.amount < 0) return -1;
+      if (a.amount < 0 && b.amount >= 0) return 1;
+      return 0;
+    });
     
     // Calculate running balance
     let balance = initialBalance;
@@ -459,16 +427,10 @@
     return result;
   });
   
-  // In 'asc' mode, we show the END of the array (most recent) and scroll to bottom
-  // In 'desc' mode, we show the BEGINNING of the array (most recent)
-  const displayedTransactions = $derived.by(() => {
-    if (sortDirection === 'asc') {
-      // Take from the end (most recent transactions first in display, scroll to bottom)
-      const startIndex = Math.max(0, filteredTransactions.length - displayLimit);
-      return filteredTransactions.slice(startIndex);
-    }
-    return filteredTransactions.slice(0, displayLimit);
-  });
+  // Always show from the beginning of the sorted array
+  // In 'desc' mode: newest first, slice(0, N) shows newest N  
+  // In 'asc' mode: oldest first, slice(0, N) shows oldest N, scroll to see most recent
+  const displayedTransactions = $derived(filteredTransactions.slice(0, displayLimit));
   
   // Check if there are more transactions to load
   const hasMore = $derived(filteredTransactions.length > displayLimit);
@@ -788,13 +750,6 @@
         </div>
       {:else}
         <div class="table-container" bind:this={tableContainer} onscroll={handleTableScroll}>
-          <!-- Load more indicator at top for asc mode -->
-          {#if hasMore && sortDirection === 'asc'}
-            <div class="load-more-indicator top">
-              <span>{filteredTransactions.length - displayLimit} anteriores...</span>
-            </div>
-          {/if}
-          
           <table class="tx-table">
             <thead>
               <tr>
@@ -812,8 +767,8 @@
               </tr>
             </thead>
             <tbody>
-              <!-- Initial balance row (only show in general view when all transactions are loaded) -->
-              {#if showBalance && sortDirection === 'asc' && !hasMore}
+              <!-- Initial balance row at top if showing all in asc mode -->
+              {#if showBalance && sortDirection === 'asc'}
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
@@ -861,7 +816,7 @@
                 </tr>
               {/each}
               
-              <!-- Initial balance row (at bottom if descending, only in general view when all loaded) -->
+              <!-- Initial balance row at bottom if showing all in desc mode -->
               {#if showBalance && sortDirection === 'desc' && !hasMore}
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
@@ -876,9 +831,9 @@
             </tbody>
           </table>
           
-          <!-- Load more indicator at bottom for desc mode -->
-          {#if hasMore && sortDirection === 'desc'}
-            <div class="load-more-indicator bottom">
+          <!-- Load more indicator -->
+          {#if hasMore}
+            <div class="load-more-indicator">
               <span>{filteredTransactions.length - displayLimit} más...</span>
             </div>
           {/if}
@@ -1341,18 +1296,6 @@
     opacity: 0.6;
   }
   
-  .load-more-indicator.top {
-    position: sticky;
-    top: 0;
-    background: var(--background);
-    border-bottom: 1px solid var(--border);
-    z-index: 5;
-  }
-  
-  .load-more-indicator.bottom {
-    border-top: 1px solid var(--border);
-  }
-
   /* Responsive */
   @media (max-width: 768px) {
     .cf-content {

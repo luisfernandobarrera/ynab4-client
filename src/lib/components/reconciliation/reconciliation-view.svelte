@@ -1,5 +1,9 @@
 <script lang="ts">
-  import { ChevronDown, ChevronRight, X, Check, AlertTriangle } from 'lucide-svelte';
+  import { 
+    ChevronDown, ChevronRight, X, Check, AlertTriangle,
+    Wallet, Building2, PiggyBank, CreditCard, HandCoins, 
+    CircleDollarSign, Store, TrendingUp, Home, Package, FileQuestion
+  } from 'lucide-svelte';
   import { accounts, transactions, budgetInfo } from '$lib/stores/budget';
   import { isEditMode, addPendingChange, addToast } from '$lib/stores/ui';
   import { t } from '$lib/i18n';
@@ -139,24 +143,26 @@
   }
 
   // Account type configuration - all YNAB4 types from pynab reference
-  function getTypeConfig(type: string): { label: string; icon: string; order: number } {
-    const configs: Record<string, { labelKey: string; icon: string; order: number }> = {
-      'Cash': { labelKey: 'accountTypes.cash', icon: 'EF', order: 1 },
-      'Checking': { labelKey: 'accountTypes.checking', icon: 'CH', order: 2 },
-      'Savings': { labelKey: 'accountTypes.savings', icon: 'AH', order: 3 },
-      'CreditCard': { labelKey: 'accountTypes.creditCards', icon: 'TC', order: 4 },
-      'LineOfCredit': { labelKey: 'accountTypes.lineOfCredit', icon: 'LC', order: 5 },
-      'PayPal': { labelKey: 'accountTypes.paypal', icon: 'PP', order: 6 },
-      'Merchant': { labelKey: 'accountTypes.merchant', icon: 'TD', order: 7 },
-      'Investment': { labelKey: 'accountTypes.investments', icon: 'IN', order: 8 },
-      'InvestmentAccount': { labelKey: 'accountTypes.investments', icon: 'IN', order: 8 },
-      'Mortgage': { labelKey: 'accountTypes.mortgage', icon: 'HI', order: 9 },
-      'OtherAsset': { labelKey: 'accountTypes.otherAssets', icon: 'OA', order: 10 },
-      'OtherLiability': { labelKey: 'accountTypes.otherLiabilities', icon: 'OD', order: 11 },
-      'OtherCredit': { labelKey: 'accountTypes.lineOfCredit', icon: 'LC', order: 5 },
+  type IconType = 'cash' | 'checking' | 'savings' | 'credit' | 'lineOfCredit' | 'paypal' | 'merchant' | 'investment' | 'mortgage' | 'otherAsset' | 'otherLiability';
+  
+  function getTypeConfig(type: string): { label: string; iconType: IconType; order: number } {
+    const configs: Record<string, { labelKey: string; iconType: IconType; order: number }> = {
+      'Cash': { labelKey: 'accountTypes.cash', iconType: 'cash', order: 1 },
+      'Checking': { labelKey: 'accountTypes.checking', iconType: 'checking', order: 2 },
+      'Savings': { labelKey: 'accountTypes.savings', iconType: 'savings', order: 3 },
+      'CreditCard': { labelKey: 'accountTypes.creditCards', iconType: 'credit', order: 4 },
+      'LineOfCredit': { labelKey: 'accountTypes.lineOfCredit', iconType: 'lineOfCredit', order: 5 },
+      'PayPal': { labelKey: 'accountTypes.paypal', iconType: 'paypal', order: 6 },
+      'Merchant': { labelKey: 'accountTypes.merchant', iconType: 'merchant', order: 7 },
+      'Investment': { labelKey: 'accountTypes.investments', iconType: 'investment', order: 8 },
+      'InvestmentAccount': { labelKey: 'accountTypes.investments', iconType: 'investment', order: 8 },
+      'Mortgage': { labelKey: 'accountTypes.mortgage', iconType: 'mortgage', order: 9 },
+      'OtherAsset': { labelKey: 'accountTypes.otherAssets', iconType: 'otherAsset', order: 10 },
+      'OtherLiability': { labelKey: 'accountTypes.otherLiabilities', iconType: 'otherLiability', order: 11 },
+      'OtherCredit': { labelKey: 'accountTypes.lineOfCredit', iconType: 'lineOfCredit', order: 5 },
     };
-    const config = configs[type] || { labelKey: 'accountTypes.otherAssets', icon: 'OA', order: 10 };
-    return { label: $t(config.labelKey), icon: config.icon, order: config.order };
+    const config = configs[type] || { labelKey: 'accountTypes.otherAssets', iconType: 'otherAsset', order: 10 };
+    return { label: $t(config.labelKey), iconType: config.iconType, order: config.order };
   }
 
   // Format date
@@ -366,7 +372,33 @@
       {#each accountsByType as group (group.type)}
         <div class="account-group">
           <button class="group-header" onclick={() => toggleType(group.type)}>
-            <span class="group-icon">{group.config.icon}</span>
+            <span class="group-icon">
+              {#if group.config.iconType === 'cash'}
+                <Wallet class="h-4 w-4" />
+              {:else if group.config.iconType === 'checking'}
+                <Building2 class="h-4 w-4" />
+              {:else if group.config.iconType === 'savings'}
+                <PiggyBank class="h-4 w-4" />
+              {:else if group.config.iconType === 'credit'}
+                <CreditCard class="h-4 w-4" />
+              {:else if group.config.iconType === 'lineOfCredit'}
+                <HandCoins class="h-4 w-4" />
+              {:else if group.config.iconType === 'paypal'}
+                <CircleDollarSign class="h-4 w-4" />
+              {:else if group.config.iconType === 'merchant'}
+                <Store class="h-4 w-4" />
+              {:else if group.config.iconType === 'investment'}
+                <TrendingUp class="h-4 w-4" />
+              {:else if group.config.iconType === 'mortgage'}
+                <Home class="h-4 w-4" />
+              {:else if group.config.iconType === 'otherAsset'}
+                <Package class="h-4 w-4" />
+              {:else if group.config.iconType === 'otherLiability'}
+                <FileQuestion class="h-4 w-4" />
+              {:else}
+                <Package class="h-4 w-4" />
+              {/if}
+            </span>
             <span class="group-label">{group.config.label}</span>
             <span class="group-count">{group.accounts.length}</span>
             {#if expandedTypes.has(group.type)}
