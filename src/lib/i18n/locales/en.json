@@ -111,7 +111,15 @@
     "spentThisMonth": "Spent This Month",
     "coverOverspending": "Cover Overspending",
     "quickBudget": "Quick Budget",
-    "fromPrevious": "from previous"
+    "fromPrevious": "from previous",
+    "availableToBudget": "Available to Budget",
+    "overbudgeted": "Overbudgeted",
+    "incomeThisMonth": "Income this month",
+    "fromLastMonth": "From last month",
+    "lastMonthOverspent": "Overspent last month",
+    "budgetedThisMonth": "Budgeted this month",
+    "showSummary": "Show summary",
+    "hideSummary": "Hide summary"
   },
   "transactions": {
     "title": "Transactions",

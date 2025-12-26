@@ -111,7 +111,15 @@
     "spentThisMonth": "Gastado Este Mes",
     "coverOverspending": "Cubrir Sobregasto",
     "quickBudget": "Presupuesto Rápido",
-    "fromPrevious": "del anterior"
+    "fromPrevious": "del anterior",
+    "availableToBudget": "Disponible para Presupuestar",
+    "overbudgeted": "Sobrepresupuestado",
+    "incomeThisMonth": "Ingresos del mes",
+    "fromLastMonth": "Del mes anterior",
+    "lastMonthOverspent": "Sobregastado mes anterior",
+    "budgetedThisMonth": "Presupuestado este mes",
+    "showSummary": "Mostrar resumen",
+    "hideSummary": "Ocultar resumen"
   },
   "transactions": {
     "title": "Transacciones",

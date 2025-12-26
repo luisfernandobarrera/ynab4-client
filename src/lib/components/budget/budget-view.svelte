@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X } from 'lucide-svelte';
+  import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X, AlertTriangle } from 'lucide-svelte';
   import { MonthlyBudgetCalculator } from 'ynab-library';
   import { 
     rawTransactions, 
@@ -23,6 +23,7 @@
   let centerMonth = $state(currentDate.getMonth());
   let visibleMonths = $state(4);
   let showOnlyActive = $state(true);
+  let showSummary = $state(true);
   
   // Expansion state
   let expandedMasters = $state<Set<string>>(new Set());
@@ -132,11 +133,44 @@
         );
       } catch (err) {
         console.error(`[BudgetView] Error calculating ${key}:`, err);
-        data[key] = { month: key, totalBudgeted: 0, totalActivity: 0, totalCarryover: 0, totalAvailable: 0, masterCategories: [] };
+        data[key] = { 
+          month: key, 
+          totalBudgeted: 0, 
+          totalActivity: 0, 
+          totalCarryover: 0, 
+          totalAvailable: 0, 
+          masterCategories: [],
+          income: 0,
+          fromLastMonth: 0,
+          lastMonthOverspent: 0,
+          availableToBudget: 0
+        };
       }
     });
     
     return data;
+  });
+
+  // Get current month's summary for the header
+  const currentMonthKey = $derived(`${selectedYear}-${String(centerMonth + 1).padStart(2, '0')}`);
+  const currentMonthSummary = $derived.by(() => {
+    const data = monthsData[currentMonthKey];
+    if (!data) {
+      return {
+        income: 0,
+        fromLastMonth: 0,
+        lastMonthOverspent: 0,
+        totalBudgeted: 0,
+        availableToBudget: 0
+      };
+    }
+    return {
+      income: data.income || 0,
+      fromLastMonth: data.fromLastMonth || 0,
+      lastMonthOverspent: data.lastMonthOverspent || 0,
+      totalBudgeted: data.totalBudgeted || 0,
+      availableToBudget: data.availableToBudget || 0
+    };
   });
 
   // Determine active categories in visible range
@@ -555,6 +589,58 @@
     {/if}
   </div>
 
+  <!-- Budget Summary Header -->
+  <div class="budget-summary-header" class:collapsed={!showSummary}>
+    <button class="summary-toggle" onclick={() => showSummary = !showSummary}>
+      {#if showSummary}
+        <ChevronUp class="h-4 w-4" />
+      {:else}
+        <ChevronDown class="h-4 w-4" />
+      {/if}
+      <span>{showSummary ? $t('budget.hideSummary') : $t('budget.showSummary')}</span>
+    </button>
+    
+    {#if showSummary}
+      <div class="summary-content">
+        <div class="summary-main">
+          <div class="available-to-budget" class:negative={currentMonthSummary.availableToBudget < 0}>
+            <span class="atb-label">
+              {currentMonthSummary.availableToBudget >= 0 ? $t('budget.availableToBudget') : $t('budget.overbudgeted')}
+            </span>
+            <span class="atb-amount">
+              {formatAmountFull(Math.abs(currentMonthSummary.availableToBudget))}
+            </span>
+          </div>
+        </div>
+        
+        <div class="summary-breakdown">
+          <div class="breakdown-row">
+            <span class="breakdown-label">{$t('budget.incomeThisMonth')}</span>
+            <span class="breakdown-value positive">{formatAmountFull(currentMonthSummary.income)}</span>
+          </div>
+          <div class="breakdown-row">
+            <span class="breakdown-label">{$t('budget.fromLastMonth')}</span>
+            <span class="breakdown-value" class:positive={currentMonthSummary.fromLastMonth > 0}>
+              {formatAmountFull(currentMonthSummary.fromLastMonth, true)}
+            </span>
+          </div>
+          <div class="breakdown-row">
+            <span class="breakdown-label">{$t('budget.lastMonthOverspent')}</span>
+            <span class="breakdown-value negative">
+              {currentMonthSummary.lastMonthOverspent !== 0 ? formatAmountFull(currentMonthSummary.lastMonthOverspent) : '0.00'}
+            </span>
+          </div>
+          <div class="breakdown-row">
+            <span class="breakdown-label">{$t('budget.budgetedThisMonth')}</span>
+            <span class="breakdown-value negative">
+              -{formatAmountFull(currentMonthSummary.totalBudgeted)}
+            </span>
+          </div>
+        </div>
+      </div>
+    {/if}
+  </div>
+
   <div class="budget-main-area">
     <!-- Main Grid -->
     <div class="budget-grid-container">
@@ -594,10 +680,18 @@
               
               {#if expandedMasters.has(master.id)}
                 {#each master.subCategories as sub (sub.id)}
+                  {@const isSubCatOverspent = monthRange.some(({ key }) => {
+                    const d = getCategoryData(sub.id, key, false);
+                    return d.available < -0.01;
+                  })}
                   <div 
                     class="category-sub"
                     class:selected={selection?.type === 'category' && selection?.id === sub.id}
+                    class:overspent={isSubCatOverspent}
                   >
+                    {#if isSubCatOverspent}
+                      <AlertTriangle class="overspent-icon" />
+                    {/if}
                     <span class="sub-name">{sub.name}</span>
                   </div>
                 {/each}
@@ -630,15 +724,21 @@
           onscroll={handleDataScroll}
         >
           {#each categoryStructure as master (master.id)}
-            <div class="data-group">
+            {@const isMasterOverspent = monthRange.some(({ key }) => {
+              const d = getCategoryData(master.id, key, true);
+              return d.available < -0.01;
+            })}
+            <div class="data-group" class:overspent-group={isMasterOverspent}>
               <!-- Master Row -->
               <div class="data-row master-row" class:selected-row={selection?.type === 'master' && selection?.id === master.id}>
                 {#each monthRange as { key }}
                   {@const data = getCategoryData(master.id, key, true)}
                   {@const isSelected = isCellSelected('master', master.id, key)}
+                  {@const isOverspent = data.available < -0.01}
                   <button 
                     class="month-data"
                     class:selected={isSelected}
+                    class:overspent={isOverspent}
                     onclick={(e) => handleCellClick('master', master.id, key, master.name, e)}
                   >
                     <span class="cell budgeted">{formatAmount(data.budgeted)}</span>
@@ -655,13 +755,19 @@
               <!-- Subcategory Rows -->
               {#if expandedMasters.has(master.id)}
                 {#each master.subCategories as sub (sub.id)}
-                  <div class="data-row sub-row" class:selected-row={selection?.type === 'category' && selection?.id === sub.id}>
+                  {@const isSubOverspent = monthRange.some(({ key }) => {
+                    const d = getCategoryData(sub.id, key, false);
+                    return d.available < -0.01;
+                  })}
+                  <div class="data-row sub-row" class:selected-row={selection?.type === 'category' && selection?.id === sub.id} class:overspent-row={isSubOverspent}>
                     {#each monthRange as { key }}
                       {@const data = getCategoryData(sub.id, key, false)}
                       {@const isSelected = isCellSelected('category', sub.id, key)}
+                      {@const isOverspent = data.available < -0.01}
                       <button 
                         class="month-data"
                         class:selected={isSelected}
+                        class:overspent={isOverspent}
                         onclick={(e) => handleCellClick('category', sub.id, key, sub.name, e)}
                       >
                         {#if editingBudget?.categoryId === sub.id && editingBudget?.monthKey === key}
@@ -785,6 +891,116 @@
     flex-shrink: 0;
     background: var(--card);
     border-bottom: 1px solid var(--border);
+  }
+
+  /* Budget Summary Header */
+  .budget-summary-header {
+    flex-shrink: 0;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 0.5rem 1rem;
+  }
+
+  .budget-summary-header.collapsed {
+    padding: 0.25rem 1rem;
+  }
+
+  .summary-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+
+  .summary-toggle:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  .summary-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 2rem;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .summary-main {
+    flex-shrink: 0;
+  }
+
+  .available-to-budget {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    padding: 0.75rem 1.25rem;
+    background: var(--success);
+    color: white;
+    border-radius: 8px;
+    min-width: 180px;
+  }
+
+  .available-to-budget.negative {
+    background: var(--destructive);
+  }
+
+  .atb-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    opacity: 0.9;
+  }
+
+  .atb-amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .summary-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding-top: 0.25rem;
+  }
+
+  .breakdown-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.5rem;
+    font-size: 0.75rem;
+  }
+
+  .breakdown-label {
+    color: var(--muted-foreground);
+  }
+
+  .breakdown-value {
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    color: var(--foreground);
+    text-align: right;
+    min-width: 80px;
+  }
+
+  .breakdown-value.positive {
+    color: var(--success);
+  }
+
+  .breakdown-value.negative {
+    color: var(--destructive);
   }
 
   .budget-nav-years {
@@ -1028,6 +1244,26 @@
     color: var(--primary-foreground) !important;
   }
 
+  .category-sub.overspent {
+    color: var(--destructive);
+  }
+
+  .category-sub.overspent.selected {
+    color: var(--primary-foreground) !important;
+  }
+
+  .category-sub :global(.overspent-icon) {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    margin-right: 0.25rem;
+    color: var(--destructive);
+  }
+
+  .category-sub.selected :global(.overspent-icon) {
+    color: var(--primary-foreground);
+  }
+
   .sub-name {
     white-space: nowrap;
     overflow: hidden;
@@ -1122,6 +1358,22 @@
     background: rgba(59, 130, 246, 0.1) !important;
   }
 
+  .data-row.overspent-row {
+    background: rgba(220, 38, 38, 0.04);
+  }
+
+  .data-row.overspent-row:hover {
+    background: rgba(220, 38, 38, 0.08);
+  }
+
+  .data-group.overspent-group .master-row {
+    background: rgba(220, 38, 38, 0.06);
+  }
+
+  .data-group.overspent-group .master-row:hover {
+    background: rgba(220, 38, 38, 0.1);
+  }
+
   .month-data {
     flex: 0 0 auto;
     width: 270px;
@@ -1138,6 +1390,14 @@
 
   .month-data:hover {
     background: var(--accent);
+  }
+
+  .month-data.overspent {
+    background: rgba(220, 38, 38, 0.08);
+  }
+
+  .month-data.overspent:hover {
+    background: rgba(220, 38, 38, 0.12);
   }
 
   .month-data.selected {
