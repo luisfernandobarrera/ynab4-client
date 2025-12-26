@@ -35,6 +35,23 @@
   const FLAG_COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'] as const;
   let showFlagPicker = $state<string | null>(null);
   
+  // Expanded splits
+  let expandedSplits = $state<Set<string>>(new Set());
+  
+  function toggleSplit(txId: string) {
+    const next = new Set(expandedSplits);
+    if (next.has(txId)) {
+      next.delete(txId);
+    } else {
+      next.add(txId);
+    }
+    expandedSplits = next;
+  }
+  
+  function hasSplits(tx: typeof visibleTransactions[number]): boolean {
+    return Array.isArray(tx.subTransactions) && tx.subTransactions.length > 0;
+  }
+  
   // Inline entry state (for new transactions)
   let isEditing = $state(false);
   let entryDate = $state(new Date().toISOString().split('T')[0]);
@@ -790,10 +807,14 @@
                 </td>
               </tr>
             {:else}
+              {@const txHasSplits = hasSplits(tx)}
+              {@const isExpanded = expandedSplits.has(tx.id)}
               <!-- Display row -->
               <tr 
                 class="tx-row"
+                class:has-splits={txHasSplits}
                 ondblclick={() => startEdit(tx)}
+                onclick={() => txHasSplits && toggleSplit(tx.id)}
               >
                 <td class="col-flag">
                   <span class="flag-tag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : 'flag-empty'}"></span>
@@ -813,7 +834,12 @@
                 </td>
                 <td class="col-category">
                   <div class="category-memo">
-                    {#if tx.transferAccountId}
+                    {#if txHasSplits}
+                      <span class="split-indicator" class:expanded={isExpanded}>
+                        <Split class="h-3 w-3" />
+                        <span>{$t('transactions.split')} ({tx.subTransactions?.length})</span>
+                      </span>
+                    {:else if tx.transferAccountId}
                       <span class="transfer-badge" class:outgoing={isOutflow} class:incoming={isInflow}>
                         {isOutflow ? '↗' : '↙'} Transfer
                       </span>
@@ -845,6 +871,50 @@
                   <span class="status-bar {getStatusClass(tx.cleared)}" title={tx.cleared}></span>
                 </td>
               </tr>
+              
+              <!-- Split details row -->
+              {#if txHasSplits && isExpanded}
+                <tr class="split-details-row">
+                  <td colspan="99">
+                    <div class="split-details">
+                      <div class="split-header">
+                        <span class="split-col-category">{$t('transactions.category')}</span>
+                        <span class="split-col-memo">{$t('transactions.memo')}</span>
+                        <span class="split-col-outflow">{$t('transactions.outflow')}</span>
+                        <span class="split-col-inflow">{$t('transactions.inflow')}</span>
+                      </div>
+                      {#each tx.subTransactions || [] as split, index}
+                        {@const splitIsOutflow = split.amount < 0}
+                        {@const splitIsInflow = split.amount > 0}
+                        {@const splitCategoryParts = (split.category || '').split(': ')}
+                        {@const splitSubCategory = splitCategoryParts.length > 1 ? splitCategoryParts[1] : splitCategoryParts[0]}
+                        {@const splitMasterCategory = splitCategoryParts.length > 1 ? splitCategoryParts[0] : ''}
+                        <div class="split-row">
+                          <span class="split-col-category">
+                            {#if split.transferAccountId}
+                              <span class="split-transfer" class:outgoing={splitIsOutflow} class:incoming={splitIsInflow}>
+                                {splitIsOutflow ? '↗' : '↙'} {split.transferAccountName || 'Transfer'}
+                              </span>
+                            {:else}
+                              <strong>{splitSubCategory || '-'}</strong>
+                              {#if splitMasterCategory}
+                                <span class="split-master"> · {splitMasterCategory}</span>
+                              {/if}
+                            {/if}
+                          </span>
+                          <span class="split-col-memo">{split.memo || ''}</span>
+                          <span class="split-col-outflow" class:has-value={splitIsOutflow}>
+                            {splitIsOutflow ? formatAmount(split.amount) : ''}
+                          </span>
+                          <span class="split-col-inflow" class:has-value={splitIsInflow}>
+                            {splitIsInflow ? formatAmount(split.amount) : ''}
+                          </span>
+                        </div>
+                      {/each}
+                    </div>
+                  </td>
+                </tr>
+              {/if}
             {/if}
           {/each}
           
@@ -1819,6 +1889,107 @@
 
   .tx-fab:active {
     transform: translateX(-50%) scale(0.97);
+  }
+
+  /* Split transactions */
+  .tx-row.has-splits {
+    cursor: pointer;
+  }
+
+  .split-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.65rem;
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .split-indicator.expanded {
+    color: var(--foreground);
+  }
+
+  .split-details-row {
+    background: var(--muted);
+  }
+
+  .split-details-row td {
+    padding: 0 !important;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .split-details {
+    padding: 0.25rem 0;
+    margin-left: 2rem;
+  }
+
+  .split-header {
+    display: flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .split-row {
+    display: flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .split-row:last-child {
+    border-bottom: none;
+  }
+
+  .split-col-category {
+    flex: 2;
+    min-width: 120px;
+  }
+
+  .split-col-memo {
+    flex: 2;
+    min-width: 100px;
+    color: var(--muted-foreground);
+    font-style: italic;
+  }
+
+  .split-col-outflow,
+  .split-col-inflow {
+    width: 80px;
+    text-align: right;
+    font-family: var(--font-family-mono);
+    font-feature-settings: "tnum";
+  }
+
+  .split-col-outflow.has-value {
+    color: var(--destructive);
+  }
+
+  .split-col-inflow.has-value {
+    color: var(--success);
+  }
+
+  .split-transfer {
+    font-style: italic;
+  }
+
+  .split-transfer.outgoing {
+    color: var(--destructive);
+  }
+
+  .split-transfer.incoming {
+    color: var(--success);
+  }
+
+  .split-master {
+    color: var(--muted-foreground);
+    font-weight: 400;
   }
 
   /* Mobile */
