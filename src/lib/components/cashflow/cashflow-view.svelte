@@ -352,6 +352,45 @@
     return $accounts.find(a => a.id === accountId)?.name || '';
   }
 
+  // Get normalized account type from account ID
+  function getAccountTypeById(accountId: string | null): string {
+    if (!accountId) return 'other';
+    const account = $accounts.find(a => a.id === accountId);
+    if (!account) return 'other';
+    const normalized = (account.type || '').toLowerCase();
+    if (normalized === 'checking') return 'checking';
+    if (normalized === 'savings') return 'savings';
+    if (normalized === 'creditcard' || normalized === 'credit card') return 'creditCard';
+    if (normalized === 'cash') return 'cash';
+    if (normalized === 'lineofcredit') return 'lineOfCredit';
+    if (normalized === 'merchantaccount' || normalized === 'merchant') return 'merchant';
+    if (normalized === 'investmentaccount' || normalized === 'investment') return 'investment';
+    if (normalized === 'mortgage') return 'mortgage';
+    if (normalized === 'otherasset') return 'otherAsset';
+    if (normalized === 'otherliability') return 'otherLiability';
+    return 'other';
+  }
+
+  // Get transfer category label based on target account type
+  function getTransferCategoryLabel(accountId: string | null): string {
+    if (!accountId) return 'Transferencia';
+    const type = getAccountTypeById(accountId);
+    const labels: Record<string, string> = {
+      checking: 'Cuenta Cheques',
+      savings: 'Cuenta Ahorro',
+      creditCard: 'Tarjeta de Crédito',
+      cash: 'Efectivo',
+      lineOfCredit: 'Línea de Crédito',
+      merchant: 'Tarjeta Departamental',
+      investment: 'Inversión',
+      mortgage: 'Hipoteca',
+      otherAsset: 'Otros Activos',
+      otherLiability: 'Otros Pasivos',
+      other: 'Transferencia'
+    };
+    return labels[type] || 'Transferencia';
+  }
+
   function navigateMonth(direction: number) {
     let newMonth = selectedMonth + direction;
     if (newMonth < 0) { selectedYear -= 1; selectedMonth = 11; }
@@ -567,8 +606,8 @@
                 {#if !selectedAccountId}
                   <th class="col-account">Cuenta</th>
                 {/if}
-                <th class="col-payee">Beneficiario</th>
                 <th class="col-category">Categoría</th>
+                <th class="col-payee">Beneficiario</th>
                 <th class="col-outflow">Cargo</th>
                 <th class="col-inflow">Abono</th>
                 <th class="col-balance">Saldo</th>
@@ -580,8 +619,8 @@
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
-                  <td class="col-payee"><em>Saldo Inicial</em></td>
-                  <td class="col-category"></td>
+                  <td class="col-category"><em>Saldo Inicial</em></td>
+                  <td class="col-payee"></td>
                   <td class="col-outflow"></td>
                   <td class="col-inflow"></td>
                   <td class="col-balance">{formatAmount(initialBalance)}</td>
@@ -592,26 +631,26 @@
                 {@const isOutflow = tx.amount < 0}
                 {@const isTransfer = !!getTransferTargetId(tx)}
                 {@const transferTarget = getTransferTargetId(tx)}
-                <tr class="tx-row" class:transfer={isTransfer}>
+                <tr class="tx-row">
                   <td class="col-date">{formatDate(tx.date)}</td>
                   {#if !selectedAccountId}
                     <td class="col-account">{getAccountName(tx.accountId)}</td>
                   {/if}
+                  <td class="col-category">
+                    {#if isTransfer}
+                      <strong>{getTransferCategoryLabel(transferTarget)}</strong>
+                    {:else}
+                      <strong>{getCategoryName(tx.categoryId)}</strong>
+                    {/if}
+                  </td>
                   <td class="col-payee">
                     {#if isTransfer}
                       <span class="transfer-display">
                         <span class="transfer-icon">↔</span>
-                        <strong>{$accounts.find(a => a.id === transferTarget)?.name || getPayeeName(tx.payeeId)}</strong>
+                        {$accounts.find(a => a.id === transferTarget)?.name || getPayeeName(tx.payeeId)}
                       </span>
                     {:else}
-                      <strong>{getPayeeName(tx.payeeId)}</strong>
-                    {/if}
-                  </td>
-                  <td class="col-category">
-                    {#if isTransfer}
-                      <span class="transfer-cat">Transferencia</span>
-                    {:else}
-                      {getCategoryName(tx.categoryId)}
+                      {getPayeeName(tx.payeeId)}
                     {/if}
                   </td>
                   <td class="col-outflow">{isOutflow ? formatAmount(tx.amount) : ''}</td>
@@ -627,8 +666,8 @@
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
-                  <td class="col-payee"><em>Saldo Inicial</em></td>
-                  <td class="col-category"></td>
+                  <td class="col-category"><em>Saldo Inicial</em></td>
+                  <td class="col-payee"></td>
                   <td class="col-outflow"></td>
                   <td class="col-inflow"></td>
                   <td class="col-balance">{formatAmount(initialBalance)}</td>
@@ -1013,9 +1052,9 @@
     font-size: 0.75rem;
   }
   .col-account { width: 100px; font-size: 0.7rem; }
-  .col-payee { min-width: 140px; }
-  .col-payee strong { font-weight: 600; }
-  .col-category { min-width: 100px; color: var(--muted-foreground); font-size: 0.7rem; }
+  .col-category { min-width: 140px; }
+  .col-category strong { font-weight: 600; }
+  .col-payee { min-width: 120px; color: var(--muted-foreground); font-size: 0.75rem; }
   .col-outflow, .col-inflow, .col-balance { 
     width: 85px; 
     text-align: right; 
@@ -1023,7 +1062,7 @@
     font-size: 0.75rem;
   }
 
-  /* Transfer styling like main transaction list */
+  /* Transfer styling */
   .transfer-display {
     display: flex;
     align-items: center;
@@ -1031,12 +1070,6 @@
   }
 
   .transfer-icon {
-    font-weight: 600;
-    color: var(--muted-foreground);
-  }
-
-  .transfer-cat {
-    font-style: italic;
     color: var(--muted-foreground);
   }
 
