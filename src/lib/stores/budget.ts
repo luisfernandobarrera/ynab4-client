@@ -302,10 +302,17 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
   const payeeMap = new Map(payeeList.map((p) => [p.entityId, p.name]));
   const accountMap = new Map(accountList.map((a) => [a.entityId, a.accountName]));
 
-  // Get category names
+  // Get category names with master category
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const categoryList: any[] = client.getCategories() || [];
-  const categoryMap = new Map(categoryList.map((c) => [c.entityId, c.name]));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const masterCatList: any[] = client.getMasterCategories() || [];
+  const masterCatMap = new Map(masterCatList.map((mc) => [mc.entityId, mc.name]));
+  const categoryMap = new Map(categoryList.map((c) => {
+    const masterName = masterCatMap.get(c.masterCategoryId);
+    const fullName = masterName ? `${masterName}: ${c.name}` : c.name;
+    return [c.entityId, fullName];
+  }));
 
   transactions.set(
     txList

@@ -714,11 +714,34 @@
   
   function handleEditKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
+      e.preventDefault();
       cancelEdit();
     } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
       saveEdit();
     }
   }
+  
+  // Global keyboard handler for edit mode
+  function handleGlobalKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      if (editingTxId) {
+        cancelEdit();
+      } else if (isEditing) {
+        cancelEntry();
+      }
+    }
+  }
+  
+  // Add global keydown listener
+  $effect(() => {
+    if (editingTxId || isEditing) {
+      document.addEventListener('keydown', handleGlobalKeydown);
+      return () => {
+        document.removeEventListener('keydown', handleGlobalKeydown);
+      };
+    }
+  });
   
   function handleEditOutflow(e: Event) {
     if (!editTx) return;
