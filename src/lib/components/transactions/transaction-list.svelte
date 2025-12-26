@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown } from 'lucide-svelte';
+  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
   import DateNavigation from './date-navigation.svelte';
+  import Autocomplete from '$lib/components/ui/autocomplete.svelte';
   import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories } from '$lib/stores/budget';
   import { isMobile } from '$lib/stores/ui';
   import { formatCurrency } from '$lib/utils';
@@ -34,7 +35,7 @@
   const FLAG_COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'] as const;
   let showFlagPicker = $state<string | null>(null);
   
-  // Inline entry state
+  // Inline entry state (for new transactions)
   let isEditing = $state(false);
   let entryDate = $state(new Date().toISOString().split('T')[0]);
   let entryPayee = $state('');
@@ -43,6 +44,55 @@
   let entryOutflow = $state('');
   let entryInflow = $state('');
   let entryFlag = $state<string | null>(null);
+  
+  // Editing existing transaction
+  let editingTxId = $state<string | null>(null);
+  let editTx = $state<{
+    date: string;
+    payee: string;
+    category: string;
+    memo: string;
+    outflow: string;
+    inflow: string;
+    flag: string | null;
+  } | null>(null);
+  
+  // Autocomplete options for payees
+  const payeeOptions = $derived(
+    $payees
+      .filter(p => p.name && !p.isTombstone)
+      .map(p => ({ value: p.name, label: p.name }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  );
+  
+  // Autocomplete options for categories (grouped by master category)
+  const categoryOptions = $derived.by(() => {
+    const opts: { value: string; label: string; group?: string }[] = [];
+    
+    // Group categories by master category
+    const byMaster = new Map<string, typeof $categories>();
+    for (const cat of $categories) {
+      if (cat.isTombstone || !cat.name) continue;
+      const masterName = cat.masterCategoryName || 'Sin categoría';
+      if (!byMaster.has(masterName)) {
+        byMaster.set(masterName, []);
+      }
+      byMaster.get(masterName)!.push(cat);
+    }
+    
+    // Sort by master category order and add to options
+    for (const [masterName, cats] of byMaster.entries()) {
+      for (const cat of cats.sort((a, b) => (a.sortableIndex || 0) - (b.sortableIndex || 0))) {
+        opts.push({
+          value: cat.name,
+          label: cat.name,
+          group: masterName
+        });
+      }
+    }
+    
+    return opts;
+  });
   
   // Handle outflow/inflow exclusivity
   function handleOutflowInput(e: Event) {
@@ -241,15 +291,18 @@
     // Track filter dependencies
     searchQuery;
     hideReconciled;
-    datePreset;
-    customDateFrom;
-    customDateTo;
+    showAllDates;
+    selectedYear;
+    selectedMonth;
     $selectedAccountId;
     // Reset
     visibleCount = PAGE_SIZE;
   });
 
+  // Start new entry
   function startEntry() {
+    // Cancel any existing edit first
+    cancelEdit();
     isEditing = true;
     entryDate = new Date().toISOString().split('T')[0];
     entryPayee = '';
@@ -270,12 +323,61 @@
     console.log('Save entry:', { entryDate, accountId, entryPayee, entryCategory, entryMemo, entryOutflow, entryInflow, entryFlag });
     isEditing = false;
   }
-
-  function clearDateFilter() {
-    datePreset = 'all';
-    customDateFrom = '';
-    customDateTo = '';
-    showDateFilter = false;
+  
+  // Start editing an existing transaction
+  function startEdit(tx: typeof visibleTransactions[number]) {
+    // Cancel any new entry first
+    isEditing = false;
+    editingTxId = tx.id;
+    
+    const outflow = tx.amount < 0 ? Math.abs(tx.amount).toFixed(2) : '';
+    const inflow = tx.amount > 0 ? tx.amount.toFixed(2) : '';
+    
+    editTx = {
+      date: tx.date || '',
+      payee: tx.payee || '',
+      category: tx.category || '',
+      memo: tx.memo || '',
+      outflow,
+      inflow,
+      flag: tx.flag?.toLowerCase() || null
+    };
+  }
+  
+  function cancelEdit() {
+    editingTxId = null;
+    editTx = null;
+  }
+  
+  function saveEdit() {
+    if (!editingTxId || !editTx) return;
+    
+    // TODO: Implement save to budget
+    console.log('Save edit:', editingTxId, editTx);
+    
+    cancelEdit();
+  }
+  
+  function handleEditKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      cancelEdit();
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      saveEdit();
+    }
+  }
+  
+  function handleEditOutflow(e: Event) {
+    if (!editTx) return;
+    const value = (e.target as HTMLInputElement).value;
+    editTx.outflow = value;
+    if (value) editTx.inflow = '';
+  }
+  
+  function handleEditInflow(e: Event) {
+    if (!editTx) return;
+    const value = (e.target as HTMLInputElement).value;
+    editTx.inflow = value;
+    if (value) editTx.outflow = '';
   }
   
   // Parse flexible date input (e.g., "20/12" -> "2025-12-20")
@@ -495,36 +597,22 @@
                   </td>
                 {/if}
                 <td class="col-payee">
-                  <input 
-                    type="text" 
-                    class="inline-input" 
+                  <Autocomplete
+                    options={payeeOptions}
+                    value={entryPayee}
                     placeholder={$t('transactions.payee')}
-                    bind:value={entryPayee}
-                    list="payees-list"
-                    onkeydown={handleEntryKeydown}
+                    onSelect={(v) => entryPayee = v}
+                    onCreate={(v) => entryPayee = v}
                   />
-                  <datalist id="payees-list">
-                    {#each $payees as payee}
-                      <option value={payee.name}></option>
-                    {/each}
-                  </datalist>
                 </td>
                 <td class="col-category">
                   <div class="category-entry">
-                    <input 
-                      type="text" 
-                      class="inline-input" 
+                    <Autocomplete
+                      options={categoryOptions}
+                      value={entryCategory}
                       placeholder={$t('transactions.category')}
-                      bind:value={entryCategory}
-                      list="categories-list"
-                      onkeydown={handleEntryKeydown}
+                      onSelect={(v) => entryCategory = v}
                     />
-                    <datalist id="categories-list">
-                      {#each $categories as cat}
-                        {@const masterName = cat.masterCategoryName || ''}
-                        <option value={cat.name} label={masterName ? `${cat.name} · ${masterName}` : cat.name}></option>
-                      {/each}
-                    </datalist>
                     <input 
                       type="text" 
                       class="inline-input memo-input" 
@@ -600,60 +688,164 @@
             {@const categoryParts = (tx.category || '').split(': ')}
             {@const subCategory = categoryParts.length > 1 ? categoryParts[1] : categoryParts[0]}
             {@const masterCategory = categoryParts.length > 1 ? categoryParts[0] : ''}
-            <tr 
-              class="tx-row"
-              onclick={() => onEditTransaction?.(tx.id)}
-            >
-              <td class="col-flag">
-                <span class="flag-tag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : 'flag-empty'}"></span>
-              </td>
-              <td class="col-date">{formatDate(tx.date)}</td>
-              {#if !selectedAccount}
-                <td class="col-account">{tx.accountName}</td>
-              {/if}
-              <td class="col-payee">
-                {#if tx.transferAccountId}
-                  <span class="transfer-payee" class:outgoing={isOutflow} class:incoming={isInflow}>
-                    {tx.payee || 'Transfer'}
-                  </span>
-                {:else}
-                  {tx.payee || ''}
-                {/if}
-              </td>
-              <td class="col-category">
-                <div class="category-memo">
-                  {#if tx.transferAccountId}
-                    <span class="transfer-badge" class:outgoing={isOutflow} class:incoming={isInflow}>
-                      {isOutflow ? '↗' : '↙'} Transfer
-                    </span>
-                  {:else if subCategory}
-                    <span class="category-display">
-                      <strong>{subCategory}</strong>
-                      {#if masterCategory}
-                        <span class="master-category"> · {masterCategory}</span>
-                      {/if}
-                    </span>
-                  {/if}
-                  {#if tx.memo}
-                    <span class="memo-text">{tx.memo}</span>
-                  {/if}
-                </div>
-              </td>
-              <td class="col-outflow" class:has-value={isOutflow}>
-                {isOutflow ? formatAmount(tx.amount) : ''}
-              </td>
-              <td class="col-inflow" class:has-value={isInflow}>
-                {isInflow ? formatAmount(tx.amount) : ''}
-              </td>
-              {#if selectedAccount}
-                <td class="col-balance" class:positive={tx.runningBalance >= 0} class:negative={tx.runningBalance < 0}>
-                  {formatAmount(tx.runningBalance)}
+            {@const isBeingEdited = editingTxId === tx.id}
+            
+            {#if isBeingEdited && editTx}
+              <!-- Editing row -->
+              <tr class="tx-edit-row">
+                <td class="col-flag">
+                  <div class="flag-tag-wrapper">
+                    <button 
+                      class="flag-tag {editTx.flag ? `flag-${editTx.flag}` : 'flag-empty'}"
+                      onclick={() => showFlagPicker = showFlagPicker === `edit-${tx.id}` ? null : `edit-${tx.id}`}
+                      type="button"
+                    ></button>
+                    {#if showFlagPicker === `edit-${tx.id}`}
+                      <div class="flag-picker">
+                        <button 
+                          class="flag-option flag-none" 
+                          onclick={() => { editTx.flag = null; showFlagPicker = null; }}
+                          type="button"
+                        >✕</button>
+                        {#each FLAG_COLORS as color}
+                          <button
+                            class="flag-option flag-{color}"
+                            onclick={() => { editTx.flag = color; showFlagPicker = null; }}
+                            type="button"
+                          ></button>
+                        {/each}
+                      </div>
+                    {/if}
+                  </div>
                 </td>
-              {/if}
-              <td class="col-status">
-                <span class="status-bar {getStatusClass(tx.cleared)}" title={tx.cleared}></span>
-              </td>
-            </tr>
+                <td class="col-date">
+                  <input 
+                    type="text" 
+                    class="inline-input" 
+                    bind:value={editTx.date}
+                    onkeydown={handleEditKeydown}
+                  />
+                </td>
+                {#if !selectedAccount}
+                  <td class="col-account">{tx.accountName}</td>
+                {/if}
+                <td class="col-payee">
+                  <Autocomplete
+                    options={payeeOptions}
+                    value={editTx.payee}
+                    placeholder={$t('transactions.payee')}
+                    onSelect={(v) => editTx.payee = v}
+                    onCreate={(v) => editTx.payee = v}
+                  />
+                </td>
+                <td class="col-category">
+                  <div class="category-entry">
+                    <Autocomplete
+                      options={categoryOptions}
+                      value={editTx.category}
+                      placeholder={$t('transactions.category')}
+                      onSelect={(v) => editTx.category = v}
+                    />
+                    <input 
+                      type="text" 
+                      class="inline-input memo-input" 
+                      placeholder={$t('transactions.memo')}
+                      bind:value={editTx.memo}
+                      onkeydown={handleEditKeydown}
+                    />
+                  </div>
+                </td>
+                <td class="col-outflow">
+                  <input 
+                    type="text" 
+                    class="inline-input amount-input" 
+                    placeholder=""
+                    value={editTx.outflow}
+                    oninput={handleEditOutflow}
+                    onkeydown={handleEditKeydown}
+                  />
+                </td>
+                <td class="col-inflow">
+                  <input 
+                    type="text" 
+                    class="inline-input amount-input" 
+                    placeholder=""
+                    value={editTx.inflow}
+                    oninput={handleEditInflow}
+                    onkeydown={handleEditKeydown}
+                  />
+                </td>
+                {#if selectedAccount}
+                  <td class="col-balance"></td>
+                {/if}
+                <td class="col-status">
+                  <div class="entry-actions">
+                    <button class="entry-save-btn" onclick={saveEdit} title={$t('common.save')}>
+                      <Save class="h-3 w-3" />
+                    </button>
+                    <button class="entry-cancel-btn" onclick={cancelEdit} title={$t('common.cancel')}>
+                      <X class="h-3 w-3" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {:else}
+              <!-- Display row -->
+              <tr 
+                class="tx-row"
+                ondblclick={() => startEdit(tx)}
+              >
+                <td class="col-flag">
+                  <span class="flag-tag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : 'flag-empty'}"></span>
+                </td>
+                <td class="col-date">{formatDate(tx.date)}</td>
+                {#if !selectedAccount}
+                  <td class="col-account">{tx.accountName}</td>
+                {/if}
+                <td class="col-payee">
+                  {#if tx.transferAccountId}
+                    <span class="transfer-payee" class:outgoing={isOutflow} class:incoming={isInflow}>
+                      {tx.payee || 'Transfer'}
+                    </span>
+                  {:else}
+                    {tx.payee || ''}
+                  {/if}
+                </td>
+                <td class="col-category">
+                  <div class="category-memo">
+                    {#if tx.transferAccountId}
+                      <span class="transfer-badge" class:outgoing={isOutflow} class:incoming={isInflow}>
+                        {isOutflow ? '↗' : '↙'} Transfer
+                      </span>
+                    {:else if subCategory}
+                      <span class="category-display">
+                        <strong>{subCategory}</strong>
+                        {#if masterCategory}
+                          <span class="master-category"> · {masterCategory}</span>
+                        {/if}
+                      </span>
+                    {/if}
+                    {#if tx.memo}
+                      <span class="memo-text">{tx.memo}</span>
+                    {/if}
+                  </div>
+                </td>
+                <td class="col-outflow" class:has-value={isOutflow}>
+                  {isOutflow ? formatAmount(tx.amount) : ''}
+                </td>
+                <td class="col-inflow" class:has-value={isInflow}>
+                  {isInflow ? formatAmount(tx.amount) : ''}
+                </td>
+                {#if selectedAccount}
+                  <td class="col-balance" class:positive={tx.runningBalance >= 0} class:negative={tx.runningBalance < 0}>
+                    {formatAmount(tx.runningBalance)}
+                  </td>
+                {/if}
+                <td class="col-status">
+                  <span class="status-bar {getStatusClass(tx.cleared)}" title={tx.cleared}></span>
+                </td>
+              </tr>
+            {/if}
           {/each}
           
           <!-- Bottom entry row (when sortOrder is asc - oldest first) -->
@@ -701,36 +893,22 @@
                   </td>
                 {/if}
                 <td class="col-payee">
-                  <input 
-                    type="text" 
-                    class="inline-input" 
+                  <Autocomplete
+                    options={payeeOptions}
+                    value={entryPayee}
                     placeholder={$t('transactions.payee')}
-                    bind:value={entryPayee}
-                    list="payees-list-bottom"
-                    onkeydown={handleEntryKeydown}
+                    onSelect={(v) => entryPayee = v}
+                    onCreate={(v) => entryPayee = v}
                   />
-                  <datalist id="payees-list-bottom">
-                    {#each $payees as payee}
-                      <option value={payee.name}></option>
-                    {/each}
-                  </datalist>
                 </td>
                 <td class="col-category">
                   <div class="category-entry">
-                    <input 
-                      type="text" 
-                      class="inline-input" 
+                    <Autocomplete
+                      options={categoryOptions}
+                      value={entryCategory}
                       placeholder={$t('transactions.category')}
-                      bind:value={entryCategory}
-                      list="categories-list-bottom"
-                      onkeydown={handleEntryKeydown}
+                      onSelect={(v) => entryCategory = v}
                     />
-                    <datalist id="categories-list-bottom">
-                      {#each $categories as cat}
-                        {@const masterName = cat.masterCategoryName || ''}
-                        <option value={cat.name} label={masterName ? `${cat.name} · ${masterName}` : cat.name}></option>
-                      {/each}
-                    </datalist>
                     <input 
                       type="text" 
                       class="inline-input memo-input" 
@@ -1313,7 +1491,7 @@
     border-color: var(--primary);
   }
 
-  /* Inline Entry Row */
+  /* Inline Entry Row (new transaction) */
   .tx-entry-row {
     background: var(--muted);
   }
@@ -1322,6 +1500,17 @@
     padding: 0.125rem 0.125rem;
     vertical-align: middle;
     border-bottom: 1px solid var(--primary);
+  }
+  
+  /* Inline Edit Row (existing transaction) */
+  .tx-edit-row {
+    background: color-mix(in srgb, var(--warning) 10%, var(--background));
+  }
+
+  .tx-edit-row td {
+    padding: 0.125rem 0.125rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--warning);
   }
 
   /* Transparent inline inputs */
