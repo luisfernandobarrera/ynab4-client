@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, List, LayoutList, ArrowUpRight, ArrowDownLeft, AlertCircle } from 'lucide-svelte';
+  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, List, LayoutList, ArrowLeftRight } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
   import DateNavigation from './date-navigation.svelte';
@@ -22,16 +22,16 @@
   }
   
   const COLUMNS: ColumnConfig[] = [
-    { id: 'flag', label: '', defaultWidth: 22, minWidth: 22, canHide: false, canResize: false },
-    { id: 'date', label: 'transactions.date', defaultWidth: 85, minWidth: 60, canHide: false, canResize: true },
-    { id: 'account', label: 'transactions.account', defaultWidth: 90, minWidth: 60, canHide: true, canResize: true },
-    { id: 'payee', label: 'transactions.payee', defaultWidth: 140, minWidth: 80, canHide: false, canResize: true },
-    { id: 'category', label: 'transactions.category', defaultWidth: 160, minWidth: 80, canHide: true, canResize: true },
-    { id: 'memo', label: 'transactions.memo', defaultWidth: 120, minWidth: 60, canHide: true, canResize: true },
-    { id: 'outflow', label: 'transactions.outflow', defaultWidth: 80, minWidth: 60, canHide: true, canResize: true },
-    { id: 'inflow', label: 'transactions.inflow', defaultWidth: 80, minWidth: 60, canHide: true, canResize: true },
-    { id: 'balance', label: 'transactions.balance', defaultWidth: 90, minWidth: 60, canHide: true, canResize: true },
-    { id: 'status', label: '', defaultWidth: 24, minWidth: 24, canHide: false, canResize: false },
+    { id: 'flag', label: 'transactions.flag', defaultWidth: 6, minWidth: 6, canHide: true, canResize: false },
+    { id: 'date', label: 'transactions.date', defaultWidth: 75, minWidth: 60, canHide: false, canResize: true },
+    { id: 'account', label: 'transactions.account', defaultWidth: 100, minWidth: 60, canHide: false, canResize: true },
+    { id: 'payee', label: 'transactions.payee', defaultWidth: 150, minWidth: 80, canHide: false, canResize: true },
+    { id: 'category', label: 'transactions.category', defaultWidth: 180, minWidth: 80, canHide: false, canResize: true },
+    { id: 'memo', label: 'transactions.memo', defaultWidth: 150, minWidth: 60, canHide: true, canResize: true },
+    { id: 'outflow', label: 'transactions.outflow', defaultWidth: 90, minWidth: 60, canHide: false, canResize: true },
+    { id: 'inflow', label: 'transactions.inflow', defaultWidth: 90, minWidth: 60, canHide: false, canResize: true },
+    { id: 'balance', label: 'transactions.balance', defaultWidth: 100, minWidth: 60, canHide: true, canResize: true },
+    { id: 'status', label: '', defaultWidth: 6, minWidth: 6, canHide: true, canResize: false },
   ];
   
   // Load/save column settings from localStorage
@@ -956,7 +956,9 @@
       <table class="tx-table">
         <thead>
           <tr>
-            <th class="col-flag" style="width: {getColumnWidth('flag')}px"></th>
+            {#if isColumnVisible('flag')}
+              <th class="col-flag" style="width: {getColumnWidth('flag')}px"></th>
+            {/if}
             <th class="col-date resizable" style="width: {getColumnWidth('date')}px">
               <button class="sort-header" onclick={toggleSortOrder}>
                 {$t('transactions.date')}
@@ -969,7 +971,7 @@
               <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
               <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'date')}></div>
             </th>
-            {#if !selectedAccount && isColumnVisible('account')}
+            {#if !selectedAccount}
               <th class="col-account resizable" style="width: {getColumnWidth('account')}px">
                 {$t('transactions.account')}
                 <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
@@ -981,27 +983,28 @@
               <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
               <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'payee')}></div>
             </th>
-            {#if isColumnVisible('category')}
-              <th class="col-category resizable" style="width: {getColumnWidth('category')}px">
-                {$t('transactions.category')}
+            <th class="col-category resizable" style="width: {getColumnWidth('category')}px">
+              {$t('transactions.category')}
+              <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+              <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'category')}></div>
+            </th>
+            {#if isColumnVisible('memo')}
+              <th class="col-memo resizable" style="width: {getColumnWidth('memo')}px">
+                {$t('transactions.memo')}
                 <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
-                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'category')}></div>
+                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'memo')}></div>
               </th>
             {/if}
-            {#if isColumnVisible('outflow')}
-              <th class="col-outflow resizable" style="width: {getColumnWidth('outflow')}px">
-                {$t('transactions.outflow')}
-                <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
-                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'outflow')}></div>
-              </th>
-            {/if}
-            {#if isColumnVisible('inflow')}
-              <th class="col-inflow resizable" style="width: {getColumnWidth('inflow')}px">
-                {$t('transactions.inflow')}
-                <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
-                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'inflow')}></div>
-              </th>
-            {/if}
+            <th class="col-outflow resizable" style="width: {getColumnWidth('outflow')}px">
+              {$t('transactions.outflow')}
+              <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+              <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'outflow')}></div>
+            </th>
+            <th class="col-inflow resizable" style="width: {getColumnWidth('inflow')}px">
+              {$t('transactions.inflow')}
+              <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+              <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'inflow')}></div>
+            </th>
             {#if selectedAccount && isColumnVisible('balance')}
               <th class="col-balance resizable" style="width: {getColumnWidth('balance')}px">
                 {$t('transactions.balance')}
@@ -1009,7 +1012,9 @@
                 <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'balance')}></div>
               </th>
             {/if}
-            <th class="col-status" style="width: {getColumnWidth('status')}px"></th>
+            {#if isColumnVisible('status')}
+              <th class="col-status" style="width: {getColumnWidth('status')}px"></th>
+            {/if}
           </tr>
         </thead>
         <tbody>
@@ -1267,69 +1272,59 @@
                 ondblclick={() => startEdit(tx)}
                 onclick={() => txHasSplits && toggleSplit(tx.id)}
               >
-                <td class="col-flag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : ''}"></td>
+                {#if isColumnVisible('flag')}
+                  <td class="col-flag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : ''}"></td>
+                {/if}
                 <td class="col-date">{formatDate(tx.date)}</td>
-                {#if !selectedAccount && isColumnVisible('account')}
+                {#if !selectedAccount}
                   <td class="col-account">{tx.accountName}</td>
                 {/if}
                 <td class="col-payee">
                   {#if tx.transferAccountId}
-                    <span class="transfer-display" class:outgoing={isOutflow} class:incoming={isInflow}>
-                      <span class="transfer-icon">
-                        {#if isOutflow}
-                          <ArrowUpRight class="h-3 w-3" />
-                        {:else}
-                          <ArrowDownLeft class="h-3 w-3" />
-                        {/if}
-                      </span>
-                      <span class="transfer-text">{tx.payee || 'Transfer'}</span>
+                    <span class="transfer-display">
+                      <ArrowLeftRight class="h-3.5 w-3.5 transfer-icon" />
+                      <span>{tx.payee || 'Transfer'}</span>
                     </span>
                   {:else}
                     {tx.payee || ''}
                   {/if}
                 </td>
-                {#if isColumnVisible('category')}
-                  <td class="col-category">
-                    <div class="category-cell">
-                      {#if txHasSplits}
-                        <span class="split-indicator" class:expanded={isExpanded}>
-                          <Split class="h-3 w-3" />
-                          <span>{$t('transactions.split')} ({tx.subTransactions?.length})</span>
-                        </span>
-                      {:else if tx.transferAccountId}
-                        <span class="transfer-badge" class:outgoing={isOutflow} class:incoming={isInflow}>
-                          {isOutflow ? '→' : '←'} Transfer
-                        </span>
-                      {:else if subCategory}
-                        <span class="category-display">
-                          <strong class="cat-sub">{subCategory}</strong>
-                          {#if masterCategory}
-                            <span class="cat-master"> · {masterCategory}</span>
-                          {/if}
-                        </span>
-                      {/if}
-                      {#if tx.memo && !compactMode}
-                        <span class="memo-inline">{tx.memo}</span>
-                      {/if}
-                    </div>
-                  </td>
+                <td class="col-category">
+                  <div class="category-cell">
+                    {#if txHasSplits}
+                      <span class="split-indicator" class:expanded={isExpanded}>
+                        <Split class="h-3 w-3" />
+                        <span>{$t('transactions.split')} ({tx.subTransactions?.length})</span>
+                      </span>
+                    {:else if tx.transferAccountId}
+                      <span class="transfer-category">Transfer</span>
+                    {:else if subCategory}
+                      <span class="category-display">
+                        <strong class="cat-sub">{subCategory}</strong>
+                        {#if masterCategory}
+                          <span class="cat-master"> · {masterCategory}</span>
+                        {/if}
+                      </span>
+                    {/if}
+                  </div>
+                </td>
+                {#if isColumnVisible('memo')}
+                  <td class="col-memo">{tx.memo || ''}</td>
                 {/if}
-                {#if isColumnVisible('outflow')}
-                  <td class="col-outflow" class:has-value={isOutflow}>
-                    {isOutflow ? formatAmount(tx.amount) : ''}
-                  </td>
-                {/if}
-                {#if isColumnVisible('inflow')}
-                  <td class="col-inflow" class:has-value={isInflow}>
-                    {isInflow ? formatAmount(tx.amount) : ''}
-                  </td>
-                {/if}
+                <td class="col-outflow">
+                  {isOutflow ? formatAmount(tx.amount) : ''}
+                </td>
+                <td class="col-inflow">
+                  {isInflow ? formatAmount(tx.amount) : ''}
+                </td>
                 {#if selectedAccount && isColumnVisible('balance')}
                   <td class="col-balance" class:positive={tx.runningBalance >= 0} class:negative={tx.runningBalance < 0}>
                     {formatAmount(tx.runningBalance)}
                   </td>
                 {/if}
-                <td class="col-status {getStatusClass(tx.cleared)}"></td>
+                {#if isColumnVisible('status')}
+                  <td class="col-status {getStatusClass(tx.cleared)}"></td>
+                {/if}
               </tr>
               
               <!-- Split details row -->
@@ -1893,7 +1888,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.8125rem;
-    table-layout: fixed;
+    table-layout: auto;
   }
 
   .tx-table thead {
@@ -1950,12 +1945,14 @@
   .col-date { font-size: 0.75rem; white-space: nowrap; }
   .col-account { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-payee { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .col-category { font-size: 0.7rem; overflow: hidden; }
+  .col-category { font-size: 0.75rem; overflow: hidden; }
+  .col-memo { font-size: 0.7rem; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   
-  /* Category cell with memo below */
+  /* Category cell */
   .category-cell {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: baseline;
     gap: 0.125rem;
   }
   
@@ -1977,45 +1974,22 @@
     font-size: 0.9em;
   }
   
-  .memo-inline {
-    font-size: 0.65rem;
-    color: var(--muted-foreground);
-    font-style: italic;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 200px;
-  }
-  
   /* Transfer display */
+  /* Transfer display in payee column */
   .transfer-display {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.35rem;
+    color: var(--muted-foreground);
   }
   
   .transfer-icon {
-    display: flex;
-    align-items: center;
+    color: var(--muted-foreground);
+    flex-shrink: 0;
   }
   
-  .transfer-display.outgoing {
-    color: var(--destructive);
-  }
-  
-  .transfer-display.outgoing .transfer-icon {
-    color: var(--destructive);
-  }
-  
-  .transfer-display.incoming {
-    color: var(--success);
-  }
-  
-  .transfer-display.incoming .transfer-icon {
-    color: var(--success);
-  }
-  
-  .transfer-text {
+  .transfer-category {
+    color: var(--muted-foreground);
     font-style: italic;
   }
   .col-outflow, .col-inflow, .col-balance { 
@@ -2044,8 +2018,6 @@
     background: transparent !important; /* Nothing */
   }
 
-  .col-outflow.has-value { color: var(--destructive); }
-  .col-inflow.has-value { color: var(--success); }
   .col-balance.positive { color: var(--success); }
   .col-balance.negative { color: var(--destructive); }
   
@@ -2578,13 +2550,6 @@
     font-feature-settings: "tnum";
   }
 
-  .split-col-outflow.has-value {
-    color: var(--destructive);
-  }
-
-  .split-col-inflow.has-value {
-    color: var(--success);
-  }
 
   .split-transfer {
     font-style: italic;
