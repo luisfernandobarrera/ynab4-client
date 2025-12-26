@@ -16,16 +16,16 @@
 
   let { transaction, onEnter, onSkip, onEdit, onDelete }: Props = $props();
 
-  const payee = $derived($payees.find((p) => p.id === transaction.payeeId));
+  const payee = $derived($payees.find((p) => p.entityId === transaction.payeeId));
   const category = $derived($categories.find((c) => c.entityId === transaction.categoryId));
   const account = $derived($accounts.find((a) => a.id === transaction.accountId));
 
-  const isOverdue = $derived(() => {
+  const isOverdue = $derived.by(() => {
     const today = new Date().toISOString().split('T')[0];
     return transaction.dateNext <= today;
   });
 
-  const isDueSoon = $derived(() => {
+  const isDueSoon = $derived.by(() => {
     const today = new Date();
     const dueDate = new Date(transaction.dateNext);
     const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -59,8 +59,8 @@
 <div
   class={cn(
     'relative rounded-lg border p-4 transition-colors',
-    isOverdue() && 'border-destructive bg-destructive/5',
-    isDueSoon() && !isOverdue() && 'border-ynab-orange bg-ynab-orange/5'
+    isOverdue && 'border-destructive bg-destructive/5',
+    isDueSoon && !isOverdue && 'border-ynab-orange bg-ynab-orange/5'
   )}
 >
   <!-- Flag indicator -->
@@ -91,7 +91,7 @@
   <!-- Meta row -->
   <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
     <!-- Next date -->
-    <Badge variant={isOverdue() ? 'destructive' : isDueSoon() ? 'secondary' : 'outline'}>
+    <Badge variant={isOverdue ? 'destructive' : isDueSoon ? 'secondary' : 'outline'}>
       <Calendar class="mr-1 h-3 w-3" />
       {formatDateLong(transaction.dateNext)}
     </Badge>
@@ -120,7 +120,7 @@
   <!-- Actions -->
   <div class="mt-4 flex gap-2">
     {#if onEnter}
-      <Button variant={isOverdue() ? 'default' : 'outline'} size="sm" onclick={onEnter}>
+      <Button variant={isOverdue ? 'default' : 'outline'} size="sm" onclick={onEnter}>
         <Play class="mr-1 h-4 w-4" />
         Enter Now
       </Button>

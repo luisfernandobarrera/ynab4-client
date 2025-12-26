@@ -34,7 +34,7 @@
 
   function handleEnter(txId: string) {
     const tx = $scheduledTransactions.find((t) => t.entityId === txId);
-    const payee = tx ? $payees.find((p) => p.id === tx.payeeId) : null;
+    const payee = tx ? $payees.find((p) => p.entityId === tx.payeeId) : null;
     console.log('Enter transaction:', txId);
     addToast({
       type: 'success',
