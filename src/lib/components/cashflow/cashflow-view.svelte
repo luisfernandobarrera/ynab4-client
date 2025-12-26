@@ -247,6 +247,7 @@
   // Categorized totals for summary
   const categorizedTotals = $derived.by(() => {
     const { from, to } = getDateRange();
+    const { checking, savings } = accountTypes;
     let income = 0, expenses = 0, ccPayments = 0, savingsTransfers = 0, savingsWithdrawals = 0, interest = 0;
     
     for (const tx of $transactions) {
@@ -254,17 +255,35 @@
       if (!pool.has(tx.accountId)) continue;
       
       const transferTargetId = getTransferTargetId(tx);
+      const cat = categorizeTransaction(tx);
+      
+      // For savings transfers and withdrawals, we want to count them even though they're internal
+      // But only count from the source account side (negative amount)
+      if (cat === 'savings_transfer') {
+        // Transfer from checking to savings - only count if source is in pool
+        if (checking.has(tx.accountId) && tx.amount < 0) {
+          savingsTransfers += Math.abs(tx.amount);
+        }
+        continue;
+      }
+      
+      if (cat === 'savings_withdrawal') {
+        // Transfer from savings to checking - only count if source is in pool
+        if (savings.has(tx.accountId) && tx.amount < 0) {
+          savingsWithdrawals += Math.abs(tx.amount);
+        }
+        continue;
+      }
+      
+      // Skip other internal transfers
       if (transferTargetId && pool.has(transferTargetId)) continue;
       
-      const cat = categorizeTransaction(tx);
       const amount = Math.abs(tx.amount);
       
       switch (cat) {
         case 'income': income += amount; break;
         case 'expense': expenses += amount; break;
         case 'cc_payment': ccPayments += amount; break;
-        case 'savings_transfer': savingsTransfers += amount; break;
-        case 'savings_withdrawal': savingsWithdrawals += amount; break;
         case 'interest': interest += tx.amount; break;
       }
     }
