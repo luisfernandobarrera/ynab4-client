@@ -320,9 +320,9 @@
 
 <style>
   .accounts-panel {
-    width: 220px;
-    min-width: 200px;
-    max-width: 260px;
+    width: 240px;
+    min-width: 220px;
+    max-width: 280px;
     background: var(--card);
     border-right: 1px solid var(--border);
     display: flex;

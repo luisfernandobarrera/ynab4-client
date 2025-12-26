@@ -77,7 +77,7 @@
   const COLUMNS: ColumnConfig[] = [
     { id: 'flag', label: 'transactions.flag', defaultWidth: 4, minWidth: 4, canHide: true, canResize: false },
     { id: 'date', label: 'transactions.date', defaultWidth: 80, minWidth: 70, canHide: false, canResize: true },
-    { id: 'account', label: 'transactions.account', defaultWidth: 90, minWidth: 60, canHide: false, canResize: true },
+    { id: 'account', label: 'transactions.account', defaultWidth: 100, minWidth: 60, canHide: true, canResize: true },
     { id: 'icon', label: '', defaultWidth: 18, minWidth: 18, canHide: false, canResize: false },
     { id: 'payee', label: 'transactions.payee', defaultWidth: 140, minWidth: 80, canHide: false, canResize: true },
     { id: 'category', label: 'transactions.category', defaultWidth: 200, minWidth: 100, canHide: false, canResize: true },
@@ -85,7 +85,7 @@
     { id: 'outflow', label: 'transactions.outflow', defaultWidth: 85, minWidth: 60, canHide: false, canResize: true },
     { id: 'inflow', label: 'transactions.inflow', defaultWidth: 85, minWidth: 60, canHide: false, canResize: true },
     { id: 'balance', label: 'transactions.balance', defaultWidth: 90, minWidth: 60, canHide: true, canResize: true },
-    { id: 'status', label: '', defaultWidth: 4, minWidth: 4, canHide: true, canResize: false },
+    { id: 'status', label: 'transactions.status', defaultWidth: 4, minWidth: 4, canHide: true, canResize: false },
   ];
   
   // Transaction indicator types
@@ -109,13 +109,16 @@
     hidden: string[];
   }
   
+  // Default hidden columns
+  const DEFAULT_HIDDEN_COLUMNS = ['account', 'memo'];
+  
   function loadColumnSettings(): ColumnSettings {
-    if (!browser) return { widths: {}, hidden: [] };
+    if (!browser) return { widths: {}, hidden: DEFAULT_HIDDEN_COLUMNS };
     try {
       const saved = localStorage.getItem(COLUMN_SETTINGS_KEY);
       if (saved) return JSON.parse(saved);
     } catch {}
-    return { widths: {}, hidden: [] };
+    return { widths: {}, hidden: DEFAULT_HIDDEN_COLUMNS };
   }
   
   function saveColumnSettings(settings: ColumnSettings) {
@@ -1064,7 +1067,7 @@
               <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
               <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'date')}></div>
             </th>
-            {#if !selectedAccount}
+            {#if !selectedAccount && isColumnVisible('account')}
               <th class="col-account resizable" style="width: {getColumnWidth('account')}px">
                 {$t('transactions.account')}
                 <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
@@ -1147,7 +1150,7 @@
                     onkeydown={handleEntryKeydown}
                   />
                 </td>
-                {#if !selectedAccount}
+                {#if !selectedAccount && isColumnVisible('account')}
                   <td class="col-account">
                     <Autocomplete
                       options={accountOptions}
@@ -1229,7 +1232,7 @@
                 <td class="col-date">
                   <button class="add-btn add-text" onclick={startEntry}>{$t('transactions.addTransaction')}</button>
                 </td>
-                {#if !selectedAccount}
+                {#if !selectedAccount && isColumnVisible('account')}
                   <td class="col-account"></td>
                 {/if}
                 <td class="col-icon"></td>
@@ -1292,7 +1295,7 @@
                     onkeydown={handleEditKeydown}
                   />
                 </td>
-                {#if !selectedAccount}
+                {#if !selectedAccount && isColumnVisible('account')}
                   <td class="col-account">{tx.accountName}</td>
                 {/if}
                 <td class="col-icon">
@@ -1378,7 +1381,7 @@
                   <td class="col-flag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : ''}"></td>
                 {/if}
                 <td class="col-date">{formatDate(tx.date)}</td>
-                {#if !selectedAccount}
+                {#if !selectedAccount && isColumnVisible('account')}
                   <td class="col-account">{tx.accountName}</td>
                 {/if}
                 <td class="col-icon">
@@ -1518,7 +1521,7 @@
                     onkeydown={handleEntryKeydown}
                   />
                 </td>
-                {#if !selectedAccount}
+                {#if !selectedAccount && isColumnVisible('account')}
                   <td class="col-account">
                     <Autocomplete
                       options={accountOptions}
@@ -1600,7 +1603,7 @@
                 <td class="col-date">
                   <button class="add-btn add-text" onclick={startEntry}>{$t('transactions.addTransaction')}</button>
                 </td>
-                {#if !selectedAccount}
+                {#if !selectedAccount && isColumnVisible('account')}
                   <td class="col-account"></td>
                 {/if}
                 <td class="col-icon"></td>

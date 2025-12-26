@@ -291,6 +291,7 @@
   .home-btn {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.75rem;
     width: 100%;
     padding: 0.75rem;
@@ -302,6 +303,10 @@
     cursor: pointer;
     border-radius: 8px;
     transition: all 0.15s;
+  }
+  
+  .sidebar:not(.collapsed) .home-btn {
+    justify-content: flex-start;
   }
 
   .home-btn:hover {

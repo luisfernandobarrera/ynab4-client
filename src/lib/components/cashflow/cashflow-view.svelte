@@ -138,7 +138,7 @@
     return null;
   }
 
-  // Categorize a transaction
+  // Categorize a transaction based on the current account pool
   function categorizeTransaction(tx: typeof $transactions[0]): TxCategory {
     const { checking, savings, creditCards } = accountTypes;
     const transferTargetId = getTransferTargetId(tx);
@@ -154,22 +154,58 @@
       return 'interest';
     }
     
-    // Credit card payment (transfer to credit card)
-    if (transferTargetId && creditCards.has(transferTargetId)) {
-      return 'cc_payment';
+    // If it's a transfer
+    if (transferTargetId) {
+      const sourceInPool = pool.has(tx.accountId);
+      const targetInPool = pool.has(transferTargetId);
+      const sourceIsChecking = checking.has(tx.accountId);
+      const sourceIsSavings = savings.has(tx.accountId);
+      const targetIsChecking = checking.has(transferTargetId);
+      const targetIsSavings = savings.has(transferTargetId);
+      const targetIsCC = creditCards.has(transferTargetId);
+      
+      // Credit card payment (transfer to credit card from pool)
+      if (targetIsCC && sourceInPool) {
+        return 'cc_payment';
+      }
+      
+      // Transfer TO savings from checking within pool
+      if (sourceIsChecking && targetIsSavings && sourceInPool && targetInPool) {
+        return 'savings_transfer';
+      }
+      
+      // Withdrawal FROM savings to checking within pool
+      if (sourceIsSavings && targetIsChecking && sourceInPool && targetInPool) {
+        return 'savings_withdrawal';
+      }
+      
+      // Transfer from OUTSIDE pool (like investments/AFORE) to pool = income-like
+      if (!sourceInPool && targetInPool && pool.has(transferTargetId)) {
+        // This is money coming IN to the pool from outside (like AFORE withdrawal)
+        // Categorize based on source account type
+        const sourceAcc = $accounts.find(a => a.id === tx.accountId);
+        const sourceType = sourceAcc?.type?.toLowerCase() || '';
+        if (sourceType.includes('investment') || sourceType.includes('saving') || sourceType.includes('retire')) {
+          return 'savings_withdrawal';
+        }
+      }
+      
+      // Transfer from pool to OUTSIDE (like investments) = expense-like
+      if (sourceInPool && !targetInPool) {
+        const targetAcc = $accounts.find(a => a.id === transferTargetId);
+        const targetType = targetAcc?.type?.toLowerCase() || '';
+        if (targetType.includes('investment') || targetType.includes('saving') || targetType.includes('retire')) {
+          return 'savings_transfer';
+        }
+      }
+      
+      // Internal transfer within the same pool type = 'other' (neutral)
+      if (sourceInPool && targetInPool) {
+        return 'other';
+      }
     }
     
-    // Transfer to savings (from checking to savings)
-    if (transferTargetId && savings.has(transferTargetId) && checking.has(tx.accountId)) {
-      return 'savings_transfer';
-    }
-    
-    // Withdrawal from savings (from savings to checking)
-    if (transferTargetId && checking.has(transferTargetId) && savings.has(tx.accountId)) {
-      return 'savings_withdrawal';
-    }
-    
-    // Income vs Expense
+    // Income vs Expense (non-transfer)
     if (tx.amount > 0) return 'income';
     return 'expense';
   }
@@ -436,6 +472,9 @@
   
   // Check if there are more transactions to load
   const hasMore = $derived(filteredTransactions.length > displayLimit);
+  
+  // In detail view (account or category selected), balance column doesn't make sense
+  const showBalance = $derived(!selectedAccountId && !selectedCategory);
 
   // Group accounts by type
   const checkingAccounts = $derived(accountsData.filter(a => a.type === 'checking'));
@@ -767,12 +806,14 @@
                 <th class="col-payee">Beneficiario</th>
                 <th class="col-outflow">Cargo</th>
                 <th class="col-inflow">Abono</th>
-                <th class="col-balance">Saldo</th>
+                {#if showBalance}
+                  <th class="col-balance">Saldo</th>
+                {/if}
               </tr>
             </thead>
             <tbody>
-              <!-- Initial balance row (only show when all transactions are loaded) -->
-              {#if sortDirection === 'asc' && !hasMore}
+              <!-- Initial balance row (only show in general view when all transactions are loaded) -->
+              {#if showBalance && sortDirection === 'asc' && !hasMore}
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
@@ -812,14 +853,16 @@
                   </td>
                   <td class="col-outflow">{isOutflow ? formatAmount(tx.amount) : ''}</td>
                   <td class="col-inflow">{!isOutflow ? formatAmount(tx.amount) : ''}</td>
-                  <td class="col-balance" class:positive={tx.runningBalance >= 0} class:negative={tx.runningBalance < 0}>
-                    {formatAmount(tx.runningBalance)}
-                  </td>
+                  {#if showBalance}
+                    <td class="col-balance" class:positive={tx.runningBalance >= 0} class:negative={tx.runningBalance < 0}>
+                      {formatAmount(tx.runningBalance)}
+                    </td>
+                  {/if}
                 </tr>
               {/each}
               
-              <!-- Initial balance row (at bottom if descending, only when all loaded) -->
-              {#if sortDirection === 'desc' && !hasMore}
+              <!-- Initial balance row (at bottom if descending, only in general view when all loaded) -->
+              {#if showBalance && sortDirection === 'desc' && !hasMore}
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
