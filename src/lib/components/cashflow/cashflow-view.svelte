@@ -115,18 +115,18 @@
     return 'expense';
   }
 
-  // Get category label
+  // Get category label (translated)
   function getCategoryLabel(cat: TxCategory): string {
-    const labels: Record<TxCategory, string> = {
-      income: 'Ingreso',
-      expense: 'Gasto',
-      cc_payment: 'Pago TC',
-      savings_transfer: 'A Ahorro',
-      savings_withdrawal: 'De Ahorro',
-      interest: 'Interés',
-      other: 'Otro'
+    const labelKeys: Record<TxCategory, string> = {
+      income: 'cashFlow.income',
+      expense: 'cashFlow.expenses',
+      cc_payment: 'cashFlow.creditPayments',
+      savings_transfer: 'cashFlow.toSavings',
+      savings_withdrawal: 'cashFlow.fromSavings',
+      interest: 'cashFlow.interest',
+      other: 'cashFlow.other'
     };
-    return labels[cat];
+    return $t(labelKeys[cat]);
   }
 
   // Define the pool based on filter
@@ -393,24 +393,24 @@
     return 'other';
   }
 
-  // Get transfer category label based on target account type
+  // Get transfer category label based on target account type (translated)
   function getTransferCategoryLabel(accountId: string | null): string {
-    if (!accountId) return 'Transferencia';
+    if (!accountId) return $t('cashFlow.transfer');
     const type = getAccountTypeById(accountId);
-    const labels: Record<string, string> = {
-      checking: 'Cuenta Cheques',
-      savings: 'Cuenta Ahorro',
-      creditCard: 'Tarjeta de Crédito',
-      cash: 'Efectivo',
-      lineOfCredit: 'Línea de Crédito',
-      merchant: 'Tarjeta Departamental',
-      investment: 'Inversión',
-      mortgage: 'Hipoteca',
-      otherAsset: 'Otros Activos',
-      otherLiability: 'Otros Pasivos',
-      other: 'Transferencia'
+    const labelKeys: Record<string, string> = {
+      checking: 'cashFlow.checkingAccount',
+      savings: 'cashFlow.savingsAccount',
+      creditCard: 'cashFlow.creditCard',
+      cash: 'cashFlow.cash',
+      lineOfCredit: 'cashFlow.lineOfCredit',
+      merchant: 'accountTypes.merchant',
+      investment: 'accountTypes.investments',
+      mortgage: 'accountTypes.mortgage',
+      otherAsset: 'accountTypes.otherAssets',
+      otherLiability: 'accountTypes.otherLiabilities',
+      other: 'cashFlow.transfer'
     };
-    return labels[type] || 'Transferencia';
+    return $t(labelKeys[type] || 'cashFlow.transfer');
   }
 
   function navigateMonth(direction: number) {
@@ -448,16 +448,16 @@
     </div>
     
     <div class="cf-filters">
-      <button class="filter-btn" class:active={accountFilter === 'all'} onclick={() => { accountFilter = 'all'; selectedAccountId = null; }}>
-        Todos
+      <button class="filter-btn" class:active={accountFilter === 'all'} onclick={() => { accountFilter = 'all'; selectedAccountId = null; selectedCategory = null; }}>
+        {$t('cashFlow.all')}
       </button>
-      <button class="filter-btn" class:active={accountFilter === 'checking'} onclick={() => { accountFilter = 'checking'; selectedAccountId = null; }}>
+      <button class="filter-btn" class:active={accountFilter === 'checking'} onclick={() => { accountFilter = 'checking'; selectedAccountId = null; selectedCategory = null; }}>
         <Building2 class="h-4 w-4" />
-        Cheques
+        {$t('cashFlow.checking')}
       </button>
-      <button class="filter-btn" class:active={accountFilter === 'savings'} onclick={() => { accountFilter = 'savings'; selectedAccountId = null; }}>
+      <button class="filter-btn" class:active={accountFilter === 'savings'} onclick={() => { accountFilter = 'savings'; selectedAccountId = null; selectedCategory = null; }}>
         <PiggyBank class="h-4 w-4" />
-        Ahorros
+        {$t('cashFlow.savings')}
       </button>
     </div>
   </header>
@@ -477,17 +477,17 @@
     <!-- Accounts Panel -->
     <aside class="accounts-panel">
       <div class="panel-header">
-        <h3>Cuentas</h3>
+        <h3>{$t('cashFlow.accounts')}</h3>
         <div class="panel-controls">
           <button 
             class="toggle-btn" 
             class:active={showChanges}
             onclick={() => showChanges = !showChanges}
-            title="Mostrar cambios del mes"
+            title={$t('cashFlow.change')}
           >
             ±
           </button>
-          <button class="sort-btn" onclick={cycleSort} title="Ordenar por {accountSort}">
+          <button class="sort-btn" onclick={cycleSort} title={accountSort}>
             <ArrowUpDown class="h-4 w-4" />
           </button>
         </div>
@@ -496,16 +496,16 @@
       <!-- Summary Card -->
       <div class="summary-card">
         <div class="summary-row">
-          <span class="label">Inicial</span>
+          <span class="label">{$t('cashFlow.initial')}</span>
           <span class="value">{formatAmount(totals.initial)}</span>
         </div>
         <div class="summary-row final">
-          <span class="label">Final</span>
+          <span class="label">{$t('cashFlow.final')}</span>
           <span class="value">{formatAmount(totals.final)}</span>
         </div>
         {#if showChanges}
           <div class="summary-row change">
-            <span class="label">Cambio</span>
+            <span class="label">{$t('cashFlow.change')}</span>
             <span class="value" class:positive={totals.final - totals.initial >= 0} class:negative={totals.final - totals.initial < 0}>
               {totals.final - totals.initial >= 0 ? '+' : ''}{formatAmount(totals.final - totals.initial)}
             </span>
@@ -521,7 +521,7 @@
           onclick={() => selectedCategory = selectedCategory === 'income' ? null : 'income'}
         >
           <span class="cat-icon income"><TrendingUp class="h-3.5 w-3.5" /></span>
-          <span class="cat-label">Ingresos</span>
+          <span class="cat-label">{$t('cashFlow.income')}</span>
           <span class="cat-value">{formatAmount(categorizedTotals.income)}</span>
         </button>
         <button 
@@ -530,7 +530,7 @@
           onclick={() => selectedCategory = selectedCategory === 'expense' ? null : 'expense'}
         >
           <span class="cat-icon expense"><TrendingDown class="h-3.5 w-3.5" /></span>
-          <span class="cat-label">Gastos</span>
+          <span class="cat-label">{$t('cashFlow.expenses')}</span>
           <span class="cat-value">{formatAmount(categorizedTotals.expenses)}</span>
         </button>
         <button 
@@ -539,7 +539,7 @@
           onclick={() => selectedCategory = selectedCategory === 'cc_payment' ? null : 'cc_payment'}
         >
           <span class="cat-icon cc"><CreditCard class="h-3.5 w-3.5" /></span>
-          <span class="cat-label">Pagos TC</span>
+          <span class="cat-label">{$t('cashFlow.creditPayments')}</span>
           <span class="cat-value">{formatAmount(categorizedTotals.ccPayments)}</span>
         </button>
         {#if accountFilter !== 'savings'}
@@ -549,7 +549,7 @@
             onclick={() => selectedCategory = selectedCategory === 'savings_transfer' ? null : 'savings_transfer'}
           >
             <span class="cat-icon savings"><PiggyBank class="h-3.5 w-3.5" /></span>
-            <span class="cat-label">A Ahorro</span>
+            <span class="cat-label">{$t('cashFlow.toSavings')}</span>
             <span class="cat-value">{formatAmount(categorizedTotals.savingsTransfers)}</span>
           </button>
         {/if}
@@ -560,7 +560,7 @@
             onclick={() => selectedCategory = selectedCategory === 'savings_withdrawal' ? null : 'savings_withdrawal'}
           >
             <span class="cat-icon withdrawal"><Wallet class="h-3.5 w-3.5" /></span>
-            <span class="cat-label">De Ahorro</span>
+            <span class="cat-label">{$t('cashFlow.fromSavings')}</span>
             <span class="cat-value">{formatAmount(categorizedTotals.savingsWithdrawals)}</span>
           </button>
         {/if}
@@ -571,7 +571,7 @@
             onclick={() => selectedCategory = selectedCategory === 'interest' ? null : 'interest'}
           >
             <span class="cat-icon interest"><Percent class="h-3.5 w-3.5" /></span>
-            <span class="cat-label">Intereses</span>
+            <span class="cat-label">{$t('cashFlow.interest')}</span>
             <span class="cat-value">{categorizedTotals.interest >= 0 ? '' : '-'}{formatAmount(categorizedTotals.interest)}</span>
           </button>
         {/if}
@@ -583,7 +583,7 @@
         {#if checkingAccounts.length > 0}
           <div class="account-group">
             <div class="group-header">
-              <span class="group-name"><Building2 class="h-3.5 w-3.5" /> Cheques</span>
+              <span class="group-name"><Building2 class="h-3.5 w-3.5" /> {$t('cashFlow.checking')}</span>
               <span class="group-total">{formatAmount(checkingTotal)}</span>
             </div>
             {#each checkingAccounts as acc (acc.id)}
@@ -610,7 +610,7 @@
         {#if savingsAccounts.length > 0}
           <div class="account-group">
             <div class="group-header">
-              <span class="group-name"><PiggyBank class="h-3.5 w-3.5" /> Ahorros</span>
+              <span class="group-name"><PiggyBank class="h-3.5 w-3.5" /> {$t('cashFlow.savings')}</span>
               <span class="group-total">{formatAmount(savingsTotal)}</span>
             </div>
             {#each savingsAccounts as acc (acc.id)}
@@ -677,7 +677,7 @@
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
-                  <td class="col-category"><em>Saldo Inicial</em></td>
+                  <td class="col-category"><em>{$t('cashFlow.initialBalance')}</em></td>
                   <td class="col-payee"></td>
                   <td class="col-outflow"></td>
                   <td class="col-inflow"></td>
@@ -724,7 +724,7 @@
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
-                  <td class="col-category"><em>Saldo Inicial</em></td>
+                  <td class="col-category"><em>{$t('cashFlow.initialBalance')}</em></td>
                   <td class="col-payee"></td>
                   <td class="col-outflow"></td>
                   <td class="col-inflow"></td>
