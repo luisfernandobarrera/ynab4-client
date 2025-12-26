@@ -342,8 +342,10 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
   // Load categories with budget data
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const masterCategoryList: any[] = client.getMasterCategories() || [];
+  // Get monthly budgets from the budget object
+  const budget = client.getBudget();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const monthlyBudgetList: any[] = (client as any).getMonthlyBudgets?.() || [];
+  const monthlyBudgetList: any[] = budget?.monthlyBudgets || [];
   const budgetMap = new Map(
     monthlyBudgetList
       .filter((mb: any) => (mb.month || mb.entityId || '').startsWith(currentMonth))
