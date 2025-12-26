@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical } from 'lucide-svelte';
+  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, List, LayoutList } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
   import DateNavigation from './date-navigation.svelte';
@@ -60,6 +60,7 @@
   
   let columnSettings = $state<ColumnSettings>(loadColumnSettings());
   let showColumnSettings = $state(false);
+  let compactMode = $state(true); // Compact mode by default
   
   // Get column width
   function getColumnWidth(id: string): number {
@@ -849,6 +850,19 @@
           <Lock class="h-4 w-4" />
         </button>
         
+        <button 
+          class="tx-icon-btn"
+          class:active={!compactMode}
+          onclick={() => compactMode = !compactMode}
+          title={compactMode ? 'Modo detallado' : 'Modo compacto'}
+        >
+          {#if compactMode}
+            <LayoutList class="h-4 w-4" />
+          {:else}
+            <List class="h-4 w-4" />
+          {/if}
+        </button>
+        
         <div class="column-settings-wrapper">
           <button 
             class="tx-icon-btn"
@@ -951,7 +965,7 @@
                 <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'category')}></div>
               </th>
             {/if}
-            {#if isColumnVisible('memo')}
+            {#if isColumnVisible('memo') && !compactMode}
               <th class="col-memo resizable" style="width: {getColumnWidth('memo')}px">
                 {$t('transactions.memo')}
                 <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
@@ -1233,12 +1247,11 @@
               <tr 
                 class="tx-row"
                 class:has-splits={txHasSplits}
+                class:compact={compactMode}
                 ondblclick={() => startEdit(tx)}
                 onclick={() => txHasSplits && toggleSplit(tx.id)}
               >
-                <td class="col-flag">
-                  <span class="flag-tag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : 'flag-empty'}"></span>
-                </td>
+                <td class="col-flag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : ''}"></td>
                 <td class="col-date">{formatDate(tx.date)}</td>
                 {#if !selectedAccount && isColumnVisible('account')}
                   <td class="col-account">{tx.accountName}</td>
@@ -1266,14 +1279,14 @@
                     {:else if subCategory}
                       <span class="category-display">
                         <strong>{subCategory}</strong>
-                        {#if masterCategory}
+                        {#if masterCategory && !compactMode}
                           <span class="master-category"> · {masterCategory}</span>
                         {/if}
                       </span>
                     {/if}
                   </td>
                 {/if}
-                {#if isColumnVisible('memo')}
+                {#if isColumnVisible('memo') && !compactMode}
                   <td class="col-memo">
                     {tx.memo || ''}
                   </td>
@@ -1293,9 +1306,7 @@
                     {formatAmount(tx.runningBalance)}
                   </td>
                 {/if}
-                <td class="col-status">
-                  <span class="status-bar {getStatusClass(tx.cleared)}" title={tx.cleared}></span>
-                </td>
+                <td class="col-status {getStatusClass(tx.cleared)}"></td>
               </tr>
               
               <!-- Split details row -->
@@ -1638,18 +1649,19 @@
     font-weight: 600;
   }
 
-  /* Flag Tag (solid color vertical rectangle) - like YNAB4 */
+  /* Flag Tag for entry/edit rows */
   .flag-tag-wrapper {
     position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100%;
+    width: 100%;
   }
 
   .flag-tag {
     display: block;
-    width: 8px;
+    width: 100%;
     height: 100%;
     min-height: 24px;
     border: none;
@@ -1659,6 +1671,7 @@
     position: absolute;
     left: 0;
     top: 0;
+    right: 0;
     bottom: 0;
   }
 
@@ -1671,7 +1684,7 @@
     background: var(--muted);
   }
 
-  /* Flag colors - solid bright colors */
+  /* Flag colors for entry/edit rows */
   .flag-tag.flag-red { background: #e74c3c !important; }
   .flag-tag.flag-orange { background: #e67e22 !important; }
   .flag-tag.flag-yellow { background: #f1c40f !important; }
@@ -1857,6 +1870,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.8125rem;
+    table-layout: fixed;
   }
 
   .tx-table thead {
@@ -1894,7 +1908,22 @@
     background: var(--accent);
   }
 
-  .col-flag { text-align: center; padding: 0 !important; position: relative; }
+  /* Flag column - colored bar on left edge */
+  .col-flag { 
+    width: 6px !important; 
+    padding: 0 !important; 
+    position: relative;
+    background: transparent;
+  }
+  
+  /* Flag colors applied to the cell itself */
+  td.col-flag.flag-red { background: #e74c3c !important; }
+  td.col-flag.flag-orange { background: #e67e22 !important; }
+  td.col-flag.flag-yellow { background: #f1c40f !important; }
+  td.col-flag.flag-green { background: #27ae60 !important; }
+  td.col-flag.flag-blue { background: #3498db !important; }
+  td.col-flag.flag-purple { background: #9b59b6 !important; }
+
   .col-date { font-size: 0.75rem; white-space: nowrap; }
   .col-account { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-payee { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1906,7 +1935,25 @@
     font-feature-settings: "tnum";
     font-size: 0.75rem;
   }
-  .col-status { text-align: center; padding: 0 !important; }
+  
+  /* Status column - colored bar on right edge */
+  .col-status { 
+    width: 6px !important; 
+    padding: 0 !important; 
+    position: relative;
+    background: transparent;
+  }
+  
+  /* Status colors applied to the cell itself */
+  td.col-status.reconciled { 
+    background: var(--foreground) !important; /* Black in light, white in dark */
+  }
+  td.col-status.cleared { 
+    background: #10b981 !important; /* Green */
+  }
+  td.col-status.uncleared { 
+    background: transparent !important; /* Nothing */
+  }
 
   .col-outflow.has-value { color: var(--destructive); }
   .col-inflow.has-value { color: var(--success); }
@@ -2236,34 +2283,9 @@
     color: var(--success);
   }
 
-  /* Status bar - full height colored bar on the right side of row */
-  .status-bar {
-    display: block;
-    width: 6px;
-    height: 100%;
-    min-height: 20px;
-    border-radius: 0;
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-  }
-
-  .col-status {
-    position: relative;
-  }
-
-  /* Status colors - match YNAB4 */
-  .status-bar.reconciled { 
-    background: #10b981 !important; /* Green - locked */
-  }
-  .status-bar.cleared { 
-    background: #10b981 !important; /* Green but thinner */
-    width: 4px;
-  }
-  .status-bar.uncleared { 
-    background: #d1d5db !important; /* Light gray */
-    width: 3px;
+  /* Compact mode row styling */
+  .tx-row.compact td {
+    padding: 0.375rem 0.375rem;
   }
 
   /* Cards (Mobile) */
