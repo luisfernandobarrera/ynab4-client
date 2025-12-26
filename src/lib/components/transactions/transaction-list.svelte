@@ -6,7 +6,7 @@
   import DateNavigation from './date-navigation.svelte';
   import Autocomplete from '$lib/components/ui/autocomplete.svelte';
   import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories, budgetInfo } from '$lib/stores/budget';
-  import { isMobile, isEditMode, addPendingChange, addToast } from '$lib/stores/ui';
+  import { isMobile, isEditMode, addPendingChange, addToast, transactionSortOrder, toggleTransactionSortOrder } from '$lib/stores/ui';
   import { formatCurrency } from '$lib/utils';
   import { t } from '$lib/i18n';
   import { browser } from '$app/environment';
@@ -209,8 +209,8 @@
   let showAccountsPanel = $state(true);
   let showDateNav = $state(false);
   
-  // Sort order: 'desc' = newest first (default), 'asc' = oldest first
-  let sortOrder = $state<'asc' | 'desc'>('desc');
+  // Sort order from user preferences: 'asc' = oldest first (top to bottom), 'desc' = newest first
+  const sortOrder = $derived($transactionSortOrder);
   
   // Date filter state
   const currentDate = new Date();
@@ -346,8 +346,9 @@
   }
   
   // Toggle sort order
+  // Use the store action for toggling sort order (saves to localStorage)
   function toggleSortOrder() {
-    sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+    toggleTransactionSortOrder();
   }
   
   // Calculate date range from year/month selection

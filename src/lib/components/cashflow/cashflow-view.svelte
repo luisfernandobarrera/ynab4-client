@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight, Building2, PiggyBank, ArrowUpDown, TrendingUp, TrendingDown, CreditCard, Wallet, PiggyBankIcon, Percent } from 'lucide-svelte';
+  import { ChevronLeft, ChevronRight, Building2, PiggyBank, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, CreditCard, Wallet, PiggyBankIcon, Percent } from 'lucide-svelte';
   import { accounts, transactions, payees, categories } from '$lib/stores/budget';
+  import { transactionSortOrder, toggleTransactionSortOrder } from '$lib/stores/ui';
   import { t, tArray } from '$lib/i18n';
   import DateNavigation from '$lib/components/transactions/date-navigation.svelte';
 
@@ -17,8 +18,10 @@
   let selectedCategory = $state<TxCategory | null>(null);
   let accountSort = $state<AccountSort>('balance');
   let displayLimit = $state(100);
-  let sortDirection = $state<'desc' | 'asc'>('desc'); // desc = newest first
   let showChanges = $state(false); // Toggle for showing account changes
+  
+  // Use user preference for sort direction
+  const sortDirection = $derived($transactionSortOrder);
   
   // Reset display limit when filters change
   $effect(() => {
@@ -642,12 +645,15 @@
         <h3>{selectedAccountId ? getAccountName(selectedAccountId) : 'Transacciones'}</h3>
         <span class="tx-count">{filteredTransactions.length}</span>
         <button 
-          class="sort-btn" 
-          onclick={() => sortDirection = sortDirection === 'desc' ? 'asc' : 'desc'}
+          class="sort-toggle-btn" 
+          onclick={toggleTransactionSortOrder}
           title={sortDirection === 'desc' ? 'Más recientes primero' : 'Más antiguas primero'}
         >
-          <ArrowUpDown class="h-4 w-4" />
-          {sortDirection === 'desc' ? '↓' : '↑'}
+          {#if sortDirection === 'asc'}
+            <ArrowDown class="h-4 w-4" />
+          {:else}
+            <ArrowUp class="h-4 w-4" />
+          {/if}
         </button>
       </div>
       
@@ -1063,30 +1069,43 @@
     overflow: hidden;
   }
 
+  .transactions-panel .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .transactions-panel .panel-header h3 {
+    flex: 0 0 auto;
+  }
+
   .tx-count {
     font-size: 0.75rem;
     color: var(--muted-foreground);
     background: var(--accent);
     padding: 0.125rem 0.5rem;
     border-radius: 10px;
+    flex: 0 0 auto;
   }
 
-  .sort-btn {
+  .sort-toggle-btn {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    background: var(--accent);
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: transparent;
     border: 1px solid var(--border);
     border-radius: 4px;
     color: var(--muted-foreground);
-    font-size: 0.7rem;
     cursor: pointer;
     margin-left: auto;
+    flex: 0 0 auto;
   }
 
-  .sort-btn:hover {
-    background: var(--muted);
+  .sort-toggle-btn:hover {
+    background: var(--accent);
+    color: var(--foreground);
   }
 
   .table-container {

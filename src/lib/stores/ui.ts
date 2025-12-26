@@ -208,3 +208,61 @@ export function clearTransactionSelection() {
   selectedTransactionIds.set(new Set());
 }
 
+// ============================================
+// User Preferences (persisted to localStorage)
+// ============================================
+
+export type TransactionSortOrder = 'asc' | 'desc'; // asc = oldest first (top to bottom), desc = newest first
+
+export interface UserPreferences {
+  transactionSortOrder: TransactionSortOrder;
+}
+
+const DEFAULT_PREFERENCES: UserPreferences = {
+  transactionSortOrder: 'asc', // Default: oldest first (top to bottom, most recent at bottom)
+};
+
+function loadPreferences(): UserPreferences {
+  if (!browser) return DEFAULT_PREFERENCES;
+  try {
+    const stored = localStorage.getItem('userPreferences');
+    if (stored) {
+      return { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) };
+    }
+  } catch (e) {
+    console.warn('Failed to load user preferences:', e);
+  }
+  return DEFAULT_PREFERENCES;
+}
+
+function savePreferences(prefs: UserPreferences) {
+  if (!browser) return;
+  try {
+    localStorage.setItem('userPreferences', JSON.stringify(prefs));
+  } catch (e) {
+    console.warn('Failed to save user preferences:', e);
+  }
+}
+
+export const userPreferences = writable<UserPreferences>(loadPreferences());
+
+// Subscribe to save changes
+userPreferences.subscribe((prefs) => {
+  savePreferences(prefs);
+});
+
+// Derived stores for easy access
+export const transactionSortOrder = derived(userPreferences, ($prefs) => $prefs.transactionSortOrder);
+
+// Helper functions
+export function setTransactionSortOrder(order: TransactionSortOrder) {
+  userPreferences.update((prefs) => ({ ...prefs, transactionSortOrder: order }));
+}
+
+export function toggleTransactionSortOrder() {
+  userPreferences.update((prefs) => ({
+    ...prefs,
+    transactionSortOrder: prefs.transactionSortOrder === 'asc' ? 'desc' : 'asc'
+  }));
+}
+
