@@ -330,7 +330,7 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
         categoryId: tx.categoryId as string | null,
         memo: (tx.memo as string) || '',
         cleared: tx.cleared as string,
-        flag: tx.flag as string | null,
+        flag: (tx.flagColor || tx.flag) as string | null,
         accountId: tx.accountId as string,
         accountName: (accountMap.get(tx.accountId as string) as string) || '',
         transferAccountId: tx.transferAccountId as string | null,

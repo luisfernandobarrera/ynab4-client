@@ -421,11 +421,13 @@
   function formatDate(dateStr: string): string {
     if (dateStr === 'No date') return dateStr;
     try {
+      // Return YYYY-MM-DD format directly if it's already in that format
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
       const d = new Date(dateStr + 'T12:00:00');
-      const day = d.getDate().toString().padStart(2, '0');
+      const year = d.getFullYear();
       const month = (d.getMonth() + 1).toString().padStart(2, '0');
-      const year = d.getFullYear().toString().slice(-2);
-      return `${day}/${month}/${year}`;
+      const day = d.getDate().toString().padStart(2, '0');
+      return `${year}-${month}-${day}`;
     } catch {
       return dateStr;
     }

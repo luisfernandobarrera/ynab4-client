@@ -35,8 +35,13 @@
   }
 
   function formatDate(dateStr: string): string {
+    // Return YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
     const date = new Date(dateStr + 'T12:00:00');
-    return date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   function getDateRange(): { from: string; to: string } {
