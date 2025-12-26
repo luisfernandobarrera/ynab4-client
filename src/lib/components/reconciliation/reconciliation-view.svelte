@@ -409,17 +409,13 @@
                       <span class:negative={account.clearedBalance < 0} class:positive={account.clearedBalance >= 0}>
                         {formatCurrency(account.clearedBalance)}
                       </span>
-                      {#if account.clearedCount + account.reconciledCount > 0}
-                        <span class="tx-count">({account.reconciledCount + account.clearedCount})</span>
-                      {/if}
+                      <span class="tx-count">{account.reconciledCount + account.clearedCount > 0 ? `(${account.reconciledCount + account.clearedCount})` : ''}</span>
                     </td>
                     <td class="col-balance">
                       <span class:negative={account.unclearedBalance < 0} class:positive={account.unclearedBalance >= 0}>
                         {formatCurrency(account.unclearedBalance)}
                       </span>
-                      {#if account.unclearedCount > 0}
-                        <span class="tx-count">({account.unclearedCount})</span>
-                      {/if}
+                      <span class="tx-count">{account.unclearedCount > 0 ? `(${account.unclearedCount})` : ''}</span>
                     </td>
                     <td class="col-balance">
                       <span class="working-balance" class:negative={account.workingBalance < 0} class:positive={account.workingBalance >= 0}>
@@ -831,9 +827,12 @@
   }
 
   .tx-count {
+    display: inline-block;
+    min-width: 2.5rem;
     margin-left: 0.25rem;
     font-size: 0.65rem;
     color: var(--muted-foreground);
+    text-align: left;
   }
 
   .date-value {
