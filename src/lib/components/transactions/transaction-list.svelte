@@ -2092,8 +2092,9 @@
   }
   
   .memo-below {
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     color: var(--muted-foreground);
+    opacity: 0.85;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2116,6 +2117,7 @@
   .cat-master {
     font-weight: 400;
     color: var(--muted-foreground);
+    opacity: 0.9;
     font-size: 0.9em;
   }
   
@@ -2436,9 +2438,9 @@
   }
 
   .memo-input {
-    font-size: 0.65rem;
-    font-style: italic;
-    color: var(--muted-foreground);
+    font-size: 0.7rem;
+    font-style: normal;
+    color: var(--foreground);
   }
 
   .amount-input {
