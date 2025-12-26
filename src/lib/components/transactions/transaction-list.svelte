@@ -78,6 +78,7 @@
     { id: 'flag', label: 'transactions.flag', defaultWidth: 6, minWidth: 6, canHide: true, canResize: false },
     { id: 'date', label: 'transactions.date', defaultWidth: 75, minWidth: 60, canHide: false, canResize: true },
     { id: 'account', label: 'transactions.account', defaultWidth: 100, minWidth: 60, canHide: false, canResize: true },
+    { id: 'icon', label: '', defaultWidth: 24, minWidth: 24, canHide: false, canResize: false },
     { id: 'payee', label: 'transactions.payee', defaultWidth: 150, minWidth: 80, canHide: false, canResize: true },
     { id: 'category', label: 'transactions.category', defaultWidth: 180, minWidth: 80, canHide: false, canResize: true },
     { id: 'memo', label: 'transactions.memo', defaultWidth: 150, minWidth: 60, canHide: true, canResize: true },
@@ -86,6 +87,19 @@
     { id: 'balance', label: 'transactions.balance', defaultWidth: 100, minWidth: 60, canHide: true, canResize: true },
     { id: 'status', label: '', defaultWidth: 6, minWidth: 6, canHide: true, canResize: false },
   ];
+  
+  // Transaction indicator types
+  type TxIndicator = 'transfer' | 'needsCategory' | 'needsApproval' | null;
+  
+  function getTxIndicator(tx: { transferAccountId?: string | null; categoryId?: string | null; accepted?: boolean; payee?: string | null }): TxIndicator {
+    // Check if needs approval (imported transactions)
+    if (tx.accepted === false) return 'needsApproval';
+    // Check if transfer
+    if (tx.transferAccountId || tx.payee?.startsWith('Transfer')) return 'transfer';
+    // Check if needs category (non-transfer without category)
+    if (!tx.categoryId && !tx.transferAccountId && !tx.payee?.startsWith('Transfer')) return 'needsCategory';
+    return null;
+  }
   
   // Load/save column settings from localStorage
   const COLUMN_SETTINGS_KEY = 'ynab4-tx-columns';
@@ -1031,6 +1045,7 @@
                 <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'account')}></div>
               </th>
             {/if}
+            <th class="col-icon"></th>
             <th class="col-payee resizable" style="width: {getColumnWidth('payee')}px">
               {$t('transactions.payee')}
               <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
@@ -1111,6 +1126,7 @@
                     <span class="entry-account-auto">{$accounts[0]?.name || '-'}</span>
                   </td>
                 {/if}
+                <td class="col-icon"></td>
                 <td class="col-payee">
                   <Autocomplete
                     options={payeeOptions}
@@ -1185,6 +1201,7 @@
                 {#if !selectedAccount}
                   <td class="col-account"></td>
                 {/if}
+                <td class="col-icon"></td>
                 <td class="col-payee"></td>
                 <td class="col-category"></td>
                 <td class="col-outflow"></td>
@@ -1247,6 +1264,9 @@
                 {#if !selectedAccount}
                   <td class="col-account">{tx.accountName}</td>
                 {/if}
+                <td class="col-icon">
+                  <span class="tx-icon transfer" title="Transferencia">{tx.transferAccountId ? '↔' : ''}</span>
+                </td>
                 <td class="col-payee">
                   <Autocomplete
                     options={payeeOptions}
@@ -1313,11 +1333,13 @@
               {@const isTransfer = !!(tx.transferAccountId || tx.payee?.startsWith('Transfer'))}
               {@const transferName = tx.payee?.replace(/^Transfer\s*:\s*/, '') || ''}
               {@const transferTargetId = isTransfer ? getTransferTargetId(tx) : null}
+              {@const txIndicator = getTxIndicator(tx)}
               <!-- Display row -->
               <tr 
                 class="tx-row"
                 class:has-splits={txHasSplits}
                 class:compact={compactMode}
+                class:needs-approval={txIndicator === 'needsApproval'}
                 ondblclick={() => startEdit(tx)}
                 onclick={() => txHasSplits && toggleSplit(tx.id)}
               >
@@ -1328,15 +1350,17 @@
                 {#if !selectedAccount}
                   <td class="col-account">{tx.accountName}</td>
                 {/if}
-                <td class="col-payee">
-                  {#if isTransfer}
-                    <span class="transfer-display">
-                      <span class="transfer-icon">↔</span>
-                      <span class="payee-name">{transferName}</span>
-                    </span>
-                  {:else}
-                    <span class="payee-name">{tx.payee || ''}</span>
+                <td class="col-icon">
+                  {#if txIndicator === 'transfer'}
+                    <span class="tx-icon transfer" title="Transferencia">↔</span>
+                  {:else if txIndicator === 'needsApproval'}
+                    <span class="tx-icon warning" title="Necesita aprobación">⚠</span>
+                  {:else if txIndicator === 'needsCategory'}
+                    <span class="tx-icon error" title="Sin categoría">!</span>
                   {/if}
+                </td>
+                <td class="col-payee">
+                  <span class="payee-name">{isTransfer ? transferName : (tx.payee || '')}</span>
                 </td>
                 <td class="col-category">
                   <div class="category-cell">
@@ -1346,7 +1370,10 @@
                         <span>{$t('transactions.split')} ({tx.subTransactions?.length})</span>
                       </span>
                     {:else if isTransfer}
-                      <span class="transfer-category">{getTransferCategoryLabel(transferTargetId)}</span>
+                      <span class="transfer-category">
+                        <strong>{getTransferCategoryLabel(transferTargetId)}</strong>
+                        <span class="transfer-label"> · Transferencia</span>
+                      </span>
                     {:else if subCategory}
                       <span class="category-display">
                         <strong class="cat-sub">{subCategory}</strong>
@@ -1465,6 +1492,7 @@
                     <span class="entry-account-auto">{$accounts[0]?.name || '-'}</span>
                   </td>
                 {/if}
+                <td class="col-icon"></td>
                 <td class="col-payee">
                   <Autocomplete
                     options={payeeOptions}
@@ -1539,6 +1567,7 @@
                 {#if !selectedAccount}
                   <td class="col-account"></td>
                 {/if}
+                <td class="col-icon"></td>
                 <td class="col-payee"></td>
                 <td class="col-category"></td>
                 <td class="col-outflow"></td>
@@ -2040,27 +2069,69 @@
   }
   
   /* Transfer display */
-  /* Transfer display in payee column */
-  .transfer-display {
+  /* Icon column */
+  .col-icon {
+    width: 24px !important;
+    min-width: 24px !important;
+    max-width: 24px !important;
+    padding: 0 !important;
+    text-align: center;
+    vertical-align: middle;
+  }
+  
+  .tx-icon {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-  }
-  
-  .transfer-icon {
+    justify-content: center;
+    width: 18px;
+    height: 18px;
     font-weight: 700;
-    color: var(--muted-foreground);
-    font-size: 0.8rem;
+    font-size: 0.75rem;
+    border-radius: 3px;
   }
   
+  .tx-icon.transfer {
+    color: var(--muted-foreground);
+  }
+  
+  .tx-icon.warning {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.15);
+  }
+  
+  .tx-icon.error {
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.15);
+  }
+  
+  /* Needs approval row highlight */
+  .tx-row.needs-approval {
+    background: rgba(245, 158, 11, 0.05);
+  }
+  
+  .tx-row.needs-approval:hover {
+    background: rgba(245, 158, 11, 0.1);
+  }
+  
+  /* Payee name styling */
   .payee-name {
     font-weight: 600;
     color: var(--foreground);
   }
   
+  /* Transfer category styling */
   .transfer-category {
+    font-size: 0.75rem;
+  }
+  
+  .transfer-category strong {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+  
+  .transfer-label {
     color: var(--muted-foreground);
-    font-size: 0.7rem;
+    font-weight: 400;
   }
   .col-outflow, .col-inflow, .col-balance { 
     text-align: right; 
