@@ -126,11 +126,13 @@
       const accData = accountMap.get(tx.accountId);
       if (!accData) continue; // Transaction not in our pool
       
+      // Get transfer target (from transferAccountId or payee format)
+      const transferTargetId = tx.transferAccountId || 
+        (tx.payeeId?.startsWith('Payee/Transfer:') ? tx.payeeId.replace('Payee/Transfer:', '') : null);
+      
       // An "internal" transfer is when BOTH source AND target are in the pool
       // These don't change the pool's total balance, so we exclude them from calculations
-      // Example: in "checking" mode, a transfer between two checking accounts is internal
-      // But a transfer from checking to credit card is NOT internal (changes checking total)
-      const isInternalTransfer = tx.transferAccountId && pool.has(tx.transferAccountId);
+      const isInternalTransfer = transferTargetId && pool.has(transferTargetId);
       
       if (tx.date < from) {
         // Before period - add to initial balance (always include for accurate starting balance)
@@ -219,12 +221,20 @@
     };
   });
 
+  // Helper to get transfer target account ID from transaction
+  function getTransferTargetId(tx: { transferAccountId: string | null; payeeId: string | null }): string | null {
+    // First check transferAccountId
+    if (tx.transferAccountId) return tx.transferAccountId;
+    // Also check payee format "Payee/Transfer:ACCOUNT-ID"
+    if (tx.payeeId?.startsWith('Payee/Transfer:')) {
+      return tx.payeeId.replace('Payee/Transfer:', '');
+    }
+    return null;
+  }
+
   // Filter transactions for the selected period and accounts
   // Key logic: Each mode defines a POOL of accounts.
   // Hide transfers where BOTH source AND target are within the pool (internal moves).
-  // - All: pool = checking + savings → hide transfers within this combined pool
-  // - Checking: pool = checking → hide transfers between checking accounts
-  // - Savings: pool = savings → hide transfers between savings accounts
   const filteredTransactions = $derived.by(() => {
     const { from, to } = getDateRange();
     const { checking, savings } = accountTypes;
@@ -247,8 +257,11 @@
       if (tx.date < from || tx.date > to) continue;
       if (!pool.has(tx.accountId)) continue;
       
+      // Get transfer target (from transferAccountId or payee format)
+      const transferTargetId = getTransferTargetId(tx);
+      
       // Hide transfers where both source and target are in the pool
-      if (tx.transferAccountId && pool.has(tx.transferAccountId)) {
+      if (transferTargetId && pool.has(transferTargetId)) {
         continue; // Internal transfer within the pool - skip
       }
       
