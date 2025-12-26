@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, List, LayoutList, ArrowLeftRight } from 'lucide-svelte';
+  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, List, LayoutList } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
   import DateNavigation from './date-navigation.svelte';
@@ -957,7 +957,7 @@
         <thead>
           <tr>
             {#if isColumnVisible('flag')}
-              <th class="col-flag" style="width: {getColumnWidth('flag')}px"></th>
+              <th class="col-flag"></th>
             {/if}
             <th class="col-date resizable" style="width: {getColumnWidth('date')}px">
               <button class="sort-header" onclick={toggleSortOrder}>
@@ -988,13 +988,6 @@
               <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
               <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'category')}></div>
             </th>
-            {#if isColumnVisible('memo')}
-              <th class="col-memo resizable" style="width: {getColumnWidth('memo')}px">
-                {$t('transactions.memo')}
-                <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
-                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'memo')}></div>
-              </th>
-            {/if}
             <th class="col-outflow resizable" style="width: {getColumnWidth('outflow')}px">
               {$t('transactions.outflow')}
               <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
@@ -1013,7 +1006,7 @@
               </th>
             {/if}
             {#if isColumnVisible('status')}
-              <th class="col-status" style="width: {getColumnWidth('status')}px"></th>
+              <th class="col-status"></th>
             {/if}
           </tr>
         </thead>
@@ -1280,10 +1273,11 @@
                   <td class="col-account">{tx.accountName}</td>
                 {/if}
                 <td class="col-payee">
-                  {#if tx.transferAccountId}
+                  {#if tx.transferAccountId || tx.payee?.startsWith('Transfer')}
+                    {@const transferName = tx.payee?.replace(/^Transfer\s*:\s*/, '') || 'Transfer'}
                     <span class="transfer-display">
-                      <ArrowLeftRight class="h-3.5 w-3.5 transfer-icon" />
-                      <span>{tx.payee || 'Transfer'}</span>
+                      <span class="transfer-icon">↔</span>
+                      <span>{transferName}</span>
                     </span>
                   {:else}
                     {tx.payee || ''}
@@ -1296,8 +1290,8 @@
                         <Split class="h-3 w-3" />
                         <span>{$t('transactions.split')} ({tx.subTransactions?.length})</span>
                       </span>
-                    {:else if tx.transferAccountId}
-                      <span class="transfer-category">Transfer</span>
+                    {:else if tx.transferAccountId || tx.payee?.startsWith('Transfer')}
+                      <span class="transfer-category">Transferencia</span>
                     {:else if subCategory}
                       <span class="category-display">
                         <strong class="cat-sub">{subCategory}</strong>
@@ -1306,11 +1300,11 @@
                         {/if}
                       </span>
                     {/if}
+                    {#if isColumnVisible('memo') && tx.memo}
+                      <span class="memo-below">{tx.memo}</span>
+                    {/if}
                   </div>
                 </td>
-                {#if isColumnVisible('memo')}
-                  <td class="col-memo">{tx.memo || ''}</td>
-                {/if}
                 <td class="col-outflow">
                   {isOutflow ? formatAmount(tx.amount) : ''}
                 </td>
@@ -1951,9 +1945,18 @@
   /* Category cell */
   .category-cell {
     display: flex;
-    flex-direction: row;
-    align-items: baseline;
+    flex-direction: column;
     gap: 0.125rem;
+  }
+  
+  .memo-below {
+    font-size: 0.7rem;
+    color: var(--muted-foreground);
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 300px;
   }
   
   .category-display {
@@ -1980,17 +1983,27 @@
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    color: var(--muted-foreground);
+    color: var(--foreground);
   }
   
   .transfer-icon {
-    color: var(--muted-foreground);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 600;
     flex-shrink: 0;
   }
   
   .transfer-category {
     color: var(--muted-foreground);
     font-style: italic;
+    font-size: 0.7rem;
   }
   .col-outflow, .col-inflow, .col-balance { 
     text-align: right; 
