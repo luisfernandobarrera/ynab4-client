@@ -75,17 +75,17 @@
   }
   
   const COLUMNS: ColumnConfig[] = [
-    { id: 'flag', label: 'transactions.flag', defaultWidth: 6, minWidth: 6, canHide: true, canResize: false },
-    { id: 'date', label: 'transactions.date', defaultWidth: 75, minWidth: 60, canHide: false, canResize: true },
-    { id: 'account', label: 'transactions.account', defaultWidth: 100, minWidth: 60, canHide: false, canResize: true },
-    { id: 'icon', label: '', defaultWidth: 24, minWidth: 24, canHide: false, canResize: false },
+    { id: 'flag', label: 'transactions.flag', defaultWidth: 4, minWidth: 4, canHide: true, canResize: false },
+    { id: 'date', label: 'transactions.date', defaultWidth: 80, minWidth: 70, canHide: false, canResize: true },
+    { id: 'account', label: 'transactions.account', defaultWidth: 120, minWidth: 80, canHide: false, canResize: true },
+    { id: 'icon', label: '', defaultWidth: 18, minWidth: 18, canHide: false, canResize: false },
     { id: 'payee', label: 'transactions.payee', defaultWidth: 150, minWidth: 80, canHide: false, canResize: true },
-    { id: 'category', label: 'transactions.category', defaultWidth: 180, minWidth: 80, canHide: false, canResize: true },
+    { id: 'category', label: 'transactions.category', defaultWidth: 200, minWidth: 100, canHide: false, canResize: true },
     { id: 'memo', label: 'transactions.memo', defaultWidth: 150, minWidth: 60, canHide: true, canResize: true },
     { id: 'outflow', label: 'transactions.outflow', defaultWidth: 90, minWidth: 60, canHide: false, canResize: true },
     { id: 'inflow', label: 'transactions.inflow', defaultWidth: 90, minWidth: 60, canHide: false, canResize: true },
     { id: 'balance', label: 'transactions.balance', defaultWidth: 100, minWidth: 60, canHide: true, canResize: true },
-    { id: 'status', label: '', defaultWidth: 6, minWidth: 6, canHide: true, canResize: false },
+    { id: 'status', label: '', defaultWidth: 4, minWidth: 4, canHide: true, canResize: false },
   ];
   
   // Transaction indicator types
@@ -2005,30 +2005,37 @@
   }
 
   /* Flag column - colored bar on left edge */
+  /* Flag column - solid colored bar */
   .col-flag { 
-    width: 6px !important; 
-    min-width: 6px !important;
-    max-width: 6px !important;
+    width: 4px !important; 
+    min-width: 4px !important;
+    max-width: 4px !important;
     padding: 0 !important; 
-    position: relative;
-    background: transparent;
+    border: none !important;
   }
   
-  /* Flag colors - use :where() to avoid scoping issues */
-  .col-flag.flag-red { background: #e74c3c !important; }
-  .col-flag.flag-orange { background: #e67e22 !important; }
-  .col-flag.flag-yellow { background: #f1c40f !important; }
-  .col-flag.flag-green { background: #27ae60 !important; }
-  .col-flag.flag-blue { background: #3498db !important; }
-  .col-flag.flag-purple { background: #9b59b6 !important; }
+  td.col-flag.flag-red { background: #e74c3c !important; }
+  td.col-flag.flag-orange { background: #e67e22 !important; }
+  td.col-flag.flag-yellow { background: #f1c40f !important; }
+  td.col-flag.flag-green { background: #27ae60 !important; }
+  td.col-flag.flag-blue { background: #3498db !important; }
+  td.col-flag.flag-purple { background: #9b59b6 !important; }
 
+  th.col-flag { background: transparent; }
+
+  /* Consistent font sizes across all columns */
   .col-date { 
     font-family: var(--font-family-mono);
     font-size: 0.75rem; 
     white-space: nowrap;
-    letter-spacing: -0.02em;
   }
-  .col-account { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-account { 
+    font-size: 0.75rem; 
+    min-width: 100px;
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    white-space: nowrap; 
+  }
   .col-payee { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-category { font-size: 0.75rem; overflow: hidden; }
   .col-memo { font-size: 0.7rem; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2070,24 +2077,20 @@
   
   /* Transfer display */
   /* Icon column */
+  /* Icon column - minimal width */
   .col-icon {
-    width: 24px !important;
-    min-width: 24px !important;
-    max-width: 24px !important;
-    padding: 0 !important;
+    width: 18px !important;
+    min-width: 18px !important;
+    max-width: 18px !important;
+    padding: 0 2px !important;
     text-align: center;
     vertical-align: middle;
   }
   
   .tx-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
+    font-size: 0.7rem;
     font-weight: 700;
-    font-size: 0.75rem;
-    border-radius: 3px;
+    line-height: 1;
   }
   
   .tx-icon.transfer {
@@ -2096,12 +2099,10 @@
   
   .tx-icon.warning {
     color: #f59e0b;
-    background: rgba(245, 158, 11, 0.15);
   }
   
   .tx-icon.error {
     color: #ef4444;
-    background: rgba(239, 68, 68, 0.15);
   }
   
   /* Needs approval row highlight */
@@ -2141,23 +2142,26 @@
   }
   
   /* Status column - colored bar on right edge */
+  /* Status column - solid colored bar */
   .col-status { 
-    width: 6px !important; 
+    width: 4px !important; 
+    min-width: 4px !important;
+    max-width: 4px !important;
     padding: 0 !important; 
-    position: relative;
-    background: transparent;
+    border: none !important;
   }
   
-  /* Status colors applied to the cell itself */
   td.col-status.reconciled { 
-    background: var(--foreground) !important; /* Black in light, white in dark */
+    background: var(--foreground) !important;
   }
   td.col-status.cleared { 
-    background: #10b981 !important; /* Green */
+    background: #10b981 !important;
   }
   td.col-status.uncleared { 
-    background: transparent !important; /* Nothing */
+    background: transparent !important;
   }
+  
+  th.col-status { background: transparent; }
 
   .col-balance.positive { color: var(--success); }
   .col-balance.negative { color: var(--destructive); }
