@@ -466,14 +466,12 @@
             {#if isEditing}
               <tr class="tx-entry-row">
                 <td class="col-flag">
-                  <div class="flag-picker-wrapper">
+                  <div class="flag-tag-wrapper">
                     <button 
-                      class="flag-btn {entryFlag ? `flag-${entryFlag}` : ''}"
+                      class="flag-tag {entryFlag ? `flag-${entryFlag}` : 'flag-empty'}"
                       onclick={() => showFlagPicker = showFlagPicker === 'entry' ? null : 'entry'}
                       type="button"
-                    >
-                      <Flag class="h-3 w-3" />
-                    </button>
+                    ></button>
                     {#if showFlagPicker === 'entry'}
                       <div class="flag-picker">
                         <button 
@@ -495,7 +493,7 @@
                 <td class="col-date">
                   <input 
                     type="text" 
-                    class="entry-input date-entry" 
+                    class="inline-input" 
                     bind:value={entryDate}
                     placeholder="DD/MM"
                     onblur={handleDateInput}
@@ -509,7 +507,7 @@
                 <td class="col-payee">
                   <input 
                     type="text" 
-                    class="entry-input" 
+                    class="inline-input" 
                     placeholder={$t('transactions.payee')}
                     bind:value={entryPayee}
                     list="payees-list"
@@ -521,39 +519,41 @@
                   </datalist>
                 </td>
                 <td class="col-category">
-                  <input 
-                    type="text" 
-                    class="entry-input" 
-                    placeholder={$t('transactions.category')}
-                    bind:value={entryCategory}
-                    list="categories-list"
-                  />
-                  <datalist id="categories-list">
-                    {#each $categories as cat}
-                      {@const masterName = cat.masterCategoryName || ''}
-                      <option value={masterName ? `${masterName}: ${cat.name}` : cat.name}></option>
-                    {/each}
-                  </datalist>
-                  <input 
-                    type="text" 
-                    class="entry-input entry-memo" 
-                    placeholder={$t('transactions.memo')}
-                    bind:value={entryMemo}
-                  />
+                  <div class="category-entry">
+                    <input 
+                      type="text" 
+                      class="inline-input" 
+                      placeholder={$t('transactions.category')}
+                      bind:value={entryCategory}
+                      list="categories-list"
+                    />
+                    <datalist id="categories-list">
+                      {#each $categories as cat}
+                        {@const masterName = cat.masterCategoryName || ''}
+                        <option value={cat.name} label={masterName ? `${cat.name} · ${masterName}` : cat.name}></option>
+                      {/each}
+                    </datalist>
+                    <input 
+                      type="text" 
+                      class="inline-input memo-input" 
+                      placeholder={$t('transactions.memo')}
+                      bind:value={entryMemo}
+                    />
+                  </div>
                 </td>
                 <td class="col-outflow">
                   <input 
                     type="text" 
-                    class="entry-input entry-amount" 
-                    placeholder="0.00"
+                    class="inline-input amount-input" 
+                    placeholder=""
                     bind:value={entryOutflow}
                   />
                 </td>
                 <td class="col-inflow">
                   <input 
                     type="text" 
-                    class="entry-input entry-amount" 
-                    placeholder="0.00"
+                    class="inline-input amount-input" 
+                    placeholder=""
                     bind:value={entryInflow}
                   />
                 </td>
@@ -563,10 +563,10 @@
                 <td class="col-status">
                   <div class="entry-actions">
                     <button class="entry-save-btn" onclick={saveEntry} title={$t('common.save')}>
-                      <Save class="h-3.5 w-3.5" />
+                      <Save class="h-3 w-3" />
                     </button>
                     <button class="entry-cancel-btn" onclick={cancelEntry} title={$t('common.cancel')}>
-                      <X class="h-3.5 w-3.5" />
+                      <X class="h-3 w-3" />
                     </button>
                   </div>
                 </td>
@@ -576,7 +576,7 @@
               <tr class="tx-add-row">
                 <td class="col-flag">
                   <button class="add-btn" onclick={startEntry}>
-                    <Plus class="h-3.5 w-3.5" />
+                    <Plus class="h-3 w-3" />
                   </button>
                 </td>
                 <td class="col-date">
@@ -600,14 +600,15 @@
           {#each visibleTransactions as tx (tx.id)}
             {@const isOutflow = tx.amount < 0}
             {@const isInflow = tx.amount > 0}
+            {@const categoryParts = (tx.category || '').split(': ')}
+            {@const subCategory = categoryParts.length > 1 ? categoryParts[1] : categoryParts[0]}
+            {@const masterCategory = categoryParts.length > 1 ? categoryParts[0] : ''}
             <tr 
               class="tx-row"
               onclick={() => onEditTransaction?.(tx.id)}
             >
               <td class="col-flag">
-                {#if tx.flag}
-                  <span class="flag-dot flag-{tx.flag.toLowerCase()}"></span>
-                {/if}
+                <span class="flag-tag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : 'flag-empty'}"></span>
               </td>
               <td class="col-date">{formatDate(tx.date)}</td>
               {#if !selectedAccount}
@@ -628,8 +629,13 @@
                     <span class="transfer-badge" class:outgoing={isOutflow} class:incoming={isInflow}>
                       {isOutflow ? '↗' : '↙'} Transfer
                     </span>
-                  {:else}
-                    <span class="category-text">{tx.category || '-'}</span>
+                  {:else if subCategory}
+                    <span class="category-display">
+                      <strong>{subCategory}</strong>
+                      {#if masterCategory}
+                        <span class="master-category"> · {masterCategory}</span>
+                      {/if}
+                    </span>
                   {/if}
                   {#if tx.memo}
                     <span class="memo-text">{tx.memo}</span>
@@ -658,14 +664,12 @@
             {#if isEditing}
               <tr class="tx-entry-row">
                 <td class="col-flag">
-                  <div class="flag-picker-wrapper">
+                  <div class="flag-tag-wrapper">
                     <button 
-                      class="flag-btn {entryFlag ? `flag-${entryFlag}` : ''}"
+                      class="flag-tag {entryFlag ? `flag-${entryFlag}` : 'flag-empty'}"
                       onclick={() => showFlagPicker = showFlagPicker === 'entry-bottom' ? null : 'entry-bottom'}
                       type="button"
-                    >
-                      <Flag class="h-3 w-3" />
-                    </button>
+                    ></button>
                     {#if showFlagPicker === 'entry-bottom'}
                       <div class="flag-picker flag-picker-up">
                         <button 
@@ -687,7 +691,7 @@
                 <td class="col-date">
                   <input 
                     type="text" 
-                    class="entry-input date-entry" 
+                    class="inline-input" 
                     bind:value={entryDate}
                     placeholder="DD/MM"
                     onblur={handleDateInput}
@@ -701,7 +705,7 @@
                 <td class="col-payee">
                   <input 
                     type="text" 
-                    class="entry-input" 
+                    class="inline-input" 
                     placeholder={$t('transactions.payee')}
                     bind:value={entryPayee}
                     list="payees-list-bottom"
@@ -713,39 +717,41 @@
                   </datalist>
                 </td>
                 <td class="col-category">
-                  <input 
-                    type="text" 
-                    class="entry-input" 
-                    placeholder={$t('transactions.category')}
-                    bind:value={entryCategory}
-                    list="categories-list-bottom"
-                  />
-                  <datalist id="categories-list-bottom">
-                    {#each $categories as cat}
-                      {@const masterName = cat.masterCategoryName || ''}
-                      <option value={masterName ? `${masterName}: ${cat.name}` : cat.name}></option>
-                    {/each}
-                  </datalist>
-                  <input 
-                    type="text" 
-                    class="entry-input entry-memo" 
-                    placeholder={$t('transactions.memo')}
-                    bind:value={entryMemo}
-                  />
+                  <div class="category-entry">
+                    <input 
+                      type="text" 
+                      class="inline-input" 
+                      placeholder={$t('transactions.category')}
+                      bind:value={entryCategory}
+                      list="categories-list-bottom"
+                    />
+                    <datalist id="categories-list-bottom">
+                      {#each $categories as cat}
+                        {@const masterName = cat.masterCategoryName || ''}
+                        <option value={cat.name} label={masterName ? `${cat.name} · ${masterName}` : cat.name}></option>
+                      {/each}
+                    </datalist>
+                    <input 
+                      type="text" 
+                      class="inline-input memo-input" 
+                      placeholder={$t('transactions.memo')}
+                      bind:value={entryMemo}
+                    />
+                  </div>
                 </td>
                 <td class="col-outflow">
                   <input 
                     type="text" 
-                    class="entry-input entry-amount" 
-                    placeholder="0.00"
+                    class="inline-input amount-input" 
+                    placeholder=""
                     bind:value={entryOutflow}
                   />
                 </td>
                 <td class="col-inflow">
                   <input 
                     type="text" 
-                    class="entry-input entry-amount" 
-                    placeholder="0.00"
+                    class="inline-input amount-input" 
+                    placeholder=""
                     bind:value={entryInflow}
                   />
                 </td>
@@ -970,35 +976,37 @@
     width: 100px;
   }
 
-  /* Flag Picker */
-  .flag-picker-wrapper {
+  /* Flag Tag (solid color rectangle) */
+  .flag-tag-wrapper {
     position: relative;
   }
 
-  .flag-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
+  .flag-tag {
+    display: block;
+    width: 4px;
+    height: 16px;
     border: none;
-    border-radius: 3px;
-    background: transparent;
-    color: var(--muted-foreground);
+    border-radius: 1px;
     cursor: pointer;
     transition: all 0.15s;
+    margin: 0 auto;
   }
 
-  .flag-btn:hover {
-    background: var(--accent);
+  .flag-tag.flag-empty {
+    background: var(--border);
+    opacity: 0.3;
   }
 
-  .flag-btn.flag-red { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
-  .flag-btn.flag-orange { color: #f97316; background: rgba(249, 115, 22, 0.1); }
-  .flag-btn.flag-yellow { color: #eab308; background: rgba(234, 179, 8, 0.1); }
-  .flag-btn.flag-green { color: #22c55e; background: rgba(34, 197, 94, 0.1); }
-  .flag-btn.flag-blue { color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
-  .flag-btn.flag-purple { color: #a855f7; background: rgba(168, 85, 247, 0.1); }
+  .flag-tag.flag-empty:hover {
+    opacity: 0.6;
+  }
+
+  .flag-tag.flag-red { background: #ef4444; }
+  .flag-tag.flag-orange { background: #f97316; }
+  .flag-tag.flag-yellow { background: #eab308; }
+  .flag-tag.flag-green { background: #22c55e; }
+  .flag-tag.flag-blue { background: #3b82f6; }
+  .flag-tag.flag-purple { background: #a855f7; }
 
   .flag-picker {
     position: absolute;
@@ -1047,14 +1055,9 @@
   .flag-option.flag-purple { background: #a855f7; }
 
   .entry-account-auto {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: var(--muted-foreground);
     font-style: italic;
-  }
-
-  .date-entry {
-    width: 75px !important;
-    text-align: center;
   }
 
   .account-item-balance {
@@ -1345,41 +1348,57 @@
 
   /* Inline Entry Row */
   .tx-entry-row {
-    background: var(--accent);
+    background: var(--muted);
   }
 
   .tx-entry-row td {
-    padding: 0.375rem 0.25rem;
-    vertical-align: top;
-    border-bottom: 2px solid var(--primary);
+    padding: 0.125rem 0.125rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--primary);
   }
 
-  .entry-input {
+  /* Transparent inline inputs */
+  .inline-input {
     width: 100%;
-    padding: 0.25rem 0.375rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--background);
+    padding: 0.125rem 0.25rem;
+    border: none;
+    border-bottom: 1px solid transparent;
+    border-radius: 0;
+    background: transparent;
     color: var(--foreground);
-    font-size: 0.75rem;
-    transition: border-color 0.15s;
+    font-size: 0.7rem;
+    transition: all 0.15s;
   }
 
-  .entry-input:focus {
+  .inline-input:hover {
+    border-bottom-color: var(--border);
+  }
+
+  .inline-input:focus {
     outline: none;
-    border-color: var(--primary);
+    border-bottom-color: var(--primary);
+    background: var(--background);
   }
 
-  .entry-input::placeholder {
+  .inline-input::placeholder {
     color: var(--muted-foreground);
-  }
-
-  .entry-memo {
-    margin-top: 0.25rem;
     font-style: italic;
   }
 
-  .entry-amount {
+  /* Category entry with memo */
+  .category-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .memo-input {
+    font-size: 0.65rem;
+    font-style: italic;
+    color: var(--muted-foreground);
+  }
+
+  .amount-input {
     text-align: right;
     font-family: var(--font-family-mono);
     font-feature-settings: "tnum";
@@ -1419,11 +1438,19 @@
     opacity: 0.85;
   }
 
-  .flag-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
+  /* Category display with master category */
+  .category-display {
+    font-size: 0.7rem;
+    line-height: 1.3;
+  }
+
+  .category-display strong {
+    font-weight: 600;
+  }
+
+  .master-category {
+    color: var(--muted-foreground);
+    font-weight: 400;
   }
 
   .flag-red { background: var(--color-ynab-red); }
