@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, List, LayoutList } from 'lucide-svelte';
+  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, List, LayoutList, Grid3x3 } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
   import DateNavigation from './date-navigation.svelte';
@@ -128,6 +128,7 @@
   let columnSettings = $state<ColumnSettings>(loadColumnSettings());
   let showColumnSettings = $state(false);
   let compactMode = $state(true); // Compact mode by default
+  let showGrid = $state(true); // Show grid lines by default
   
   // Get column width
   function getColumnWidth(id: string): number {
@@ -968,6 +969,15 @@
           {/if}
         </button>
         
+        <button 
+          class="tx-icon-btn"
+          class:active={showGrid}
+          onclick={() => showGrid = !showGrid}
+          title={showGrid ? 'Ocultar grilla' : 'Mostrar grilla'}
+        >
+          <Grid3x3 class="h-4 w-4" />
+        </button>
+        
         <div class="column-settings-wrapper">
           <button 
             class="tx-icon-btn"
@@ -1035,7 +1045,7 @@
 
     <!-- Table (Desktop) -->
     <div class="tx-table-container" class:resizing={resizingColumn !== null} bind:this={tableContainer} onscroll={handleScroll}>
-      <table class="tx-table">
+      <table class="tx-table" class:show-grid={showGrid}>
         <thead>
           <tr>
             {#if isColumnVisible('flag')}
@@ -2005,20 +2015,27 @@
     letter-spacing: 0.05em;
     color: var(--muted-foreground);
     border-bottom: 2px solid var(--border);
-    border-right: 1px solid var(--border);
     white-space: nowrap;
   }
 
   .tx-table td {
     padding: 0.5rem 0.375rem;
     border-bottom: 1px solid var(--border);
-    border-right: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
     vertical-align: middle;
     color: var(--foreground);
   }
+
+  /* Grid lines (conditional) */
+  .tx-table.show-grid th {
+    border-right: 1px solid var(--border);
+  }
   
-  .tx-table th:last-child,
-  .tx-table td:last-child {
+  .tx-table.show-grid td {
+    border-right: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  }
+  
+  .tx-table.show-grid th:last-child,
+  .tx-table.show-grid td:last-child {
     border-right: none;
   }
 
@@ -2278,17 +2295,30 @@
   .resize-handle {
     position: absolute;
     right: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
+    top: 4px;
+    bottom: 4px;
+    width: 6px;
     cursor: col-resize;
-    background: transparent;
-    transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   
-  .resize-handle:hover,
-  .tx-table-container.resizing .resize-handle {
+  .resize-handle::before {
+    content: '';
+    width: 2px;
+    height: 12px;
+    background: var(--muted-foreground);
+    border-radius: 1px;
+    opacity: 0.4;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  
+  .resize-handle:hover::before,
+  .tx-table-container.resizing .resize-handle::before {
+    opacity: 1;
     background: var(--primary);
+    height: 100%;
   }
   
   .tx-table-container.resizing {
