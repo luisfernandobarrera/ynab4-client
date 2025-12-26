@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, List, LayoutList } from 'lucide-svelte';
+  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, List, LayoutList, ArrowUpRight, ArrowDownLeft, AlertCircle } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
   import DateNavigation from './date-navigation.svelte';
@@ -988,13 +988,6 @@
                 <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'category')}></div>
               </th>
             {/if}
-            {#if isColumnVisible('memo') && !compactMode}
-              <th class="col-memo resizable" style="width: {getColumnWidth('memo')}px">
-                {$t('transactions.memo')}
-                <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
-                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'memo')}></div>
-              </th>
-            {/if}
             {#if isColumnVisible('outflow')}
               <th class="col-outflow resizable" style="width: {getColumnWidth('outflow')}px">
                 {$t('transactions.outflow')}
@@ -1281,8 +1274,15 @@
                 {/if}
                 <td class="col-payee">
                   {#if tx.transferAccountId}
-                    <span class="transfer-payee" class:outgoing={isOutflow} class:incoming={isInflow}>
-                      {tx.payee || 'Transfer'}
+                    <span class="transfer-display" class:outgoing={isOutflow} class:incoming={isInflow}>
+                      <span class="transfer-icon">
+                        {#if isOutflow}
+                          <ArrowUpRight class="h-3 w-3" />
+                        {:else}
+                          <ArrowDownLeft class="h-3 w-3" />
+                        {/if}
+                      </span>
+                      <span class="transfer-text">{tx.payee || 'Transfer'}</span>
                     </span>
                   {:else}
                     {tx.payee || ''}
@@ -1290,28 +1290,28 @@
                 </td>
                 {#if isColumnVisible('category')}
                   <td class="col-category">
-                    {#if txHasSplits}
-                      <span class="split-indicator" class:expanded={isExpanded}>
-                        <Split class="h-3 w-3" />
-                        <span>{$t('transactions.split')} ({tx.subTransactions?.length})</span>
-                      </span>
-                    {:else if tx.transferAccountId}
-                      <span class="transfer-badge" class:outgoing={isOutflow} class:incoming={isInflow}>
-                        {isOutflow ? '↗' : '↙'} Transfer
-                      </span>
-                    {:else if subCategory}
-                      <span class="category-display">
-                        <strong>{subCategory}</strong>
-                        {#if masterCategory && !compactMode}
-                          <span class="master-category"> · {masterCategory}</span>
-                        {/if}
-                      </span>
-                    {/if}
-                  </td>
-                {/if}
-                {#if isColumnVisible('memo') && !compactMode}
-                  <td class="col-memo">
-                    {tx.memo || ''}
+                    <div class="category-cell">
+                      {#if txHasSplits}
+                        <span class="split-indicator" class:expanded={isExpanded}>
+                          <Split class="h-3 w-3" />
+                          <span>{$t('transactions.split')} ({tx.subTransactions?.length})</span>
+                        </span>
+                      {:else if tx.transferAccountId}
+                        <span class="transfer-badge" class:outgoing={isOutflow} class:incoming={isInflow}>
+                          {isOutflow ? '→' : '←'} Transfer
+                        </span>
+                      {:else if subCategory}
+                        <span class="category-display">
+                          <strong class="cat-sub">{subCategory}</strong>
+                          {#if masterCategory}
+                            <span class="cat-master"> · {masterCategory}</span>
+                          {/if}
+                        </span>
+                      {/if}
+                      {#if tx.memo && !compactMode}
+                        <span class="memo-inline">{tx.memo}</span>
+                      {/if}
+                    </div>
                   </td>
                 {/if}
                 {#if isColumnVisible('outflow')}
@@ -1950,8 +1950,74 @@
   .col-date { font-size: 0.75rem; white-space: nowrap; }
   .col-account { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-payee { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .col-category { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; }
-  .col-memo { font-size: 0.7rem; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-category { font-size: 0.7rem; overflow: hidden; }
+  
+  /* Category cell with memo below */
+  .category-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+  
+  .category-display {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem;
+  }
+  
+  .cat-sub {
+    font-weight: 600;
+    color: var(--foreground);
+  }
+  
+  .cat-master {
+    font-weight: 400;
+    color: var(--muted-foreground);
+    font-size: 0.9em;
+  }
+  
+  .memo-inline {
+    font-size: 0.65rem;
+    color: var(--muted-foreground);
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+  }
+  
+  /* Transfer display */
+  .transfer-display {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  
+  .transfer-icon {
+    display: flex;
+    align-items: center;
+  }
+  
+  .transfer-display.outgoing {
+    color: var(--destructive);
+  }
+  
+  .transfer-display.outgoing .transfer-icon {
+    color: var(--destructive);
+  }
+  
+  .transfer-display.incoming {
+    color: var(--success);
+  }
+  
+  .transfer-display.incoming .transfer-icon {
+    color: var(--success);
+  }
+  
+  .transfer-text {
+    font-style: italic;
+  }
   .col-outflow, .col-inflow, .col-balance { 
     text-align: right; 
     font-family: var(--font-family-mono);
@@ -2263,46 +2329,20 @@
   .flag-blue { background: var(--color-ynab-blue); }
   .flag-purple { background: var(--color-ynab-purple); }
 
-  .transfer-payee {
-    font-weight: 500;
-  }
-
-  .transfer-payee.outgoing { color: var(--destructive); }
-  .transfer-payee.incoming { color: var(--success); }
-
-  .category-memo {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-  }
-
-  .category-text {
-    color: var(--foreground);
-  }
-
-  .memo-text {
-    color: var(--muted-foreground);
-    font-size: 0.6875rem;
-    font-style: italic;
-  }
-
+  /* Transfer badge in category column */
   .transfer-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.125rem 0.375rem;
-    border-radius: 4px;
-    font-size: 0.6875rem;
-    font-weight: 500;
+    font-size: 0.7rem;
+    font-style: italic;
   }
 
   .transfer-badge.outgoing {
-    background: rgba(239, 68, 68, 0.1);
     color: var(--destructive);
   }
 
   .transfer-badge.incoming {
-    background: rgba(34, 197, 94, 0.1);
     color: var(--success);
   }
 
