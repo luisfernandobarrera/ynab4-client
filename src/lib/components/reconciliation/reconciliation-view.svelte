@@ -251,19 +251,39 @@
     });
   });
 
-  // Group by account type
+  // Normalize account type to canonical key
+  function getNormalizedType(rawType: string): string {
+    const normalized = (rawType || '').toLowerCase();
+    if (normalized === 'cash') return 'cash';
+    if (normalized === 'checking') return 'checking';
+    if (normalized === 'savings') return 'savings';
+    if (normalized === 'creditcard' || normalized === 'credit card') return 'creditCard';
+    if (normalized === 'lineofcredit' || normalized === 'line of credit') return 'lineOfCredit';
+    if (normalized === 'paypal') return 'paypal';
+    if (normalized === 'merchantaccount' || normalized === 'merchant account' || normalized === 'merchant') return 'merchant';
+    if (normalized === 'investmentaccount' || normalized === 'investment account' || normalized === 'investment') return 'investment';
+    if (normalized === 'mortgage') return 'mortgage';
+    if (normalized === 'otherasset' || normalized === 'other asset') return 'otherAsset';
+    if (normalized === 'otherliability' || normalized === 'other liability') return 'otherLiability';
+    return 'otherAsset';
+  }
+
+  // Group by normalized account type
   const accountsByType = $derived.by(() => {
     const groups: Map<string, { type: string; config: ReturnType<typeof getTypeConfig>; accounts: typeof accountAnalyses }> = new Map();
     
     for (const account of accountAnalyses) {
-      if (!groups.has(account.type)) {
-        groups.set(account.type, {
-          type: account.type,
-          config: account.typeConfig,
+      const normalizedType = getNormalizedType(account.type);
+      const config = getTypeConfig(normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1)); // Get proper config
+      
+      if (!groups.has(normalizedType)) {
+        groups.set(normalizedType, {
+          type: normalizedType,
+          config: config,
           accounts: []
         });
       }
-      groups.get(account.type)!.accounts.push(account);
+      groups.get(normalizedType)!.accounts.push(account);
     }
     
     // Sort groups by order, then accounts by days since reconciled
@@ -693,12 +713,13 @@
 
   .group-icon {
     font-family: var(--font-family-mono);
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--primary);
-    background: var(--primary-foreground);
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    background: var(--background);
     padding: 0.125rem 0.375rem;
     border-radius: 3px;
+    border: 1px solid var(--border);
   }
 
   .group-label {
@@ -797,12 +818,8 @@
     color: var(--muted-foreground);
   }
 
-  .budget-tag.on {
-    color: var(--primary);
-  }
-
   .positive {
-    color: var(--success);
+    color: var(--foreground);
   }
 
   .negative {
@@ -839,41 +856,19 @@
 
   .days-badge {
     display: inline-block;
-    padding: 0.25rem 0.5rem;
-    border-radius: 10px;
-    font-weight: 600;
+    font-family: var(--font-family-mono);
     font-size: 0.7rem;
     min-width: 32px;
-    text-align: center;
-  }
-
-  .days-badge.status-ok {
-    background: var(--success);
-    color: white;
-  }
-
-  .days-badge.status-warning {
-    background: var(--warning);
-    color: white;
-  }
-
-  .days-badge.status-danger {
-    background: var(--destructive);
-    color: white;
-  }
-
-  .days-badge.status-unknown {
-    background: var(--muted);
+    text-align: right;
     color: var(--muted-foreground);
   }
 
-  /* Status row colors */
-  .accounts-table tr.status-danger td {
-    background: rgba(220, 38, 38, 0.05);
+  .days-badge.status-warning {
+    color: var(--warning);
   }
 
-  .accounts-table tr.status-warning td {
-    background: rgba(245, 158, 11, 0.05);
+  .days-badge.status-danger {
+    color: var(--destructive);
   }
 
   /* Action column */
