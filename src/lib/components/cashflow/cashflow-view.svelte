@@ -1,8 +1,12 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight, Building2, PiggyBank, Filter } from 'lucide-svelte';
+  import { ChevronLeft, ChevronRight, Building2, PiggyBank, ArrowUpDown, TrendingUp, TrendingDown, CreditCard, Wallet, PiggyBankIcon, Percent } from 'lucide-svelte';
   import { accounts, transactions, payees, categories } from '$lib/stores/budget';
   import { t, tArray } from '$lib/i18n';
   import DateNavigation from '$lib/components/transactions/date-navigation.svelte';
+
+  // Types
+  type TxCategory = 'income' | 'expense' | 'cc_payment' | 'savings_transfer' | 'interest' | 'other';
+  type AccountSort = 'name' | 'balance' | 'activity';
 
   // State
   let selectedYear = $state(new Date().getFullYear());
@@ -10,11 +14,11 @@
   let showDateNav = $state(false);
   let accountFilter = $state<'all' | 'checking' | 'savings'>('all');
   let selectedAccountId = $state<string | null>(null);
-  let displayLimit = $state(100); // Limit displayed transactions for performance
+  let accountSort = $state<AccountSort>('balance');
+  let displayLimit = $state(100);
   
   // Reset display limit when filters change
   $effect(() => {
-    // When any filter changes, reset the display limit
     selectedYear; selectedMonth; accountFilter; selectedAccountId;
     displayLimit = 100;
   });
@@ -22,32 +26,19 @@
   // Get month names
   const monthsLong = $derived($tArray('months.long'));
 
-  // Format amount
+  // Format helpers
   function formatAmount(amount: number): string {
-    const abs = Math.abs(amount);
-    return abs.toLocaleString(undefined, {
+    return Math.abs(amount).toLocaleString(undefined, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
   }
 
-  function getBalanceClass(value: number): string {
-    if (Math.abs(value) < 0.01) return 'zero';
-    return value >= 0 ? 'positive' : 'negative';
-  }
-
-  function formatChange(value: number): string {
-    if (Math.abs(value) < 0.01) return '0.00';
-    const sign = value >= 0 ? '+' : '-';
-    return sign + formatAmount(value);
-  }
-
   function formatDate(dateStr: string): string {
     const date = new Date(dateStr + 'T12:00:00');
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
   }
 
-  // Get date range for selected month
   function getDateRange(): { from: string; to: string } {
     const from = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-01`;
     const lastDay = new Date(selectedYear, selectedMonth + 1, 0).getDate();
@@ -55,53 +46,88 @@
     return { from, to };
   }
 
-  // Classify accounts by type (include all accounts, even closed ones for historical data)
+  // Classify accounts by type
   const accountTypes = $derived.by(() => {
     const checking = new Set<string>();
     const savings = new Set<string>();
+    const creditCards = new Set<string>();
     
     $accounts.forEach(a => {
       const type = a.type?.toLowerCase() || '';
-      
-      if (type.includes('checking') || type === 'Checking') {
-        checking.add(a.id);
-      } else if (type.includes('savings') || type === 'Savings') {
-        savings.add(a.id);
-      }
+      if (type.includes('checking')) checking.add(a.id);
+      else if (type.includes('savings')) savings.add(a.id);
+      else if (type.includes('credit')) creditCards.add(a.id);
     });
     
-    return { checking, savings };
+    return { checking, savings, creditCards };
   });
-  
 
-  // Get active account IDs based on filter
-  const activeAccountIds = $derived.by(() => {
-    const { checking, savings } = accountTypes;
+  // Helper to get transfer target account ID
+  function getTransferTargetId(tx: { transferAccountId: string | null; payeeId: string | null }): string | null {
+    if (tx.transferAccountId) return tx.transferAccountId;
+    if (tx.payeeId?.startsWith('Payee/Transfer:')) {
+      return tx.payeeId.replace('Payee/Transfer:', '');
+    }
+    return null;
+  }
+
+  // Categorize a transaction
+  function categorizeTransaction(tx: typeof $transactions[0]): TxCategory {
+    const { checking, savings, creditCards } = accountTypes;
+    const transferTargetId = getTransferTargetId(tx);
     
+    // Check for interest (by category or payee name)
+    const payee = $payees.find(p => p.entityId === tx.payeeId);
+    const cat = $categories.find(c => c.entityId === tx.categoryId);
+    const payeeName = payee?.name?.toLowerCase() || '';
+    const catName = cat?.name?.toLowerCase() || '';
+    
+    if (payeeName.includes('interest') || payeeName.includes('interés') || 
+        catName.includes('interest') || catName.includes('interés')) {
+      return 'interest';
+    }
+    
+    // Credit card payment (transfer to credit card)
+    if (transferTargetId && creditCards.has(transferTargetId)) {
+      return 'cc_payment';
+    }
+    
+    // Transfer to savings
+    if (transferTargetId && savings.has(transferTargetId) && checking.has(tx.accountId)) {
+      return 'savings_transfer';
+    }
+    
+    // Income vs Expense
+    if (tx.amount > 0) return 'income';
+    return 'expense';
+  }
+
+  // Get category label
+  function getCategoryLabel(cat: TxCategory): string {
+    const labels: Record<TxCategory, string> = {
+      income: 'Ingreso',
+      expense: 'Gasto',
+      cc_payment: 'Pago TC',
+      savings_transfer: 'A Ahorro',
+      interest: 'Interés',
+      other: 'Otro'
+    };
+    return labels[cat];
+  }
+
+  // Define the pool based on filter
+  const pool = $derived.by(() => {
+    const { checking, savings } = accountTypes;
     if (accountFilter === 'checking') return checking;
     if (accountFilter === 'savings') return savings;
     return new Set([...checking, ...savings]);
   });
 
-  // Pre-compute account balances in a single pass (optimized)
-  // Hide internal transfers that don't change the pool's total
+  // Pre-compute account balances
   const accountsData = $derived.by(() => {
     const { from, to } = getDateRange();
     const { checking, savings } = accountTypes;
     
-    // Define the pool ONCE based on filter
-    // Pool = the group of accounts we're analyzing
-    let pool: Set<string>;
-    if (accountFilter === 'checking') {
-      pool = checking;
-    } else if (accountFilter === 'savings') {
-      pool = savings;
-    } else {
-      // "All" mode = checking + savings together
-      pool = new Set([...checking, ...savings]);
-    }
-    
-    // Build a map of account data - single pass through transactions
     const accountMap = new Map<string, {
       beforeBalance: number;
       inflows: number;
@@ -109,48 +135,32 @@
       txCount: number;
     }>();
     
-    // Initialize only accounts in the current pool
+    // Initialize accounts in pool
     for (const acc of $accounts) {
       if (!pool.has(acc.id)) continue;
-      
-      accountMap.set(acc.id, {
-        beforeBalance: 0,
-        inflows: 0,
-        outflows: 0,
-        txCount: 0
-      });
+      accountMap.set(acc.id, { beforeBalance: 0, inflows: 0, outflows: 0, txCount: 0 });
     }
     
-    // Single pass through transactions
+    // Calculate balances
     for (const tx of $transactions) {
       const accData = accountMap.get(tx.accountId);
-      if (!accData) continue; // Transaction not in our pool
+      if (!accData) continue;
       
-      // Get transfer target (from transferAccountId or payee format)
-      const transferTargetId = tx.transferAccountId || 
-        (tx.payeeId?.startsWith('Payee/Transfer:') ? tx.payeeId.replace('Payee/Transfer:', '') : null);
-      
-      // An "internal" transfer is when BOTH source AND target are in the pool
-      // These don't change the pool's total balance, so we exclude them from calculations
+      const transferTargetId = getTransferTargetId(tx);
       const isInternalTransfer = transferTargetId && pool.has(transferTargetId);
       
       if (tx.date < from) {
-        // Before period - add to initial balance (always include for accurate starting balance)
         accData.beforeBalance += tx.amount;
       } else if (tx.date <= to) {
-        // In period - count inflows/outflows (but skip internal transfers)
         if (!isInternalTransfer) {
-          if (tx.amount >= 0) {
-            accData.inflows += tx.amount;
-          } else {
-            accData.outflows += Math.abs(tx.amount);
-          }
+          if (tx.amount >= 0) accData.inflows += tx.amount;
+          else accData.outflows += Math.abs(tx.amount);
           accData.txCount++;
         }
       }
     }
     
-    // Convert to array and filter by current filter
+    // Build data array
     const data: Array<{
       id: string;
       name: string;
@@ -159,19 +169,16 @@
       finalBalance: number;
       inflows: number;
       outflows: number;
+      activity: number;
       change: number;
-      transactionCount: number;
+      txCount: number;
       isClosed: boolean;
     }> = [];
     
     for (const acc of $accounts) {
-      // Only include accounts in the pool
       if (!pool.has(acc.id)) continue;
-      
       const accData = accountMap.get(acc.id);
       if (!accData) continue;
-      
-      // Only show accounts that had activity in the period (or have a balance)
       if (accData.txCount === 0 && Math.abs(accData.beforeBalance) < 0.01) continue;
       
       const change = accData.inflows - accData.outflows;
@@ -185,188 +192,155 @@
         finalBalance: accData.beforeBalance + change,
         inflows: accData.inflows,
         outflows: accData.outflows,
+        activity: accData.inflows + accData.outflows,
         change,
-        transactionCount: accData.txCount,
+        txCount: accData.txCount,
         isClosed: acc.closed || false
       });
     }
     
-    // Sort: active accounts first, then by name
+    // Sort based on selection
     return data.sort((a, b) => {
       if (a.isClosed !== b.isClosed) return a.isClosed ? 1 : -1;
+      if (accountSort === 'balance') return b.finalBalance - a.finalBalance;
+      if (accountSort === 'activity') return b.activity - a.activity;
       return a.name.localeCompare(b.name);
     });
   });
 
   // Calculate totals
   const totals = $derived.by(() => {
-    let totalInitial = 0;
-    let totalFinal = 0;
-    let totalInflows = 0;
-    let totalOutflows = 0;
-    
+    let initial = 0, inflows = 0, outflows = 0;
     for (const acc of accountsData) {
-      totalInitial += acc.initialBalance;
-      totalFinal += acc.finalBalance;
-      totalInflows += acc.inflows;
-      totalOutflows += acc.outflows;
+      initial += acc.initialBalance;
+      inflows += acc.inflows;
+      outflows += acc.outflows;
     }
-    
-    return {
-      initial: totalInitial,
-      final: totalFinal,
-      inflows: totalInflows,
-      outflows: totalOutflows,
-      change: totalFinal - totalInitial
-    };
+    return { initial, inflows, outflows, final: initial + inflows - outflows };
   });
 
-  // Helper to get transfer target account ID from transaction
-  function getTransferTargetId(tx: { transferAccountId: string | null; payeeId: string | null }): string | null {
-    // First check transferAccountId
-    if (tx.transferAccountId) return tx.transferAccountId;
-    // Also check payee format "Payee/Transfer:ACCOUNT-ID"
-    if (tx.payeeId?.startsWith('Payee/Transfer:')) {
-      return tx.payeeId.replace('Payee/Transfer:', '');
-    }
-    return null;
-  }
-
-  // Filter transactions for the selected period and accounts
-  // Key logic: Each mode defines a POOL of accounts.
-  // Hide transfers where BOTH source AND target are within the pool (internal moves).
-  const filteredTransactions = $derived.by(() => {
+  // Categorized totals for summary
+  const categorizedTotals = $derived.by(() => {
     const { from, to } = getDateRange();
-    const { checking, savings } = accountTypes;
+    let income = 0, expenses = 0, ccPayments = 0, savingsTransfers = 0, interest = 0;
     
-    // Define the pool based on filter
-    let pool: Set<string>;
-    if (selectedAccountId) {
-      pool = new Set([selectedAccountId]);
-    } else if (accountFilter === 'checking') {
-      pool = checking;
-    } else if (accountFilter === 'savings') {
-      pool = savings;
-    } else {
-      // All mode: pool is checking + savings
-      pool = new Set([...checking, ...savings]);
-    }
-    
-    const result = [];
     for (const tx of $transactions) {
       if (tx.date < from || tx.date > to) continue;
       if (!pool.has(tx.accountId)) continue;
       
-      // Get transfer target (from transferAccountId or payee format)
       const transferTargetId = getTransferTargetId(tx);
+      if (transferTargetId && pool.has(transferTargetId)) continue;
       
-      // Hide transfers where both source and target are in the pool
-      if (transferTargetId && pool.has(transferTargetId)) {
-        continue; // Internal transfer within the pool - skip
+      const cat = categorizeTransaction(tx);
+      const amount = Math.abs(tx.amount);
+      
+      switch (cat) {
+        case 'income': income += amount; break;
+        case 'expense': expenses += amount; break;
+        case 'cc_payment': ccPayments += amount; break;
+        case 'savings_transfer': savingsTransfers += amount; break;
+        case 'interest': interest += tx.amount; break;
       }
-      
-      result.push(tx);
     }
     
-    return result.sort((a, b) => b.date.localeCompare(a.date)); // Most recent first
+    return { income, expenses, ccPayments, savingsTransfers, interest };
+  });
+
+  // Filter transactions
+  const filteredTransactions = $derived.by(() => {
+    const { from, to } = getDateRange();
+    
+    const targetPool = selectedAccountId ? new Set([selectedAccountId]) : pool;
+    
+    const result = [];
+    for (const tx of $transactions) {
+      if (tx.date < from || tx.date > to) continue;
+      if (!targetPool.has(tx.accountId)) continue;
+      
+      const transferTargetId = getTransferTargetId(tx);
+      if (!selectedAccountId && transferTargetId && pool.has(transferTargetId)) continue;
+      
+      result.push({
+        ...tx,
+        txCategory: categorizeTransaction(tx)
+      });
+    }
+    
+    return result.sort((a, b) => b.date.localeCompare(a.date));
   });
   
-  // Displayed transactions (limited for performance)
   const displayedTransactions = $derived(filteredTransactions.slice(0, displayLimit));
-  const hasMoreTransactions = $derived(filteredTransactions.length > displayLimit);
-  
-  function loadMore() {
-    displayLimit += 100;
-  }
+  const hasMore = $derived(filteredTransactions.length > displayLimit);
 
-  // Get payee name
+  // Helpers
   function getPayeeName(payeeId: string | null): string {
     if (!payeeId) return '';
     if (payeeId.startsWith('Payee/Transfer:')) {
       const accId = payeeId.replace('Payee/Transfer:', '');
       const acc = $accounts.find(a => a.id === accId);
-      return acc ? `↔ ${acc.name}` : 'Transfer';
+      return acc?.name || 'Transferencia';
     }
-    const payee = $payees.find(p => p.entityId === payeeId);
-    return payee?.name || '';
+    return $payees.find(p => p.entityId === payeeId)?.name || '';
   }
 
-  // Get category name
   function getCategoryName(categoryId: string | null): string {
     if (!categoryId) return '';
-    const cat = $categories.find(c => c.entityId === categoryId);
-    return cat?.name || '';
+    return $categories.find(c => c.entityId === categoryId)?.name || '';
   }
 
-  // Get account name
   function getAccountName(accountId: string): string {
-    const acc = $accounts.find(a => a.id === accountId);
-    return acc?.name || '';
+    return $accounts.find(a => a.id === accountId)?.name || '';
   }
 
-  // Navigation
   function navigateMonth(direction: number) {
     let newMonth = selectedMonth + direction;
-    if (newMonth < 0) {
-      selectedYear -= 1;
-      selectedMonth = 11;
-    } else if (newMonth > 11) {
-      selectedYear += 1;
-      selectedMonth = 0;
-    } else {
-      selectedMonth = newMonth;
-    }
+    if (newMonth < 0) { selectedYear -= 1; selectedMonth = 11; }
+    else if (newMonth > 11) { selectedYear += 1; selectedMonth = 0; }
+    else { selectedMonth = newMonth; }
   }
   
   function selectAccount(id: string | null) {
     selectedAccountId = selectedAccountId === id ? null : id;
   }
+  
+  function cycleSort() {
+    const sorts: AccountSort[] = ['balance', 'activity', 'name'];
+    const idx = sorts.indexOf(accountSort);
+    accountSort = sorts[(idx + 1) % sorts.length];
+  }
 </script>
 
 <div class="cashflow-view">
-  <!-- Header with Date Navigation -->
-  <div class="cf-header">
+  <!-- Header -->
+  <header class="cf-header">
     <div class="cf-nav">
-      <button class="nav-btn" onclick={() => navigateMonth(-1)} aria-label="Previous month">
+      <button class="nav-btn" onclick={() => navigateMonth(-1)} aria-label="Mes anterior">
         <ChevronLeft class="h-5 w-5" />
       </button>
       <button class="month-display" onclick={() => showDateNav = !showDateNav}>
         <span class="month-name">{monthsLong[selectedMonth]}</span>
         <span class="year-name">{selectedYear}</span>
       </button>
-      <button class="nav-btn" onclick={() => navigateMonth(1)} aria-label="Next month">
+      <button class="nav-btn" onclick={() => navigateMonth(1)} aria-label="Mes siguiente">
         <ChevronRight class="h-5 w-5" />
       </button>
     </div>
     
     <div class="cf-filters">
-      <button 
-        class="filter-btn" 
-        class:active={accountFilter === 'all'}
-        onclick={() => { accountFilter = 'all'; selectedAccountId = null; }}
-      >
-        {$t('cashFlow.all')}
+      <button class="filter-btn" class:active={accountFilter === 'all'} onclick={() => { accountFilter = 'all'; selectedAccountId = null; }}>
+        Todos
       </button>
-      <button 
-        class="filter-btn" 
-        class:active={accountFilter === 'checking'}
-        onclick={() => { accountFilter = 'checking'; selectedAccountId = null; }}
-      >
+      <button class="filter-btn" class:active={accountFilter === 'checking'} onclick={() => { accountFilter = 'checking'; selectedAccountId = null; }}>
         <Building2 class="h-4 w-4" />
-        {$t('cashFlow.checking')}
+        Cheques
       </button>
-      <button 
-        class="filter-btn" 
-        class:active={accountFilter === 'savings'}
-        onclick={() => { accountFilter = 'savings'; selectedAccountId = null; }}
-      >
+      <button class="filter-btn" class:active={accountFilter === 'savings'} onclick={() => { accountFilter = 'savings'; selectedAccountId = null; }}>
         <PiggyBank class="h-4 w-4" />
-        {$t('cashFlow.savings')}
+        Ahorros
       </button>
     </div>
-  </div>
+  </header>
 
-  <!-- Date Navigation Panel -->
   {#if showDateNav}
     <DateNavigation
       selectedYear={selectedYear}
@@ -378,126 +352,167 @@
     />
   {/if}
 
-  <!-- Main Content -->
-  <div class="cf-main">
-    <!-- Accounts Panel (Left) -->
-    <div class="cf-accounts-panel">
-      <div class="accounts-header">
-        <h3>{$t('nav.accounts')}</h3>
-        <span class="account-count">{accountsData.length}</span>
+  <div class="cf-content">
+    <!-- Accounts Panel -->
+    <aside class="accounts-panel">
+      <div class="panel-header">
+        <h3>Cuentas</h3>
+        <button class="sort-btn" onclick={cycleSort} title="Ordenar por {accountSort}">
+          <ArrowUpDown class="h-4 w-4" />
+          <span class="sort-label">{accountSort === 'balance' ? 'Saldo' : accountSort === 'activity' ? 'Actividad' : 'Nombre'}</span>
+        </button>
       </div>
       
-      <!-- Totals Row -->
-      <button class="totals-row" class:selected={selectedAccountId === null} onclick={() => selectAccount(null)} type="button">
-        <div class="totals-info">
-          <span class="totals-label">{$t('common.total')}</span>
-          <span class="totals-count">{filteredTransactions.length} tx</span>
+      <!-- Summary Card -->
+      <div class="summary-card">
+        <div class="summary-row">
+          <span class="label">Inicial</span>
+          <span class="value">{formatAmount(totals.initial)}</span>
         </div>
-        <div class="totals-amounts">
-          <span class="totals-balance {getBalanceClass(totals.final)}">{formatAmount(totals.final)}</span>
-          <span class="totals-change {getBalanceClass(totals.change)}">{formatChange(totals.change)}</span>
+        <div class="summary-row income">
+          <span class="label"><TrendingUp class="h-3.5 w-3.5" /> Ingresos</span>
+          <span class="value">+{formatAmount(totals.inflows)}</span>
         </div>
-      </button>
+        <div class="summary-row expense">
+          <span class="label"><TrendingDown class="h-3.5 w-3.5" /> Gastos</span>
+          <span class="value">-{formatAmount(totals.outflows)}</span>
+        </div>
+        <div class="summary-row final">
+          <span class="label">Final</span>
+          <span class="value" class:positive={totals.final >= 0} class:negative={totals.final < 0}>
+            {formatAmount(totals.final)}
+          </span>
+        </div>
+      </div>
       
+      <!-- Categories Summary -->
+      <div class="categories-summary">
+        <div class="cat-row">
+          <span class="cat-icon income"><Wallet class="h-3.5 w-3.5" /></span>
+          <span class="cat-label">Ingresos</span>
+          <span class="cat-value income">+{formatAmount(categorizedTotals.income)}</span>
+        </div>
+        <div class="cat-row">
+          <span class="cat-icon expense"><TrendingDown class="h-3.5 w-3.5" /></span>
+          <span class="cat-label">Gastos</span>
+          <span class="cat-value expense">-{formatAmount(categorizedTotals.expenses)}</span>
+        </div>
+        <div class="cat-row">
+          <span class="cat-icon cc"><CreditCard class="h-3.5 w-3.5" /></span>
+          <span class="cat-label">Pagos TC</span>
+          <span class="cat-value cc">-{formatAmount(categorizedTotals.ccPayments)}</span>
+        </div>
+        {#if accountFilter !== 'savings'}
+          <div class="cat-row">
+            <span class="cat-icon savings"><PiggyBank class="h-3.5 w-3.5" /></span>
+            <span class="cat-label">A Ahorro</span>
+            <span class="cat-value savings">-{formatAmount(categorizedTotals.savingsTransfers)}</span>
+          </div>
+        {/if}
+        {#if categorizedTotals.interest !== 0}
+          <div class="cat-row">
+            <span class="cat-icon interest"><Percent class="h-3.5 w-3.5" /></span>
+            <span class="cat-label">Intereses</span>
+            <span class="cat-value" class:positive={categorizedTotals.interest > 0} class:negative={categorizedTotals.interest < 0}>
+              {categorizedTotals.interest > 0 ? '+' : '-'}{formatAmount(categorizedTotals.interest)}
+            </span>
+          </div>
+        {/if}
+      </div>
+      
+      <!-- Account List -->
       <div class="accounts-list">
         {#each accountsData as acc (acc.id)}
           <button 
-            class="account-row" 
+            class="account-item" 
             class:selected={selectedAccountId === acc.id}
+            class:closed={acc.isClosed}
             onclick={() => selectAccount(acc.id)}
           >
-            <div class="account-info">
-              <span class="account-name">{acc.name}</span>
-              <span class="account-type-badge" class:checking={acc.type === 'checking'} class:savings={acc.type === 'savings'}>
-                {acc.type === 'checking' ? $t('cashFlow.checking') : $t('cashFlow.savings')}
+            <div class="acc-info">
+              <span class="acc-name">{acc.name}</span>
+              <span class="acc-type" class:checking={acc.type === 'checking'} class:savings={acc.type === 'savings'}>
+                {acc.type === 'checking' ? 'Cheques' : 'Ahorros'}
               </span>
             </div>
-            <div class="account-amounts">
-              <span class="account-balance {getBalanceClass(acc.finalBalance)}">{formatAmount(acc.finalBalance)}</span>
-              <span class="account-change {getBalanceClass(acc.change)}">{formatChange(acc.change)}</span>
+            <div class="acc-amounts">
+              <span class="acc-balance" class:positive={acc.finalBalance >= 0} class:negative={acc.finalBalance < 0}>
+                {formatAmount(acc.finalBalance)}
+              </span>
+              <span class="acc-change" class:positive={acc.change >= 0} class:negative={acc.change < 0}>
+                {acc.change >= 0 ? '+' : '-'}{formatAmount(acc.change)}
+              </span>
             </div>
           </button>
         {/each}
       </div>
-      
-      <!-- Summary Section -->
-      <div class="accounts-summary">
-        <div class="summary-row">
-          <span class="summary-label">{$t('cashFlow.initial')}</span>
-          <span class="summary-value">{formatAmount(totals.initial)}</span>
-        </div>
-        <div class="summary-row inflows">
-          <span class="summary-label">+ {$t('cashFlow.income')}</span>
-          <span class="summary-value positive">{formatAmount(totals.inflows)}</span>
-        </div>
-        <div class="summary-row outflows">
-          <span class="summary-label">- {$t('cashFlow.expenses')}</span>
-          <span class="summary-value negative">{formatAmount(totals.outflows)}</span>
-        </div>
-        <div class="summary-row final">
-          <span class="summary-label">{$t('cashFlow.final')}</span>
-          <span class="summary-value {getBalanceClass(totals.final)}">{formatAmount(totals.final)}</span>
-        </div>
-      </div>
-    </div>
+    </aside>
 
-    <!-- Transactions Panel (Right) -->
-    <div class="cf-transactions-panel">
-      <div class="transactions-header">
-        <h3>
-          {#if selectedAccountId}
-            {getAccountName(selectedAccountId)}
-          {:else}
-            {$t('nav.transactions')}
-          {/if}
-        </h3>
-        <span class="transaction-count">{filteredTransactions.length}</span>
+    <!-- Transactions Table -->
+    <main class="transactions-panel">
+      <div class="panel-header">
+        <h3>{selectedAccountId ? getAccountName(selectedAccountId) : 'Transacciones'}</h3>
+        <span class="tx-count">{filteredTransactions.length}</span>
       </div>
       
-      <div class="transactions-list">
-        {#if filteredTransactions.length === 0}
-          <div class="empty-state">
-            <p>{$t('budget.noTransactions')}</p>
-          </div>
-        {:else}
+      {#if filteredTransactions.length === 0}
+        <div class="empty-state">
+          <p>Sin transacciones en este período</p>
+        </div>
+      {:else}
+        <div class="table-container">
           <table class="tx-table">
             <thead>
               <tr>
-                <th class="col-date">{$t('transactions.date')}</th>
+                <th class="col-date">Fecha</th>
                 {#if !selectedAccountId}
-                  <th class="col-account">{$t('transactions.account')}</th>
+                  <th class="col-account">Cuenta</th>
                 {/if}
-                <th class="col-payee">{$t('transactions.payee')}</th>
-                <th class="col-category">{$t('transactions.category')}</th>
-                <th class="col-amount">{$t('transactions.amount')}</th>
+                <th class="col-payee">Beneficiario</th>
+                <th class="col-category">Categoría</th>
+                <th class="col-type">Tipo</th>
+                <th class="col-outflow">Cargo</th>
+                <th class="col-inflow">Abono</th>
               </tr>
             </thead>
             <tbody>
               {#each displayedTransactions as tx (tx.id)}
-                <tr>
+                {@const isOutflow = tx.amount < 0}
+                {@const isTransfer = !!getTransferTargetId(tx)}
+                <tr class="tx-row" class:transfer={isTransfer}>
                   <td class="col-date">{formatDate(tx.date)}</td>
                   {#if !selectedAccountId}
                     <td class="col-account">{getAccountName(tx.accountId)}</td>
                   {/if}
-                  <td class="col-payee">{getPayeeName(tx.payeeId)}</td>
-                  <td class="col-category">{getCategoryName(tx.categoryId)}</td>
-                  <td class="col-amount {getBalanceClass(tx.amount)}">
-                    {tx.amount >= 0 ? '+' : '-'}{formatAmount(tx.amount)}
+                  <td class="col-payee">
+                    {#if isTransfer}
+                      <span class="transfer-indicator">↔</span>
+                    {/if}
+                    {getPayeeName(tx.payeeId)}
                   </td>
+                  <td class="col-category">{getCategoryName(tx.categoryId)}</td>
+                  <td class="col-type">
+                    <span class="type-badge {tx.txCategory}">
+                      {getCategoryLabel(tx.txCategory)}
+                    </span>
+                  </td>
+                  <td class="col-outflow">{isOutflow ? formatAmount(tx.amount) : ''}</td>
+                  <td class="col-inflow">{!isOutflow ? formatAmount(tx.amount) : ''}</td>
                 </tr>
               {/each}
             </tbody>
           </table>
-          {#if hasMoreTransactions}
-            <div class="load-more">
-              <button class="load-more-btn" onclick={loadMore}>
-                {$t('common.loadMore')} ({filteredTransactions.length - displayLimit} {$t('common.remaining')})
-              </button>
-            </div>
-          {/if}
+        </div>
+        
+        {#if hasMore}
+          <div class="load-more">
+            <button onclick={() => displayLimit += 100}>
+              Cargar más ({filteredTransactions.length - displayLimit} restantes)
+            </button>
+          </div>
         {/if}
-      </div>
-    </div>
+      {/if}
+    </main>
   </div>
 </div>
 
@@ -539,12 +554,10 @@
     color: var(--primary);
     cursor: pointer;
     border-radius: 6px;
-    transition: all 0.15s;
+    transition: background 0.15s;
   }
 
-  .nav-btn:hover {
-    background: var(--accent);
-  }
+  .nav-btn:hover { background: var(--accent); }
 
   .month-display {
     display: flex;
@@ -558,20 +571,9 @@
     transition: background 0.15s;
   }
 
-  .month-display:hover {
-    background: var(--accent);
-  }
-
-  .month-name {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--foreground);
-  }
-
-  .year-name {
-    font-size: 0.8rem;
-    color: var(--muted-foreground);
-  }
+  .month-display:hover { background: var(--accent); }
+  .month-name { font-size: 1.1rem; font-weight: 600; color: var(--foreground); }
+  .year-name { font-size: 0.8rem; color: var(--muted-foreground); }
 
   .cf-filters {
     display: flex;
@@ -593,36 +595,29 @@
     transition: all 0.15s;
   }
 
-  .filter-btn:hover {
-    background: var(--accent);
-    color: var(--foreground);
-  }
+  .filter-btn:hover { background: var(--accent); color: var(--foreground); }
+  .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
-  .filter-btn.active {
-    background: var(--primary);
-    color: var(--primary-foreground);
-    border-color: var(--primary);
-  }
-
-  /* Main Layout */
-  .cf-main {
-    flex: 1;
+  /* Content */
+  .cf-content {
     display: flex;
+    flex: 1;
     overflow: hidden;
+    gap: 1px;
+    background: var(--border);
   }
 
   /* Accounts Panel */
-  .cf-accounts-panel {
+  .accounts-panel {
     width: 280px;
-    min-width: 240px;
-    max-width: 320px;
+    min-width: 280px;
+    background: var(--card);
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border);
-    background: var(--card);
+    overflow: hidden;
   }
 
-  .accounts-header {
+  .panel-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -630,176 +625,33 @@
     border-bottom: 1px solid var(--border);
   }
 
-  .accounts-header h3 {
-    margin: 0;
+  .panel-header h3 {
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--foreground);
+    margin: 0;
   }
 
-  .account-count {
-    font-size: 0.75rem;
-    color: var(--muted-foreground);
-    background: var(--muted);
-    padding: 0.125rem 0.5rem;
-    border-radius: 9999px;
-  }
-
-  .totals-row {
+  .sort-btn {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0.75rem 1rem;
-    background: var(--muted);
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-
-  .totals-row:hover {
-    background: var(--accent);
-  }
-
-  .totals-row.selected {
-    background: var(--primary);
-    color: var(--primary-foreground);
-  }
-
-  .totals-row.selected .totals-count,
-  .totals-row.selected .totals-change {
-    color: var(--primary-foreground);
-    opacity: 0.8;
-  }
-
-  .totals-row.selected .totals-balance {
-    color: var(--primary-foreground);
-  }
-
-  .totals-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-  }
-
-  .totals-label {
-    font-size: 0.85rem;
-    font-weight: 600;
-  }
-
-  .totals-count {
-    font-size: 0.7rem;
-    color: var(--muted-foreground);
-  }
-
-  .totals-amounts {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.125rem;
-  }
-
-  .totals-balance {
-    font-size: 0.9rem;
-    font-weight: 600;
-    font-family: var(--font-family-mono);
-  }
-
-  .totals-change {
-    font-size: 0.7rem;
-    font-family: var(--font-family-mono);
-  }
-
-  .accounts-list {
-    flex: 1;
-    overflow-y: auto;
-  }
-
-  .account-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 0.625rem 1rem;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
     border: none;
     background: transparent;
-    cursor: pointer;
-    text-align: left;
-    border-bottom: 1px solid var(--border);
-    transition: background 0.15s;
-  }
-
-  .account-row:hover {
-    background: var(--accent);
-  }
-
-  .account-row.selected {
-    background: var(--primary);
-    color: var(--primary-foreground);
-  }
-
-  .account-row.selected .account-type-badge,
-  .account-row.selected .account-change {
-    color: var(--primary-foreground);
-    opacity: 0.8;
-  }
-
-  .account-row.selected .account-balance {
-    color: var(--primary-foreground);
-  }
-
-  .account-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-    overflow: hidden;
-  }
-
-  .account-name {
-    font-size: 0.8rem;
-    font-weight: 500;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .account-type-badge {
-    font-size: 0.65rem;
     color: var(--muted-foreground);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+    font-size: 0.7rem;
+    cursor: pointer;
+    border-radius: 4px;
   }
 
-  .account-type-badge.checking {
-    color: var(--info);
-  }
+  .sort-btn:hover { background: var(--accent); color: var(--foreground); }
 
-  .account-type-badge.savings {
-    color: var(--success);
-  }
-
-  .account-amounts {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.125rem;
-    flex-shrink: 0;
-  }
-
-  .account-balance {
-    font-size: 0.8rem;
-    font-weight: 500;
-    font-family: var(--font-family-mono);
-  }
-
-  .account-change {
-    font-size: 0.65rem;
-    font-family: var(--font-family-mono);
-  }
-
-  .accounts-summary {
+  /* Summary Card */
+  .summary-card {
     padding: 0.75rem 1rem;
-    border-top: 1px solid var(--border);
-    background: var(--muted);
+    background: var(--accent);
+    border-bottom: 1px solid var(--border);
   }
 
   .summary-row {
@@ -807,205 +659,256 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.25rem 0;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
   }
 
-  .summary-label {
+  .summary-row .label {
     color: var(--muted-foreground);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
   }
 
-  .summary-value {
+  .summary-row .value {
     font-family: var(--font-family-mono);
     font-weight: 500;
-  }
-
-  .summary-row.final {
-    padding-top: 0.5rem;
-    margin-top: 0.25rem;
-    border-top: 1px solid var(--border);
-    font-weight: 600;
-  }
-
-  .summary-row.final .summary-label {
     color: var(--foreground);
   }
 
-  /* Transactions Panel */
-  .cf-transactions-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: var(--background);
-  }
+  .summary-row.income .value { color: var(--success); }
+  .summary-row.expense .value { color: var(--destructive); }
+  .summary-row.final { border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.25rem; }
+  .summary-row.final .label { font-weight: 600; color: var(--foreground); }
+  .summary-row.final .value { font-size: 0.9rem; font-weight: 600; }
 
-  .transactions-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  /* Categories Summary */
+  .categories-summary {
     padding: 0.75rem 1rem;
-    background: var(--card);
     border-bottom: 1px solid var(--border);
   }
 
-  .transactions-header h3 {
-    margin: 0;
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--foreground);
-  }
-
-  .transaction-count {
+  .cat-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
     font-size: 0.75rem;
-    color: var(--muted-foreground);
-    background: var(--muted);
-    padding: 0.125rem 0.5rem;
-    border-radius: 9999px;
   }
 
-  .transactions-list {
-    flex: 1;
-    overflow-y: auto;
-  }
-
-  .empty-state {
+  .cat-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 3rem;
-    color: var(--muted-foreground);
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
   }
 
-  /* Transactions Table */
+  .cat-icon.income { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+  .cat-icon.expense { background: rgba(239, 68, 68, 0.15); color: var(--destructive); }
+  .cat-icon.cc { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+  .cat-icon.savings { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+  .cat-icon.interest { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+
+  .cat-label { flex: 1; color: var(--muted-foreground); }
+  .cat-value { font-family: var(--font-family-mono); font-weight: 500; }
+  .cat-value.income { color: var(--success); }
+  .cat-value.expense { color: var(--destructive); }
+  .cat-value.cc { color: #a855f7; }
+  .cat-value.savings { color: #3b82f6; }
+
+  /* Account List */
+  .accounts-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+  }
+
+  .account-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+  }
+
+  .account-item:hover { background: var(--accent); }
+  .account-item.selected { background: var(--primary); }
+  .account-item.selected .acc-name,
+  .account-item.selected .acc-balance,
+  .account-item.selected .acc-change { color: white; }
+  .account-item.selected .acc-type { background: rgba(255,255,255,0.2); color: white; }
+  .account-item.closed { opacity: 0.5; }
+
+  .acc-info { display: flex; flex-direction: column; gap: 0.125rem; }
+  .acc-name { font-size: 0.8rem; font-weight: 500; color: var(--foreground); }
+  .acc-type {
+    font-size: 0.65rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    width: fit-content;
+  }
+  .acc-type.checking { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+  .acc-type.savings { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+
+  .acc-amounts { display: flex; flex-direction: column; align-items: flex-end; gap: 0.125rem; }
+  .acc-balance { font-family: var(--font-family-mono); font-size: 0.8rem; font-weight: 600; }
+  .acc-change { font-family: var(--font-family-mono); font-size: 0.7rem; }
+  .positive { color: var(--success); }
+  .negative { color: var(--destructive); }
+
+  /* Transactions Panel */
+  .transactions-panel {
+    flex: 1;
+    background: var(--card);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .tx-count {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    background: var(--accent);
+    padding: 0.125rem 0.5rem;
+    border-radius: 10px;
+  }
+
+  .table-container {
+    flex: 1;
+    overflow: auto;
+  }
+
   .tx-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
   }
 
   .tx-table th {
     position: sticky;
     top: 0;
-    text-align: left;
-    padding: 0.625rem 0.75rem;
     background: var(--card);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid var(--border);
+    padding: 0.625rem 0.75rem;
+    text-align: left;
     font-weight: 600;
+    font-size: 0.75rem;
     color: var(--muted-foreground);
-    font-size: 0.7rem;
     text-transform: uppercase;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.025em;
+    white-space: nowrap;
   }
 
   .tx-table td {
-    padding: 0.5rem 0.75rem;
+    padding: 0.625rem 0.75rem;
     border-bottom: 1px solid var(--border);
     color: var(--foreground);
   }
 
-  .tx-table tr:hover td {
-    background: var(--accent);
-  }
+  .tx-row:hover { background: var(--accent); }
+  .tx-row.transfer { background: rgba(59, 130, 246, 0.05); }
 
-  .col-date {
-    width: 80px;
-    white-space: nowrap;
-  }
-
-  .col-account {
-    width: 120px;
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .col-payee {
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .col-category {
-    max-width: 150px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    color: var(--muted-foreground);
-  }
-
-  .col-amount {
-    width: 100px;
-    text-align: right;
+  .col-date { width: 80px; white-space: nowrap; }
+  .col-account { width: 120px; }
+  .col-payee { min-width: 150px; }
+  .col-category { min-width: 120px; color: var(--muted-foreground); }
+  .col-type { width: 80px; }
+  .col-outflow, .col-inflow { 
+    width: 100px; 
+    text-align: right; 
     font-family: var(--font-family-mono);
     font-weight: 500;
-    white-space: nowrap;
+  }
+  .col-outflow { color: var(--destructive); }
+  .col-inflow { color: var(--success); }
+
+  .transfer-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    background: rgba(59, 130, 246, 0.15);
+    color: #3b82f6;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    margin-right: 0.5rem;
   }
 
-  .positive {
-    color: var(--success);
+  .type-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 500;
+    text-transform: uppercase;
   }
 
-  .negative {
-    color: var(--destructive);
-  }
+  .type-badge.income { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+  .type-badge.expense { background: rgba(239, 68, 68, 0.15); color: var(--destructive); }
+  .type-badge.cc_payment { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
+  .type-badge.savings_transfer { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+  .type-badge.interest { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+  .type-badge.other { background: var(--accent); color: var(--muted-foreground); }
 
-  .zero {
+  .empty-state {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: var(--muted-foreground);
   }
 
-  /* Load More */
   .load-more {
     padding: 1rem;
     text-align: center;
   }
 
-  .load-more-btn {
-    padding: 0.5rem 1rem;
-    background: var(--muted);
-    color: var(--foreground);
+  .load-more button {
+    padding: 0.5rem 1.5rem;
     border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--foreground);
     border-radius: 6px;
-    font-size: 0.8rem;
     cursor: pointer;
-    transition: all 0.15s;
+    font-size: 0.8rem;
   }
 
-  .load-more-btn:hover {
-    background: var(--accent);
-    border-color: var(--primary);
-  }
+  .load-more button:hover { background: var(--accent); }
 
-  /* Mobile */
+  /* Responsive */
   @media (max-width: 768px) {
-    .cf-header {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .cf-nav {
-      justify-content: center;
-    }
-
-    .cf-filters {
-      justify-content: center;
-    }
-
-    .cf-main {
+    .cf-content {
       flex-direction: column;
     }
-
-    .cf-accounts-panel {
+    
+    .accounts-panel {
       width: 100%;
-      max-width: none;
+      min-width: unset;
       max-height: 40vh;
-      border-right: none;
-      border-bottom: 1px solid var(--border);
     }
-
-    .col-account {
-      display: none;
+    
+    .accounts-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      padding: 0.5rem;
     }
+    
+    .account-item {
+      flex: 1 1 calc(50% - 0.25rem);
+      min-width: 140px;
+    }
+    
+    .col-account { display: none; }
+    .col-category { display: none; }
+    .col-type { display: none; }
   }
 </style>
