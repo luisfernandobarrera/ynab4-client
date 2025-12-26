@@ -570,18 +570,28 @@
   // Calculate running balance
   const transactionsWithBalance = $derived.by(() => {
     if (!$selectedAccountId) {
-      // Sort by date based on sortOrder
+      // Sort by date based on sortOrder, same date: inflows before outflows
       const sorted = [...filteredTransactions].sort((a, b) => {
-        const cmp = (a.date || '').localeCompare(b.date || '');
-        return sortOrder === 'desc' ? -cmp : cmp;
+        const dateCompare = (a.date || '').localeCompare(b.date || '');
+        if (dateCompare !== 0) return sortOrder === 'desc' ? -dateCompare : dateCompare;
+        const amountOrder = (a.amount >= 0 && b.amount < 0) ? -1 : (a.amount < 0 && b.amount >= 0) ? 1 : 0;
+        return sortOrder === 'desc' ? -amountOrder : amountOrder;
       });
       return sorted.map(tx => ({ ...tx, runningBalance: 0 }));
     }
     
     // Get all transactions for this account sorted by date ascending (for running balance)
+    // On same date: inflows before outflows to avoid negative intermediate balances
     const accountTxs = [...$transactions]
       .filter(tx => tx.accountId === $selectedAccountId)
-      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      .sort((a, b) => {
+        const dateCompare = (a.date || '').localeCompare(b.date || '');
+        if (dateCompare !== 0) return dateCompare;
+        // Same date: deposits (positive) before expenses (negative)
+        if (a.amount >= 0 && b.amount < 0) return -1;
+        if (a.amount < 0 && b.amount >= 0) return 1;
+        return 0;
+      });
     
     let runningBalance = 0;
     const balanceMap = new Map<string, number>();
@@ -598,9 +608,13 @@
     }));
     
     // Sort by date based on sortOrder
+    // Same date: maintain inflows before outflows order for ASC, reverse for DESC
     withBalance.sort((a, b) => {
-      const cmp = (a.date || '').localeCompare(b.date || '');
-      return sortOrder === 'desc' ? -cmp : cmp;
+      const dateCompare = (a.date || '').localeCompare(b.date || '');
+      if (dateCompare !== 0) return sortOrder === 'desc' ? -dateCompare : dateCompare;
+      // Same date: in DESC mode, outflows first (reverse of ASC)
+      const amountOrder = (a.amount >= 0 && b.amount < 0) ? -1 : (a.amount < 0 && b.amount >= 0) ? 1 : 0;
+      return sortOrder === 'desc' ? -amountOrder : amountOrder;
     });
     
     return withBalance;
