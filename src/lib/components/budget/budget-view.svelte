@@ -74,31 +74,39 @@
     return months;
   });
 
-  // Get years with data
+  // Get years with data - primarily from transactions, limited range from budgets
   const yearsWithData = $derived.by(() => {
-    const years = new Set<number>();
+    const transactionYears = new Set<number>();
+    const budgetYears = new Set<number>();
+    const thisYear = currentDate.getFullYear();
     
+    // Get years from actual transactions
     $rawTransactions?.forEach(tx => {
       if (tx.date) {
         const year = parseInt(tx.date.slice(0, 4));
         if (!isNaN(year) && year > 1990 && year < 2100) {
-          years.add(year);
+          transactionYears.add(year);
         }
       }
     });
     
+    // Get years from monthly budgets (but limit to sensible range)
     $monthlyBudgets?.forEach(mb => {
-      const monthStr = mb.month || mb.entityId || '';
-      if (monthStr) {
+      const monthStr = mb.month || '';
+      if (monthStr && monthStr.match(/^\d{4}-\d{2}/)) {
         const year = parseInt(monthStr.slice(0, 4));
-        if (!isNaN(year) && year > 1990 && year < 2100) {
-          years.add(year);
+        // Only include budget years within 2 years of transaction data or current year
+        if (!isNaN(year) && year > 1990 && year <= thisYear + 2) {
+          budgetYears.add(year);
         }
       }
     });
+    
+    // Combine: all transaction years + budget years within sensible range
+    const years = new Set([...transactionYears, ...budgetYears]);
     
     if (years.size === 0) {
-      years.add(currentDate.getFullYear());
+      years.add(thisYear);
     }
     
     return Array.from(years).sort((a, b) => b - a);
