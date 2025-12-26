@@ -11,11 +11,13 @@
     Settings,
     Home,
     Menu,
-    X
+    X,
+    PlusCircle
   } from 'lucide-svelte';
   import { budgetInfo, currentView, resetBudget } from '$lib/stores/budget';
   import { isMobile } from '$lib/stores/ui';
   import { t } from '$lib/i18n';
+  import { EditModeToggle } from '$lib/components/edit-mode';
 
   interface Props {
     open?: boolean;
@@ -33,6 +35,7 @@
     { id: 'reports', icon: BarChart3, label: $t('nav.reports') },
     { id: 'payees', icon: Users, label: $t('nav.payees') },
     { id: 'import', icon: Upload, label: $t('nav.import') },
+    { id: 'createAccount', icon: PlusCircle, label: $t('nav.createAccount') },
     { id: 'settings', icon: Settings, label: $t('nav.settings') },
   ]);
 
@@ -85,6 +88,10 @@
   </div>
 
   {#if $budgetInfo.client}
+    <div class="edit-mode-section">
+      <EditModeToggle compact={!open} />
+    </div>
+    
     <nav class="sidebar-nav">
       <ul class="sidebar-menu">
         {#each menuItems as item}
@@ -212,6 +219,17 @@
   .hamburger-btn:hover {
     background: var(--accent);
     color: var(--foreground);
+  }
+
+  .edit-mode-section {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar.collapsed .edit-mode-section {
+    padding: 0.75rem 0.5rem;
+    display: flex;
+    justify-content: center;
   }
 
   .sidebar-nav {

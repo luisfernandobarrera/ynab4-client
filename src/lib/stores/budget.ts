@@ -29,6 +29,13 @@ export interface Transaction {
   accountId: string;
   accountName: string;
   transferAccountId: string | null;
+  subTransactions?: Array<{
+    entityId?: string;
+    categoryId?: string;
+    amount?: number;
+    memo?: string;
+    payeeId?: string;
+  }>;
 }
 
 export interface Category {
@@ -39,6 +46,8 @@ export interface Category {
   budgeted: number;
   activity: number;
   balance: number;
+  sortableIndex?: number;
+  isTombstone?: boolean;
 }
 
 export interface MasterCategory {
@@ -52,6 +61,7 @@ export interface Payee {
   id: string;
   entityId: string;
   name: string;
+  isTombstone?: boolean;
 }
 
 export interface ScheduledTransaction {
@@ -65,6 +75,47 @@ export interface ScheduledTransaction {
   accountId: string;
   memo: string;
   flag: string | null;
+}
+
+export interface MonthlySubCategoryBudget {
+  categoryId: string;
+  budgeted: number;
+  isTombstone?: boolean;
+}
+
+export interface MonthlyBudget {
+  month: string;
+  entityId: string;
+  monthlySubCategoryBudgets: MonthlySubCategoryBudget[];
+}
+
+export interface RawCategory {
+  entityId: string;
+  name: string;
+  masterCategoryId: string;
+  isTombstone?: boolean;
+  sortableIndex?: number;
+}
+
+export interface RawMasterCategory {
+  entityId: string;
+  name: string;
+  type?: string;
+  isTombstone?: boolean;
+  sortableIndex?: number;
+}
+
+export interface RawTransaction {
+  entityId: string;
+  date: string;
+  amount: number;
+  categoryId?: string;
+  isTombstone?: boolean;
+  subTransactions?: Array<{
+    categoryId?: string;
+    amount?: number;
+    isTombstone?: boolean;
+  }>;
 }
 
 export interface BudgetInfo {
@@ -94,6 +145,10 @@ export const categories = writable<Category[]>([]);
 export const masterCategories = writable<MasterCategory[]>([]);
 export const payees = writable<Payee[]>([]);
 export const scheduledTransactions = writable<ScheduledTransaction[]>([]);
+export const monthlyBudgets = writable<MonthlyBudget[]>([]);
+export const rawCategories = writable<RawCategory[]>([]);
+export const rawMasterCategories = writable<RawMasterCategory[]>([]);
+export const rawTransactions = writable<RawTransaction[]>([]);
 
 export const isLoading = writable(false);
 export const loadError = writable<string | null>(null);
@@ -146,6 +201,10 @@ export function resetBudget() {
   masterCategories.set([]);
   payees.set([]);
   scheduledTransactions.set([]);
+  monthlyBudgets.set([]);
+  rawCategories.set([]);
+  rawMasterCategories.set([]);
+  rawTransactions.set([]);
   selectedAccountId.set(null);
   loadError.set(null);
 }
@@ -266,6 +325,7 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
         accountId: tx.accountId as string,
         accountName: (accountMap.get(tx.accountId as string) as string) || '',
         transferAccountId: tx.transferAccountId as string | null,
+        subTransactions: tx.subTransactions as Transaction['subTransactions'],
       }))
       .sort((a, b) => b.date.localeCompare(a.date))
   );
@@ -274,9 +334,59 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const masterCategoryList: any[] = client.getMasterCategories() || [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const monthlyBudgets: any[] = (client as any).getMonthlyBudgets?.(currentMonth) || [];
+  const monthlyBudgetList: any[] = (client as any).getMonthlyBudgets?.() || [];
   const budgetMap = new Map(
-    monthlyBudgets.map((b) => [b.categoryId, b])
+    monthlyBudgetList
+      .filter((mb: any) => (mb.month || mb.entityId || '').startsWith(currentMonth))
+      .flatMap((mb: any) => (mb.monthlySubCategoryBudgets || []).map((b: any) => [b.categoryId, b]))
+  );
+
+  // Store raw data for budget calculations
+  rawCategories.set(
+    categoryList.map((c) => ({
+      entityId: c.entityId as string,
+      name: c.name as string,
+      masterCategoryId: c.masterCategoryId as string,
+      isTombstone: c.isTombstone as boolean | undefined,
+      sortableIndex: c.sortableIndex as number | undefined,
+    }))
+  );
+
+  rawMasterCategories.set(
+    masterCategoryList.map((mc) => ({
+      entityId: mc.entityId as string,
+      name: mc.name as string,
+      type: mc.type as string | undefined,
+      isTombstone: mc.isTombstone as boolean | undefined,
+      sortableIndex: mc.sortableIndex as number | undefined,
+    }))
+  );
+
+  rawTransactions.set(
+    txList.map((tx) => ({
+      entityId: tx.entityId as string,
+      date: tx.date as string,
+      amount: (tx.amount as number) || 0,
+      categoryId: (tx.categoryId as string) || undefined,
+      isTombstone: tx.isTombstone as boolean | undefined,
+      subTransactions: tx.subTransactions as Array<{
+        categoryId?: string;
+        amount?: number;
+        isTombstone?: boolean;
+      }> | undefined,
+    }))
+  );
+
+  monthlyBudgets.set(
+    monthlyBudgetList.map((mb: any) => ({
+      month: (mb.month || mb.entityId || '').substring(0, 7) as string,
+      entityId: mb.entityId as string,
+      monthlySubCategoryBudgets: (mb.monthlySubCategoryBudgets || []).map((b: any) => ({
+        categoryId: b.categoryId as string,
+        budgeted: (b.budgeted as number) || 0,
+        isTombstone: b.isTombstone as boolean | undefined,
+      })),
+    }))
   );
 
   const masters: MasterCategory[] = [];

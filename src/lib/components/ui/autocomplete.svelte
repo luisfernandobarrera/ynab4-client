@@ -25,11 +25,16 @@
     class: className = ''
   }: Props = $props();
 
-  let inputValue = $state(value);
+  let inputValue = $state('');
   let isOpen = $state(false);
   let highlightedIndex = $state(-1);
-  let inputRef: HTMLInputElement;
-  let listRef: HTMLDivElement;
+  let inputRef = $state<HTMLInputElement | null>(null);
+  let listRef = $state<HTMLDivElement | null>(null);
+  
+  // Sync inputValue when value prop changes
+  $effect(() => {
+    inputValue = value;
+  });
 
   // Filter options based on input
   const filteredOptions = $derived.by(() => {

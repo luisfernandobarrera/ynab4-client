@@ -13,7 +13,7 @@
 
   let { startDate, endDate }: Props = $props();
 
-  let canvas: HTMLCanvasElement;
+  let canvas = $state<HTMLCanvasElement | null>(null);
   let chart: Chart | null = null;
 
   // Calculate spending by master category

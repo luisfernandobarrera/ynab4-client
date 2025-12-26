@@ -21,7 +21,7 @@
     children,
   }: Props = $props();
 
-  let menuRef: HTMLDivElement | null = null;
+  let menuRef = $state<HTMLDivElement | null>(null);
 
   // Position the menu
   $effect(() => {

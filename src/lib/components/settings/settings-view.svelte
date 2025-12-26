@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { FolderOpen, Plus, Trash2, Cloud, HardDrive } from 'lucide-svelte';
+  import { FolderOpen, Plus, Trash2, Cloud, HardDrive, Smartphone, Copy, Check } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { t } from '$lib/i18n';
   import { isTauri, getDropboxPath } from '$lib/services';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
+  import { budgetInfo } from '$lib/stores/budget';
+  import { getDeviceInfo } from '$lib/services/budget-sync';
   import ThemeToggle from './theme-toggle.svelte';
 
   // Settings stored in localStorage
@@ -12,6 +14,20 @@
   let isDesktop = $state(false);
   let isDropboxConnected = $state(false);
   let dropboxPath = $state<string | null>(null);
+  let copiedField = $state<string | null>(null);
+  
+  // Derived device info
+  let deviceInfo = $derived(getDeviceInfo());
+  let hasBudget = $derived($budgetInfo.client !== null);
+  
+  function copyToClipboard(text: string | undefined, field: string) {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    copiedField = field;
+    setTimeout(() => {
+      copiedField = null;
+    }, 2000);
+  }
 
   onMount(async () => {
     isDesktop = isTauri();
@@ -97,6 +113,79 @@
       <ThemeToggle />
     </div>
   </section>
+
+  <!-- Device Info (only when budget is loaded) -->
+  {#if hasBudget && deviceInfo}
+    <section class="space-y-3 p-4 rounded-xl bg-[var(--card)] border border-[var(--border)]">
+      <div class="flex items-center gap-2">
+        <Smartphone class="h-5 w-5 text-[var(--primary)]" />
+        <h2 class="font-semibold text-[var(--foreground)]">{$t('settings.deviceInfo') || 'Información del Dispositivo'}</h2>
+      </div>
+      <p class="text-sm text-[var(--muted-foreground)]">
+        {$t('settings.deviceInfoDescription') || 'Identificadores de este dispositivo para el presupuesto actual'}
+      </p>
+      
+      <div class="space-y-2">
+        <!-- Short Device ID -->
+        <div class="flex items-center justify-between p-3 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+          <div>
+            <span class="text-xs text-[var(--muted-foreground)] uppercase tracking-wide">Short ID</span>
+            <div class="font-mono text-lg font-bold text-[var(--primary)]">{deviceInfo.shortDeviceId || 'N/A'}</div>
+          </div>
+          <button
+            onclick={() => copyToClipboard(deviceInfo?.shortDeviceId, 'shortId')}
+            class="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors text-[var(--muted-foreground)]"
+            title="Copy"
+          >
+            {#if copiedField === 'shortId'}
+              <Check class="h-4 w-4 text-[var(--success)]" />
+            {:else}
+              <Copy class="h-4 w-4" />
+            {/if}
+          </button>
+        </div>
+        
+        <!-- Device GUID -->
+        <div class="flex items-center justify-between p-3 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+          <div class="flex-1 min-w-0">
+            <span class="text-xs text-[var(--muted-foreground)] uppercase tracking-wide">Device GUID</span>
+            <div class="font-mono text-sm text-[var(--foreground)] truncate" title={deviceInfo.deviceGUID || ''}>
+              {deviceInfo.deviceGUID || 'N/A'}
+            </div>
+          </div>
+          <button
+            onclick={() => copyToClipboard(deviceInfo?.deviceGUID, 'guid')}
+            class="p-2 rounded-lg hover:bg-[var(--accent)] transition-colors text-[var(--muted-foreground)] shrink-0 ml-2"
+            title="Copy"
+          >
+            {#if copiedField === 'guid'}
+              <Check class="h-4 w-4 text-[var(--success)]" />
+            {:else}
+              <Copy class="h-4 w-4" />
+            {/if}
+          </button>
+        </div>
+        
+        <!-- Mode indicator -->
+        <div class="flex items-center gap-2 p-3 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+          <span class="text-xs text-[var(--muted-foreground)] uppercase tracking-wide">{$t('settings.mode') || 'Modo'}:</span>
+          {#if $budgetInfo.canWrite}
+            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-[var(--success)]/20 text-[var(--success)]">
+              {$t('editMode.editing') || 'Edición'}
+            </span>
+          {:else}
+            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-[var(--muted)]/20 text-[var(--muted-foreground)]">
+              {$t('editMode.readOnly') || 'Solo Lectura'}
+            </span>
+          {/if}
+        </div>
+      </div>
+      
+      <p class="text-xs text-[var(--muted-foreground)]">
+        {$t('settings.deviceNote') || 'Estos identificadores son únicos para este dispositivo en el presupuesto actual. El Short ID se usa para la sincronización YNAB4.'}
+      </p>
+    </section>
+  {/if}
 
   <!-- Dropbox -->
   <section class="space-y-3 p-4 rounded-xl bg-[var(--card)] border border-[var(--border)]">

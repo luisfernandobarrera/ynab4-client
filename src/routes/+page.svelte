@@ -9,6 +9,11 @@
   import { ScheduledList } from '$lib/components/scheduled';
   import { ReportsView } from '$lib/components/reports';
   import { SettingsView, ThemeToggle } from '$lib/components/settings';
+  import { ReconciliationView } from '$lib/components/reconciliation';
+  import { CashFlowView } from '$lib/components/cashflow';
+  import { PayeesView } from '$lib/components/payees';
+  import { EditModeWarning } from '$lib/components/edit-mode';
+  import { CreateAccountView } from '$lib/components/accounts';
   import { budgetInfo, currentView, isLoading, loadFromLocal, loadFromDropbox } from '$lib/stores/budget';
   import { activeModal, openModal, closeModal, isMobile } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
@@ -341,25 +346,21 @@
   {:else if $currentView === 'budget'}
     <BudgetView />
   {:else if $currentView === 'reconciliation'}
-    <div class="p-4 text-center text-[var(--muted-foreground)]">
-      <p>{$t('common.comingSoon')}</p>
-    </div>
+    <ReconciliationView />
   {:else if $currentView === 'scheduled'}
     <ScheduledList />
   {:else if $currentView === 'cashflow'}
-    <div class="p-4 text-center text-[var(--muted-foreground)]">
-      <p>{$t('common.comingSoon')}</p>
-    </div>
+    <CashFlowView />
   {:else if $currentView === 'reports'}
     <ReportsView />
   {:else if $currentView === 'payees'}
-    <div class="p-4 text-center text-[var(--muted-foreground)]">
-      <p>{$t('common.comingSoon')}</p>
-    </div>
+    <PayeesView />
   {:else if $currentView === 'import'}
     <div class="p-4 text-center text-[var(--muted-foreground)]">
       <p>{$t('common.comingSoon')}</p>
     </div>
+  {:else if $currentView === 'createAccount'}
+    <CreateAccountView />
   {:else if $currentView === 'settings'}
     <SettingsView />
   {:else}
@@ -471,4 +472,7 @@
   onClose={() => (showTransactionEntry = false)}
   onSave={handleSaveTransaction}
 />
+
+<!-- Edit Mode Warning Modal -->
+<EditModeWarning />
 

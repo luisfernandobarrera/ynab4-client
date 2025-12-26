@@ -5,8 +5,8 @@
   import { AccountsPanel } from '$lib/components/accounts';
   import DateNavigation from './date-navigation.svelte';
   import Autocomplete from '$lib/components/ui/autocomplete.svelte';
-  import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories } from '$lib/stores/budget';
-  import { isMobile } from '$lib/stores/ui';
+  import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories, budgetInfo } from '$lib/stores/budget';
+  import { isMobile, isEditMode, addPendingChange, addToast } from '$lib/stores/ui';
   import { formatCurrency } from '$lib/utils';
   import { t } from '$lib/i18n';
 
@@ -248,6 +248,56 @@
     });
   }
 
+  // Parse flexible date input (supports dd/mm, dd/mm/yyyy, yyyy-mm-dd)
+  function parseDateInput(input: string): string {
+    if (!input) return new Date().toISOString().split('T')[0];
+
+    // Already in ISO format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+      return input;
+    }
+
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+
+    // dd/mm format - assume current year
+    if (/^\d{1,2}\/\d{1,2}$/.test(input)) {
+      const [day, month] = input.split('/').map(Number);
+      return `${currentYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+
+    // dd/mm/yyyy or dd/mm/yy format
+    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(input)) {
+      const [day, month, year] = input.split('/').map(Number);
+      const fullYear = year < 100 ? 2000 + year : year;
+      return `${fullYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+
+    // mm-dd-yyyy format (US)
+    if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(input)) {
+      const [month, day, year] = input.split('-').map(Number);
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+
+    // Fallback: try to parse as Date
+    const date = new Date(input);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+
+    // Return as-is if we can't parse
+    return input;
+  }
+
+  function getCategoryNameById(categoryId: string): string {
+    const cat = $categories.find(c => c.entityId === categoryId);
+    if (!cat) return '';
+    if (cat.masterCategoryName) {
+      return `${cat.masterCategoryName}: ${cat.name}`;
+    }
+    return cat.name;
+  }
+
   function getStatusClass(cleared: string): string {
     switch (cleared) {
       case 'Reconciled': return 'reconciled';
@@ -335,10 +385,93 @@
   }
 
   function saveEntry() {
-    // TODO: Implement save
+    // Check if edit mode is enabled
+    if (!$isEditMode) {
+      addToast({ type: 'warning', message: 'Enable edit mode to add transactions' });
+      return;
+    }
+
+    const client = $budgetInfo.client;
+    if (!client) {
+      addToast({ type: 'error', message: 'No budget loaded' });
+      return;
+    }
+
     const accountId = selectedAccount?.id || $accounts[0]?.id;
-    console.log('Save entry:', { entryDate, accountId, entryPayee, entryCategory, entryMemo, entryOutflow, entryInflow, entryFlag });
-    isEditing = false;
+    if (!accountId) {
+      addToast({ type: 'error', message: 'Please select an account' });
+      return;
+    }
+
+    // Parse amounts
+    const outflowAmount = entryOutflow ? parseFloat(entryOutflow) : 0;
+    const inflowAmount = entryInflow ? parseFloat(entryInflow) : 0;
+    const amount = inflowAmount - outflowAmount;
+
+    // Parse date (support flexible formats)
+    const parsedDate = parseDateInput(entryDate);
+
+    // Find or create payee
+    let payeeId: string | undefined;
+    if (entryPayee) {
+      const existingPayee = $payees.find(p => p.name === entryPayee);
+      payeeId = existingPayee?.entityId;
+      // If payee doesn't exist, it will be created when syncing
+    }
+
+    // Find category
+    let categoryId: string | undefined;
+    if (entryCategory) {
+      const cat = $categories.find(c => c.name === entryCategory);
+      categoryId = cat?.entityId;
+    }
+
+    try {
+      // Create the transaction via YnabClient
+      const txData = {
+        date: parsedDate,
+        amount,
+        accountId,
+        payeeId,
+        categoryId,
+        memo: entryMemo || undefined,
+        flagColor: entryFlag || undefined,
+        cleared: 'Uncleared' as const
+      };
+
+      client.createTransaction(txData);
+
+      // Track as pending change
+      addPendingChange({
+        type: 'transaction',
+        action: 'create',
+        entityId: 'new-' + Date.now(),
+        entityName: entryPayee || 'New Transaction',
+        data: txData
+      });
+
+      addToast({ type: 'success', message: 'Transaction added' });
+
+      // Reset form
+      resetEntry();
+      isEditing = false;
+
+      // Refresh transactions from store (client already updated the data)
+      // In a real implementation, we would reload from the client
+    } catch (error) {
+      console.error('Failed to create transaction:', error);
+      addToast({ type: 'error', message: 'Failed to add transaction' });
+    }
+  }
+
+  function resetEntry() {
+    entryDate = new Date().toISOString().split('T')[0];
+    entryPayee = '';
+    entryCategory = '';
+    entryMemo = '';
+    entryOutflow = '';
+    entryInflow = '';
+    entryFlag = null;
   }
   
   // Start editing an existing transaction
@@ -369,10 +502,91 @@
   function saveEdit() {
     if (!editingTxId || !editTx) return;
     
-    // TODO: Implement save to budget
-    console.log('Save edit:', editingTxId, editTx);
+    // Store local reference to avoid null checks
+    const txId = editingTxId;
+    const txData = editTx;
     
-    cancelEdit();
+    // Check if edit mode is enabled
+    if (!$isEditMode) {
+      addToast({ type: 'warning', message: 'Enable edit mode to edit transactions' });
+      return;
+    }
+
+    const client = $budgetInfo.client;
+    if (!client) {
+      addToast({ type: 'error', message: 'No budget loaded' });
+      return;
+    }
+
+    // Parse amounts
+    const outflowAmount = txData.outflow ? parseFloat(txData.outflow) : 0;
+    const inflowAmount = txData.inflow ? parseFloat(txData.inflow) : 0;
+    const amount = inflowAmount - outflowAmount;
+
+    // Parse date
+    const parsedDate = parseDateInput(txData.date);
+
+    // Find payee
+    let payeeId: string | undefined;
+    if (txData.payee) {
+      const existingPayee = $payees.find(p => p.name === txData.payee);
+      payeeId = existingPayee?.entityId;
+    }
+
+    // Find category
+    let categoryId: string | undefined;
+    if (txData.category) {
+      const cat = $categories.find(c => c.name === txData.category);
+      categoryId = cat?.entityId;
+    }
+
+    try {
+      // Get the transaction from the client
+      const allTx = client.getTransactions() as Array<{
+        entityId: string;
+        date: string;
+        amount: number;
+        payeeId?: string;
+        categoryId?: string;
+        memo?: string;
+        flagColor?: string;
+        accountId?: string;
+      }>;
+      const tx = allTx.find(t => t.entityId === txId);
+      
+      if (tx) {
+        // Update transaction properties
+        (tx as any).date = parsedDate;
+        (tx as any).amount = amount;
+        (tx as any).payeeId = payeeId;
+        (tx as any).categoryId = categoryId;
+        (tx as any).memo = txData.memo;
+        (tx as any).flagColor = txData.flag;
+
+        // Track as pending change
+        addPendingChange({
+          type: 'transaction',
+          action: 'update',
+          entityId: txId,
+          entityName: txData.payee || 'Transaction',
+          data: {
+            date: parsedDate,
+            amount,
+            payeeId,
+            categoryId,
+            memo: txData.memo,
+            flagColor: txData.flag
+          }
+        });
+
+        addToast({ type: 'success', message: 'Transaction updated' });
+      }
+
+      cancelEdit();
+    } catch (error) {
+      console.error('Failed to update transaction:', error);
+      addToast({ type: 'error', message: 'Failed to update transaction' });
+    }
   }
   
   function handleEditKeydown(e: KeyboardEvent) {
@@ -437,7 +651,7 @@
     }
   }
 
-  const hasDateFilter = $derived(datePreset !== 'all');
+  const hasDateFilter = $derived(!showAllDates);
 </script>
 
 <div class="transactions-view">
@@ -579,6 +793,7 @@
                       class="flag-tag {entryFlag ? `flag-${entryFlag}` : 'flag-empty'}"
                       onclick={() => showFlagPicker = showFlagPicker === 'entry' ? null : 'entry'}
                       type="button"
+                      aria-label="Select flag"
                     ></button>
                     {#if showFlagPicker === 'entry'}
                       <div class="flag-picker">
@@ -586,12 +801,14 @@
                           class="flag-option flag-none" 
                           onclick={() => { entryFlag = null; showFlagPicker = null; }}
                           type="button"
+                          aria-label="Clear flag"
                         >✕</button>
                         {#each FLAG_COLORS as color}
                           <button
                             class="flag-option flag-{color}"
                             onclick={() => { entryFlag = color; showFlagPicker = null; }}
                             type="button"
+                            aria-label="Flag {color}"
                           ></button>
                         {/each}
                       </div>
@@ -713,22 +930,25 @@
                 <td class="col-flag">
                   <div class="flag-tag-wrapper">
                     <button 
-                      class="flag-tag {editTx.flag ? `flag-${editTx.flag}` : 'flag-empty'}"
+                      class="flag-tag {editTx?.flag ? `flag-${editTx.flag}` : 'flag-empty'}"
                       onclick={() => showFlagPicker = showFlagPicker === `edit-${tx.id}` ? null : `edit-${tx.id}`}
                       type="button"
+                      aria-label="Select flag"
                     ></button>
                     {#if showFlagPicker === `edit-${tx.id}`}
                       <div class="flag-picker">
                         <button 
                           class="flag-option flag-none" 
-                          onclick={() => { editTx.flag = null; showFlagPicker = null; }}
+                          onclick={() => { if (editTx) editTx.flag = null; showFlagPicker = null; }}
                           type="button"
+                          aria-label="Clear flag"
                         >✕</button>
                         {#each FLAG_COLORS as color}
                           <button
                             class="flag-option flag-{color}"
-                            onclick={() => { editTx.flag = color; showFlagPicker = null; }}
+                            onclick={() => { if (editTx) editTx.flag = color; showFlagPicker = null; }}
                             type="button"
+                            aria-label="Flag {color}"
                           ></button>
                         {/each}
                       </div>
@@ -739,7 +959,7 @@
                   <input 
                     type="text" 
                     class="inline-input" 
-                    bind:value={editTx.date}
+                    bind:value={editTx!.date}
                     onkeydown={handleEditKeydown}
                   />
                 </td>
@@ -749,25 +969,25 @@
                 <td class="col-payee">
                   <Autocomplete
                     options={payeeOptions}
-                    value={editTx.payee}
+                    value={editTx!.payee}
                     placeholder={$t('transactions.payee')}
-                    onSelect={(v) => editTx.payee = v}
-                    onCreate={(v) => editTx.payee = v}
+                    onSelect={(v) => { if (editTx) editTx.payee = v; }}
+                    onCreate={(v) => { if (editTx) editTx.payee = v; }}
                   />
                 </td>
                 <td class="col-category">
                   <div class="category-entry">
                     <Autocomplete
                       options={categoryOptions}
-                      value={editTx.category}
+                      value={editTx!.category}
                       placeholder={$t('transactions.category')}
-                      onSelect={(v) => editTx.category = v}
+                      onSelect={(v) => { if (editTx) editTx.category = v; }}
                     />
                     <input 
                       type="text" 
                       class="inline-input memo-input" 
                       placeholder={$t('transactions.memo')}
-                      bind:value={editTx.memo}
+                      bind:value={editTx!.memo}
                       onkeydown={handleEditKeydown}
                     />
                   </div>
@@ -884,30 +1104,26 @@
                         <span class="split-col-inflow">{$t('transactions.inflow')}</span>
                       </div>
                       {#each tx.subTransactions || [] as split, index}
-                        {@const splitIsOutflow = split.amount < 0}
-                        {@const splitIsInflow = split.amount > 0}
-                        {@const splitCategoryParts = (split.category || '').split(': ')}
+                        {@const splitAmount = split.amount ?? 0}
+                        {@const splitIsOutflow = splitAmount < 0}
+                        {@const splitIsInflow = splitAmount > 0}
+                        {@const splitCategoryName = getCategoryNameById(split.categoryId || '')}
+                        {@const splitCategoryParts = (splitCategoryName || '').split(': ')}
                         {@const splitSubCategory = splitCategoryParts.length > 1 ? splitCategoryParts[1] : splitCategoryParts[0]}
                         {@const splitMasterCategory = splitCategoryParts.length > 1 ? splitCategoryParts[0] : ''}
                         <div class="split-row">
                           <span class="split-col-category">
-                            {#if split.transferAccountId}
-                              <span class="split-transfer" class:outgoing={splitIsOutflow} class:incoming={splitIsInflow}>
-                                {splitIsOutflow ? '↗' : '↙'} {split.transferAccountName || 'Transfer'}
-                              </span>
-                            {:else}
-                              <strong>{splitSubCategory || '-'}</strong>
-                              {#if splitMasterCategory}
-                                <span class="split-master"> · {splitMasterCategory}</span>
-                              {/if}
+                            <strong>{splitSubCategory || '-'}</strong>
+                            {#if splitMasterCategory}
+                              <span class="split-master"> · {splitMasterCategory}</span>
                             {/if}
                           </span>
                           <span class="split-col-memo">{split.memo || ''}</span>
                           <span class="split-col-outflow" class:has-value={splitIsOutflow}>
-                            {splitIsOutflow ? formatAmount(split.amount) : ''}
+                            {splitIsOutflow ? formatAmount(splitAmount) : ''}
                           </span>
                           <span class="split-col-inflow" class:has-value={splitIsInflow}>
-                            {splitIsInflow ? formatAmount(split.amount) : ''}
+                            {splitIsInflow ? formatAmount(splitAmount) : ''}
                           </span>
                         </div>
                       {/each}
@@ -928,6 +1144,7 @@
                       class="flag-tag {entryFlag ? `flag-${entryFlag}` : 'flag-empty'}"
                       onclick={() => showFlagPicker = showFlagPicker === 'entry-bottom' ? null : 'entry-bottom'}
                       type="button"
+                      aria-label="Select flag"
                     ></button>
                     {#if showFlagPicker === 'entry-bottom'}
                       <div class="flag-picker flag-picker-up">
@@ -935,12 +1152,14 @@
                           class="flag-option flag-none" 
                           onclick={() => { entryFlag = null; showFlagPicker = null; }}
                           type="button"
+                          aria-label="Clear flag"
                         >✕</button>
                         {#each FLAG_COLORS as color}
                           <button
                             class="flag-option flag-{color}"
                             onclick={() => { entryFlag = color; showFlagPicker = null; }}
                             type="button"
+                            aria-label="Flag {color}"
                           ></button>
                         {/each}
                       </div>
@@ -1320,29 +1539,6 @@
   .tx-balance.negative { color: var(--destructive); }
 
 
-  .date-filter-row {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .date-filter-row label {
-    font-size: 0.75rem;
-    color: var(--muted-foreground);
-    width: 40px;
-  }
-
-  .date-filter-row input {
-    flex: 1;
-    padding: 0.375rem 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--background);
-    color: var(--foreground);
-    font-size: 0.8125rem;
-  }
-
   .date-filter-clear {
     width: 100%;
     padding: 0.375rem;
@@ -1532,13 +1728,6 @@
     font-size: 0.75rem;
     font-style: italic;
     justify-content: flex-start;
-  }
-
-  /* Load More Row */
-  .tx-load-more-row td {
-    padding: 0.75rem;
-    text-align: center;
-    border-bottom: 1px solid var(--border);
   }
 
   .load-more-btn {
