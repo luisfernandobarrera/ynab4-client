@@ -1923,20 +1923,27 @@
   /* Flag column - colored bar on left edge */
   .col-flag { 
     width: 6px !important; 
+    min-width: 6px !important;
+    max-width: 6px !important;
     padding: 0 !important; 
     position: relative;
     background: transparent;
   }
   
-  /* Flag colors applied to the cell itself */
-  td.col-flag.flag-red { background: #e74c3c !important; }
-  td.col-flag.flag-orange { background: #e67e22 !important; }
-  td.col-flag.flag-yellow { background: #f1c40f !important; }
-  td.col-flag.flag-green { background: #27ae60 !important; }
-  td.col-flag.flag-blue { background: #3498db !important; }
-  td.col-flag.flag-purple { background: #9b59b6 !important; }
+  /* Flag colors - use :where() to avoid scoping issues */
+  .col-flag.flag-red { background: #e74c3c !important; }
+  .col-flag.flag-orange { background: #e67e22 !important; }
+  .col-flag.flag-yellow { background: #f1c40f !important; }
+  .col-flag.flag-green { background: #27ae60 !important; }
+  .col-flag.flag-blue { background: #3498db !important; }
+  .col-flag.flag-purple { background: #9b59b6 !important; }
 
-  .col-date { font-size: 0.75rem; white-space: nowrap; }
+  .col-date { 
+    font-family: var(--font-family-mono);
+    font-size: 0.75rem; 
+    white-space: nowrap;
+    letter-spacing: -0.02em;
+  }
   .col-account { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-payee { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-category { font-size: 0.75rem; overflow: hidden; }
@@ -1950,13 +1957,13 @@
   }
   
   .memo-below {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: var(--muted-foreground);
-    font-style: italic;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 300px;
+    max-width: 350px;
+    opacity: 0.8;
   }
   
   .category-display {
