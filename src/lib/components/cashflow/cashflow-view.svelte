@@ -114,25 +114,18 @@
       const accData = accountMap.get(tx.accountId);
       if (!accData) continue;
       
-      // Check if this is an internal transfer that should be excluded from calculations
-      // - All mode: hide transfers between checking<->savings
-      // - Checking mode: hide transfers between checking<->checking
-      // - Savings mode: hide transfers between savings<->savings
-      let isInternalTransfer = false;
-      if (tx.transferAccountId) {
-        const sourceIsChecking = checking.has(tx.accountId);
-        const sourceIsSavings = savings.has(tx.accountId);
-        const targetIsChecking = checking.has(tx.transferAccountId);
-        const targetIsSavings = savings.has(tx.transferAccountId);
-        
-        if (accountFilter === 'all') {
-          isInternalTransfer = (sourceIsChecking && targetIsSavings) || (sourceIsSavings && targetIsChecking);
-        } else if (accountFilter === 'checking') {
-          isInternalTransfer = sourceIsChecking && targetIsChecking;
-        } else if (accountFilter === 'savings') {
-          isInternalTransfer = sourceIsSavings && targetIsSavings;
-        }
+      // Define the pool for this filter
+      let pool: Set<string>;
+      if (accountFilter === 'checking') {
+        pool = checking;
+      } else if (accountFilter === 'savings') {
+        pool = savings;
+      } else {
+        pool = new Set([...checking, ...savings]);
       }
+      
+      // Check if this is an internal transfer (both source and target in pool)
+      const isInternalTransfer = tx.transferAccountId && pool.has(tx.transferAccountId);
       
       if (tx.date < from) {
         // Before period - add to initial balance (always include for accurate starting balance)
@@ -225,50 +218,36 @@
   });
 
   // Filter transactions for the selected period and accounts
-  // Key logic: Hide internal transfers that don't change the pool's total balance
-  // - All mode: hide transfers between checking<->savings (neutral to combined pool)
-  // - Checking mode: hide transfers between checking<->checking (neutral to checking pool)  
-  // - Savings mode: hide transfers between savings<->savings (neutral to savings pool)
+  // Key logic: Each mode defines a POOL of accounts.
+  // Hide transfers where BOTH source AND target are within the pool (internal moves).
+  // - All: pool = checking + savings → hide transfers within this combined pool
+  // - Checking: pool = checking → hide transfers between checking accounts
+  // - Savings: pool = savings → hide transfers between savings accounts
   const filteredTransactions = $derived.by(() => {
     const { from, to } = getDateRange();
     const { checking, savings } = accountTypes;
     
-    // Get the account IDs to include
-    let accountIds: Set<string>;
+    // Define the pool based on filter
+    let pool: Set<string>;
     if (selectedAccountId) {
-      accountIds = new Set([selectedAccountId]);
+      pool = new Set([selectedAccountId]);
     } else if (accountFilter === 'checking') {
-      accountIds = checking;
+      pool = checking;
     } else if (accountFilter === 'savings') {
-      accountIds = savings;
+      pool = savings;
     } else {
-      accountIds = new Set([...checking, ...savings]);
+      // All mode: pool is checking + savings
+      pool = new Set([...checking, ...savings]);
     }
     
     const result = [];
     for (const tx of $transactions) {
       if (tx.date < from || tx.date > to) continue;
-      if (!accountIds.has(tx.accountId)) continue;
+      if (!pool.has(tx.accountId)) continue;
       
-      // Check for internal transfers that should be hidden
-      if (tx.transferAccountId) {
-        const sourceIsChecking = checking.has(tx.accountId);
-        const sourceIsSavings = savings.has(tx.accountId);
-        const targetIsChecking = checking.has(tx.transferAccountId);
-        const targetIsSavings = savings.has(tx.transferAccountId);
-        
-        // All mode: hide transfers between checking<->savings
-        if (accountFilter === 'all') {
-          if ((sourceIsChecking && targetIsSavings) || (sourceIsSavings && targetIsChecking)) continue;
-        }
-        // Checking mode: hide transfers between checking accounts
-        else if (accountFilter === 'checking') {
-          if (sourceIsChecking && targetIsChecking) continue;
-        }
-        // Savings mode: hide transfers between savings accounts
-        else if (accountFilter === 'savings') {
-          if (sourceIsSavings && targetIsSavings) continue;
-        }
+      // Hide transfers where both source and target are in the pool
+      if (tx.transferAccountId && pool.has(tx.transferAccountId)) {
+        continue; // Internal transfer within the pool - skip
       }
       
       result.push(tx);
