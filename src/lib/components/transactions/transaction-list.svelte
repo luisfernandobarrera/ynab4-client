@@ -77,14 +77,14 @@
   const COLUMNS: ColumnConfig[] = [
     { id: 'flag', label: 'transactions.flag', defaultWidth: 4, minWidth: 4, canHide: true, canResize: false },
     { id: 'date', label: 'transactions.date', defaultWidth: 80, minWidth: 70, canHide: false, canResize: true },
-    { id: 'account', label: 'transactions.account', defaultWidth: 120, minWidth: 80, canHide: false, canResize: true },
+    { id: 'account', label: 'transactions.account', defaultWidth: 90, minWidth: 60, canHide: false, canResize: true },
     { id: 'icon', label: '', defaultWidth: 18, minWidth: 18, canHide: false, canResize: false },
-    { id: 'payee', label: 'transactions.payee', defaultWidth: 150, minWidth: 80, canHide: false, canResize: true },
+    { id: 'payee', label: 'transactions.payee', defaultWidth: 140, minWidth: 80, canHide: false, canResize: true },
     { id: 'category', label: 'transactions.category', defaultWidth: 200, minWidth: 100, canHide: false, canResize: true },
     { id: 'memo', label: 'transactions.memo', defaultWidth: 150, minWidth: 60, canHide: true, canResize: true },
-    { id: 'outflow', label: 'transactions.outflow', defaultWidth: 90, minWidth: 60, canHide: false, canResize: true },
-    { id: 'inflow', label: 'transactions.inflow', defaultWidth: 90, minWidth: 60, canHide: false, canResize: true },
-    { id: 'balance', label: 'transactions.balance', defaultWidth: 100, minWidth: 60, canHide: true, canResize: true },
+    { id: 'outflow', label: 'transactions.outflow', defaultWidth: 85, minWidth: 60, canHide: false, canResize: true },
+    { id: 'inflow', label: 'transactions.inflow', defaultWidth: 85, minWidth: 60, canHide: false, canResize: true },
+    { id: 'balance', label: 'transactions.balance', defaultWidth: 90, minWidth: 60, canHide: true, canResize: true },
     { id: 'status', label: '', defaultWidth: 4, minWidth: 4, canHide: true, canResize: false },
   ];
   
@@ -2033,7 +2033,7 @@
   }
   .col-account { 
     font-size: 0.75rem; 
-    min-width: 100px;
+    max-width: 100px;
     overflow: hidden; 
     text-overflow: ellipsis; 
     white-space: nowrap; 

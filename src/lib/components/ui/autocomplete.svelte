@@ -306,13 +306,13 @@
     top: 100%;
     left: 0;
     right: 0;
-    z-index: 100;
-    max-height: 200px;
+    z-index: 9999;
+    max-height: 250px;
     overflow-y: auto;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
     margin-top: 2px;
   }
 

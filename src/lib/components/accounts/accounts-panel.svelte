@@ -4,7 +4,7 @@
   import { t } from '$lib/i18n';
 
   // State
-  let expandedGroups = $state<Set<string>>(new Set(['onBudget', 'offBudget', 'checking', 'savings', 'creditCard', 'cash']));
+  let expandedGroups = $state<Set<string>>(new Set(['onBudget', 'offBudget', 'cash', 'checking', 'savings', 'creditCard', 'lineOfCredit', 'paypal', 'merchant', 'investment', 'mortgage', 'otherAsset', 'otherLiability']));
   let groupBy = $state<'budget' | 'type'>('budget');
   let viewMode = $state<'dynamic' | 'normal' | 'showClosed'>('normal');
   let sortBy = $state<'ynab' | 'name' | 'balance'>('ynab');
@@ -111,20 +111,25 @@
         groups.set('offBudget', { label: $t('accounts.offBudget'), accounts: offBudget, total, order: 2 });
       }
     } else {
-      // Group by type
-      const typeGroups: Record<string, { label: string; order: number }> = {
-        checking: { label: $t('accountTypes.checking'), order: 1 },
-        savings: { label: $t('accountTypes.savings'), order: 2 },
-        cash: { label: $t('accountTypes.cash'), order: 3 },
-        creditCard: { label: $t('accountTypes.creditCards'), order: 4 },
-        investment: { label: $t('accountTypes.investments'), order: 5 },
-        other: { label: $t('accountTypes.other'), order: 6 },
+      // Group by type - all YNAB4 account types from pynab reference
+      const typeGroups: Record<string, { label: string; icon: string; order: number }> = {
+        cash: { label: $t('accountTypes.cash'), icon: 'EF', order: 1 },
+        checking: { label: $t('accountTypes.checking'), icon: 'CH', order: 2 },
+        savings: { label: $t('accountTypes.savings'), icon: 'AH', order: 3 },
+        creditCard: { label: $t('accountTypes.creditCards'), icon: 'TC', order: 4 },
+        lineOfCredit: { label: $t('accountTypes.lineOfCredit'), icon: 'LC', order: 5 },
+        paypal: { label: $t('accountTypes.paypal'), icon: 'PP', order: 6 },
+        merchant: { label: $t('accountTypes.merchant'), icon: 'TD', order: 7 },
+        investment: { label: $t('accountTypes.investments'), icon: 'IN', order: 8 },
+        mortgage: { label: $t('accountTypes.mortgage'), icon: 'HI', order: 9 },
+        otherAsset: { label: $t('accountTypes.otherAssets'), icon: 'OA', order: 10 },
+        otherLiability: { label: $t('accountTypes.otherLiabilities'), icon: 'OD', order: 11 },
       };
       
       for (const account of sortedAccounts) {
         const type = getAccountType(account.type);
         if (!groups.has(type)) {
-          const config = typeGroups[type] || { label: type, order: 99 };
+          const config = typeGroups[type] || { label: type, icon: '??', order: 99 };
           groups.set(type, { label: config.label, accounts: [], total: 0, order: config.order });
         }
         const group = groups.get(type)!;
@@ -142,20 +147,24 @@
   });
 
   function getAccountType(type: string): string {
+    // Map YNAB4 account types - keep each as its own category
     const typeMap: Record<string, string> = {
       'Checking': 'checking',
       'Savings': 'savings',
       'Cash': 'cash',
       'CreditCard': 'creditCard',
+      'LineOfCredit': 'lineOfCredit',
+      'Merchant': 'merchant',
+      'PayPal': 'paypal',
       'Investment': 'investment',
-      'LineOfCredit': 'creditCard',
-      'Merchant': 'other',
-      'PayPal': 'other',
-      'Mortgage': 'other',
-      'OtherAsset': 'other',
-      'OtherLiability': 'other',
+      'Mortgage': 'mortgage',
+      'OtherAsset': 'otherAsset',
+      'OtherLiability': 'otherLiability',
+      // Also handle variations
+      'InvestmentAccount': 'investment',
+      'OtherCredit': 'lineOfCredit',
     };
-    return typeMap[type] || 'other';
+    return typeMap[type] || 'otherAsset';
   }
 
   function toggleGroup(key: string) {
@@ -307,9 +316,9 @@
 
 <style>
   .accounts-panel {
-    width: 200px;
-    min-width: 180px;
-    max-width: 220px;
+    width: 180px;
+    min-width: 160px;
+    max-width: 200px;
     background: var(--card);
     border-right: 1px solid var(--border);
     display: flex;
