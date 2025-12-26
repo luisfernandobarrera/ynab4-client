@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronRight, Settings2, X, Wallet, CreditCard, PiggyBank, Building2, Landmark, Eye, EyeOff } from 'lucide-svelte';
+  import { ChevronRight, Settings2, X } from 'lucide-svelte';
   import { accounts, transactions, selectedAccountId } from '$lib/stores/budget';
   import { t } from '$lib/i18n';
 
@@ -87,7 +87,7 @@
 
   // Group accounts
   const groupedAccounts = $derived.by(() => {
-    const groups: Map<string, { label: string; accounts: typeof $accounts; total: number; order: number }> = new Map();
+    const groups: Map<string, { label: string; icon: string; accounts: typeof $accounts; total: number; order: number }> = new Map();
     
     // Sort accounts
     let sortedAccounts = [...filteredAccounts];
@@ -104,11 +104,11 @@
       
       if (onBudget.length > 0) {
         const total = onBudget.reduce((sum, a) => sum + (accountBalances[a.id] || 0), 0);
-        groups.set('onBudget', { label: $t('accounts.onBudget'), accounts: onBudget, total, order: 1 });
+        groups.set('onBudget', { label: $t('accounts.onBudget'), icon: '▸', accounts: onBudget, total, order: 1 });
       }
       if (offBudget.length > 0) {
         const total = offBudget.reduce((sum, a) => sum + (accountBalances[a.id] || 0), 0);
-        groups.set('offBudget', { label: $t('accounts.offBudget'), accounts: offBudget, total, order: 2 });
+        groups.set('offBudget', { label: $t('accounts.offBudget'), icon: '▹', accounts: offBudget, total, order: 2 });
       }
     } else {
       // Group by type - all YNAB4 account types from pynab reference
@@ -130,7 +130,7 @@
         const type = getAccountType(account.type);
         if (!groups.has(type)) {
           const config = typeGroups[type] || { label: type, icon: '??', order: 99 };
-          groups.set(type, { label: config.label, accounts: [], total: 0, order: config.order });
+          groups.set(type, { label: config.label, icon: config.icon, accounts: [], total: 0, order: config.order });
         }
         const group = groups.get(type)!;
         group.accounts.push(account);
@@ -197,16 +197,6 @@
     return balance >= 0 ? 'positive' : 'negative';
   }
 
-  function getAccountIcon(type: string) {
-    const t = getAccountType(type);
-    switch (t) {
-      case 'checking': return Building2;
-      case 'savings': return PiggyBank;
-      case 'creditCard': return CreditCard;
-      case 'investment': return Landmark;
-      default: return Wallet;
-    }
-  }
 </script>
 
 <div class="accounts-panel">
@@ -280,6 +270,9 @@
           <ChevronRight 
             class="h-3 w-3 ap-chevron {expandedGroups.has(key) ? 'expanded' : ''}"
           />
+          {#if group.icon}
+            <span class="ap-group-icon">{group.icon}</span>
+          {/if}
           <span class="ap-group-name">{group.label}</span>
           <span class="ap-group-total {getBalanceClass(group.total)}">
             {group.total < 0 ? '-' : ''}{formatBalance(group.total)}
@@ -290,7 +283,6 @@
           <div class="ap-group-items">
             {#each group.accounts as account}
               {@const balance = accountBalances[account.id] || 0}
-              {@const Icon = getAccountIcon(account.type)}
               {@const isClosed = isAccountClosed(account)}
               {@const isInactive = isInactiveAccount(account)}
               <button
@@ -300,7 +292,6 @@
                 class:inactive={isInactive}
                 onclick={() => selectAccount(account.id)}
               >
-                <Icon class="h-3.5 w-3.5 ap-account-icon" />
                 <span class="ap-account-name">{account.name}</span>
                 <span class="ap-account-balance {getBalanceClass(balance)}">
                   {balance < 0 ? '-' : ''}{formatBalance(balance)}
@@ -477,9 +468,18 @@
     transform: rotate(90deg);
   }
 
+  .ap-group-icon {
+    font-size: 0.65rem;
+    color: var(--muted-foreground);
+    margin-right: 0.125rem;
+  }
+
   .ap-group-name {
     flex: 1;
     text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .ap-group-total {
@@ -524,10 +524,6 @@
     color: var(--primary-foreground) !important;
   }
 
-  .ap-account.active :global(.ap-account-icon) {
-    color: var(--primary-foreground);
-  }
-
   .ap-account.closed {
     opacity: 0.5;
     text-decoration: line-through;
@@ -536,11 +532,6 @@
   .ap-account.inactive {
     opacity: 0.6;
     font-style: italic;
-  }
-
-  :global(.ap-account-icon) {
-    color: var(--muted-foreground);
-    flex-shrink: 0;
   }
 
   .ap-account-name {
