@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Plus, Search, Lock, ChevronDown, Save, X, PanelLeftClose, PanelLeft, Calendar } from 'lucide-svelte';
+  import { Plus, Search, Lock, ChevronDown, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
   import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories } from '$lib/stores/budget';
@@ -17,26 +17,68 @@
   let searchQuery = $state('');
   let hideReconciled = $state(false);
   let showAccountsPanel = $state(true);
-  let showAccountDropdown = $state(false);
   let showDateFilter = $state(false);
   
-  // Date filter
-  let dateFrom = $state('');
-  let dateTo = $state('');
+  // Date filter with presets
+  type DatePreset = 'all' | 'thisMonth' | 'last3' | 'thisYear' | 'lastYear' | 'custom';
+  let datePreset = $state<DatePreset>('all');
+  let customDateFrom = $state('');
+  let customDateTo = $state('');
+  
+  // Flag colors
+  const FLAG_COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'] as const;
+  let showFlagPicker = $state<string | null>(null);
   
   // Inline entry state
   let isEditing = $state(false);
   let entryDate = $state(new Date().toISOString().split('T')[0]);
-  let entryAccount = $state('');
   let entryPayee = $state('');
   let entryCategory = $state('');
   let entryMemo = $state('');
   let entryOutflow = $state('');
   let entryInflow = $state('');
+  let entryFlag = $state<string | null>(null);
   
   // Pagination for performance
   const PAGE_SIZE = 100;
   let visibleCount = $state(PAGE_SIZE);
+  
+  // Calculate date range from preset
+  function getDateRange(preset: DatePreset): { from: string; to: string } {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    
+    switch (preset) {
+      case 'thisMonth': {
+        const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        const to = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
+        return { from, to };
+      }
+      case 'last3': {
+        const fromDate = new Date(year, month - 2, 1);
+        const from = fromDate.toISOString().split('T')[0];
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        const to = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
+        return { from, to };
+      }
+      case 'thisYear': {
+        return { from: `${year}-01-01`, to: `${year}-12-31` };
+      }
+      case 'lastYear': {
+        return { from: `${year - 1}-01-01`, to: `${year - 1}-12-31` };
+      }
+      case 'custom': {
+        return { from: customDateFrom, to: customDateTo };
+      }
+      default:
+        return { from: '', to: '' };
+    }
+  }
+  
+  // Effective date filter
+  const dateFilter = $derived(getDateRange(datePreset));
 
   const selectedAccount = $derived(
     $selectedAccountId ? $accounts.find((a) => a.id === $selectedAccountId) : null
@@ -61,10 +103,10 @@
         return false;
       }
       // Date filter
-      if (dateFrom && tx.date && tx.date < dateFrom) {
+      if (dateFilter.from && tx.date && tx.date < dateFilter.from) {
         return false;
       }
-      if (dateTo && tx.date && tx.date > dateTo) {
+      if (dateFilter.to && tx.date && tx.date > dateFilter.to) {
         return false;
       }
       return true;
@@ -165,8 +207,9 @@
     // Track filter dependencies
     searchQuery;
     hideReconciled;
-    dateFrom;
-    dateTo;
+    datePreset;
+    customDateFrom;
+    customDateTo;
     $selectedAccountId;
     // Reset
     visibleCount = PAGE_SIZE;
@@ -175,12 +218,12 @@
   function startEntry() {
     isEditing = true;
     entryDate = new Date().toISOString().split('T')[0];
-    entryAccount = selectedAccount?.id || ($accounts[0]?.id ?? '');
     entryPayee = '';
     entryCategory = '';
     entryMemo = '';
     entryOutflow = '';
     entryInflow = '';
+    entryFlag = null;
   }
 
   function cancelEntry() {
@@ -189,17 +232,59 @@
 
   function saveEntry() {
     // TODO: Implement save
-    console.log('Save entry:', { entryDate, entryAccount, entryPayee, entryCategory, entryMemo, entryOutflow, entryInflow });
+    const accountId = selectedAccount?.id || $accounts[0]?.id;
+    console.log('Save entry:', { entryDate, accountId, entryPayee, entryCategory, entryMemo, entryOutflow, entryInflow, entryFlag });
     isEditing = false;
   }
 
   function clearDateFilter() {
-    dateFrom = '';
-    dateTo = '';
+    datePreset = 'all';
+    customDateFrom = '';
+    customDateTo = '';
     showDateFilter = false;
   }
+  
+  // Parse flexible date input (e.g., "20/12" -> "2025-12-20")
+  function parseFlexibleDate(input: string): string {
+    const trimmed = input.trim();
+    const now = new Date();
+    const year = now.getFullYear();
+    
+    // Try DD/MM format
+    const ddmmMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})$/);
+    if (ddmmMatch) {
+      const day = ddmmMatch[1].padStart(2, '0');
+      const month = ddmmMatch[2].padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // Try DD/MM/YY or DD/MM/YYYY
+    const fullMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (fullMatch) {
+      const day = fullMatch[1].padStart(2, '0');
+      const month = fullMatch[2].padStart(2, '0');
+      let y = fullMatch[3];
+      if (y.length === 2) y = `20${y}`;
+      return `${y}-${month}-${day}`;
+    }
+    
+    // Already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    
+    return input;
+  }
+  
+  function handleDateInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const parsed = parseFlexibleDate(target.value);
+    if (parsed !== target.value && /^\d{4}-\d{2}-\d{2}$/.test(parsed)) {
+      entryDate = parsed;
+    }
+  }
 
-  const hasDateFilter = $derived(!!dateFrom || !!dateTo);
+  const hasDateFilter = $derived(datePreset !== 'all');
 </script>
 
 <div class="transactions-view">
@@ -228,78 +313,45 @@
           </button>
         {/if}
         
-        <!-- Account dropdown -->
-        <div class="account-dropdown-wrapper">
-          <button 
-            class="account-dropdown-trigger"
-            onclick={() => showAccountDropdown = !showAccountDropdown}
-          >
-            <span class="account-name">{selectedAccount?.name || $t('accounts.allAccounts')}</span>
-            <ChevronDown class="h-4 w-4 chevron {showAccountDropdown ? 'open' : ''}" />
-          </button>
-          
-          {#if showAccountDropdown}
-            <div class="account-dropdown-overlay" onclick={() => showAccountDropdown = false} role="presentation"></div>
-            <div class="account-dropdown-menu">
-              <button 
-                class="account-dropdown-item" 
-                class:active={!$selectedAccountId}
-                onclick={() => { selectedAccountId.set(null); showAccountDropdown = false; }}
-              >
-                {$t('accounts.allAccounts')}
-              </button>
-              {#each $accounts as account}
-                <button 
-                  class="account-dropdown-item"
-                  class:active={$selectedAccountId === account.id}
-                  onclick={() => { selectedAccountId.set(account.id); showAccountDropdown = false; }}
-                >
-                  <span class="account-item-name">{account.name}</span>
-                  <span class="account-item-balance" class:positive={account.balance >= 0} class:negative={account.balance < 0}>
-                    {formatCurrency(account.balance)}
-                  </span>
-                </button>
-              {/each}
-            </div>
+        <!-- Account name display -->
+        <span class="account-display">
+          <span class="account-name">{selectedAccount?.name || $t('accounts.allAccounts')}</span>
+          {#if selectedAccount}
+            <span class="tx-balance" class:positive={totals.working >= 0} class:negative={totals.working < 0}>
+              {formatCurrency(totals.working)}
+            </span>
           {/if}
-        </div>
-        
-        {#if selectedAccount}
-          <span class="tx-balance" class:positive={totals.working >= 0} class:negative={totals.working < 0}>
-            {formatCurrency(totals.working)}
-          </span>
-        {/if}
+        </span>
       </div>
       
       <div class="tx-toolbar-actions">
-        <!-- Date filter -->
+        <!-- Date filter with presets -->
         <div class="date-filter-wrapper">
-          <button 
-            class="tx-icon-btn"
-            class:active={hasDateFilter || showDateFilter}
-            onclick={() => showDateFilter = !showDateFilter}
-            title={$t('transactions.dateFilter')}
+          <select 
+            class="date-preset-select"
+            bind:value={datePreset}
           >
-            <Calendar class="h-4 w-4" />
-          </button>
+            <option value="all">{$t('transactions.allDates')}</option>
+            <option value="thisMonth">{$t('transactions.thisMonth')}</option>
+            <option value="last3">{$t('transactions.last3Months')}</option>
+            <option value="thisYear">{$t('transactions.thisYear')}</option>
+            <option value="lastYear">{$t('transactions.lastYear')}</option>
+            <option value="custom">{$t('transactions.customRange')}</option>
+          </select>
           
-          {#if showDateFilter}
-            <div class="date-filter-overlay" onclick={() => showDateFilter = false} role="presentation"></div>
-            <div class="date-filter-popup">
-              <div class="date-filter-row">
-                <label>{$t('transactions.from')}:</label>
-                <input type="date" bind:value={dateFrom} />
-              </div>
-              <div class="date-filter-row">
-                <label>{$t('transactions.to')}:</label>
-                <input type="date" bind:value={dateTo} />
-              </div>
-              {#if hasDateFilter}
-                <button class="date-filter-clear" onclick={clearDateFilter}>
-                  {$t('common.clear')}
-                </button>
-              {/if}
-            </div>
+          {#if datePreset === 'custom'}
+            <input 
+              type="date" 
+              class="date-input"
+              bind:value={customDateFrom}
+              placeholder="De"
+            />
+            <input 
+              type="date" 
+              class="date-input"
+              bind:value={customDateTo}
+              placeholder="A"
+            />
           {/if}
         </div>
         
@@ -350,24 +402,45 @@
           <!-- Inline entry row -->
           {#if isEditing}
             <tr class="tx-entry-row">
-              <td class="col-flag"></td>
+              <td class="col-flag">
+                <div class="flag-picker-wrapper">
+                  <button 
+                    class="flag-btn {entryFlag ? `flag-${entryFlag}` : ''}"
+                    onclick={() => showFlagPicker = showFlagPicker === 'entry' ? null : 'entry'}
+                    type="button"
+                  >
+                    <Flag class="h-3 w-3" />
+                  </button>
+                  {#if showFlagPicker === 'entry'}
+                    <div class="flag-picker">
+                      <button 
+                        class="flag-option flag-none" 
+                        onclick={() => { entryFlag = null; showFlagPicker = null; }}
+                        type="button"
+                      >✕</button>
+                      {#each FLAG_COLORS as color}
+                        <button
+                          class="flag-option flag-{color}"
+                          onclick={() => { entryFlag = color; showFlagPicker = null; }}
+                          type="button"
+                        ></button>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              </td>
               <td class="col-date">
-                <input type="date" class="entry-input" bind:value={entryDate} />
+                <input 
+                  type="text" 
+                  class="entry-input date-entry" 
+                  bind:value={entryDate}
+                  placeholder="DD/MM"
+                  onblur={handleDateInput}
+                />
               </td>
               {#if !selectedAccount}
                 <td class="col-account">
-                  <input 
-                    type="text" 
-                    class="entry-input"
-                    placeholder={$t('transactions.account')}
-                    bind:value={entryAccount}
-                    list="accounts-list"
-                  />
-                  <datalist id="accounts-list">
-                    {#each $accounts as account}
-                      <option value={account.name}>{account.name}</option>
-                    {/each}
-                  </datalist>
+                  <span class="entry-account-auto">{$accounts[0]?.name || '-'}</span>
                 </td>
               {/if}
               <td class="col-payee">
@@ -394,7 +467,8 @@
                 />
                 <datalist id="categories-list">
                   {#each $categories as cat}
-                    <option value={cat.name}></option>
+                    {@const masterName = cat.masterCategoryName || ''}
+                    <option value={masterName ? `${masterName}: ${cat.name}` : cat.name}></option>
                   {/each}
                 </datalist>
                 <input 
@@ -655,101 +729,129 @@
     border-color: var(--primary);
   }
 
-  /* Account Dropdown */
-  .account-dropdown-wrapper {
-    position: relative;
-  }
-
-  .account-dropdown-trigger {
+  /* Account Display */
+  .account-display {
     display: flex;
     align-items: center;
-    gap: 0.375rem;
-    padding: 0.375rem 0.625rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--background);
-    color: var(--foreground);
-    cursor: pointer;
-    transition: all 0.15s;
-    font-size: 0.875rem;
-  }
-
-  .account-dropdown-trigger:hover {
-    border-color: var(--primary);
-    background: var(--accent);
+    gap: 0.5rem;
   }
 
   .account-name {
     font-weight: 600;
+    font-size: 0.8rem;
     max-width: 180px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .chevron {
-    transition: transform 0.15s;
-    color: var(--muted-foreground);
-  }
-
-  .chevron.open {
-    transform: rotate(180deg);
-  }
-
-  .account-dropdown-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 40;
-  }
-
-  .account-dropdown-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    z-index: 50;
-    min-width: 260px;
-    max-height: 360px;
-    overflow-y: auto;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  }
-
-  .account-dropdown-item {
+  /* Date Filter */
+  .date-filter-wrapper {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    padding: 0.625rem 0.875rem;
-    border: none;
-    background: transparent;
-    color: var(--foreground);
-    font-size: 0.8125rem;
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.15s;
+    gap: 0.375rem;
   }
 
-  .account-dropdown-item:hover {
+  .date-preset-select {
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.7rem;
+    background: var(--background);
+    color: var(--foreground);
+    cursor: pointer;
+  }
+
+  .date-input {
+    padding: 0.25rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.7rem;
+    background: var(--background);
+    color: var(--foreground);
+    width: 100px;
+  }
+
+  /* Flag Picker */
+  .flag-picker-wrapper {
+    position: relative;
+  }
+
+  .flag-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .flag-btn:hover {
     background: var(--accent);
   }
 
-  .account-dropdown-item.active {
-    background: var(--primary);
-    color: var(--primary-foreground);
+  .flag-btn.flag-red { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+  .flag-btn.flag-orange { color: #f97316; background: rgba(249, 115, 22, 0.1); }
+  .flag-btn.flag-yellow { color: #eab308; background: rgba(234, 179, 8, 0.1); }
+  .flag-btn.flag-green { color: #22c55e; background: rgba(34, 197, 94, 0.1); }
+  .flag-btn.flag-blue { color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
+  .flag-btn.flag-purple { color: #a855f7; background: rgba(168, 85, 247, 0.1); }
+
+  .flag-picker {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 60;
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
 
-  .account-dropdown-item.active .account-item-balance {
-    color: var(--primary-foreground);
+  .flag-option {
+    width: 18px;
+    height: 18px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: transform 0.1s;
   }
 
-  .account-item-name {
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-right: 0.75rem;
+  .flag-option:hover {
+    transform: scale(1.15);
+  }
+
+  .flag-option.flag-none {
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-size: 10px;
+    line-height: 18px;
+  }
+
+  .flag-option.flag-red { background: #ef4444; }
+  .flag-option.flag-orange { background: #f97316; }
+  .flag-option.flag-yellow { background: #eab308; }
+  .flag-option.flag-green { background: #22c55e; }
+  .flag-option.flag-blue { background: #3b82f6; }
+  .flag-option.flag-purple { background: #a855f7; }
+
+  .entry-account-auto {
+    font-size: 0.7rem;
+    color: var(--muted-foreground);
+    font-style: italic;
+  }
+
+  .date-entry {
+    width: 75px !important;
+    text-align: center;
   }
 
   .account-item-balance {
@@ -933,18 +1035,19 @@
     background: var(--accent);
   }
 
-  .col-flag { width: 24px; text-align: center; }
-  .col-date { width: 90px; }
-  .col-account { width: 110px; }
-  .col-payee { min-width: 120px; }
-  .col-category { min-width: 140px; }
+  .col-flag { width: 22px; text-align: center; padding: 0 !important; }
+  .col-date { width: 72px; font-size: 0.7rem; }
+  .col-account { width: 80px; font-size: 0.7rem; }
+  .col-payee { min-width: 100px; font-size: 0.75rem; }
+  .col-category { min-width: 120px; font-size: 0.7rem; }
   .col-outflow, .col-inflow, .col-balance { 
-    width: 85px; 
+    width: 70px; 
     text-align: right; 
     font-family: var(--font-family-mono);
     font-feature-settings: "tnum";
+    font-size: 0.75rem;
   }
-  .col-status { width: 32px; text-align: center; }
+  .col-status { width: 24px; text-align: center; padding: 0 !important; }
 
   .col-outflow.has-value { color: var(--destructive); }
   .col-inflow.has-value { color: var(--success); }

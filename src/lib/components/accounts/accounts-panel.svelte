@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { ChevronRight, Settings2, X, Wallet, CreditCard, PiggyBank, Building2, Landmark } from 'lucide-svelte';
+  import { ChevronRight, Settings2, X, Wallet, CreditCard, PiggyBank, Building2, Landmark, Eye, EyeOff } from 'lucide-svelte';
   import { accounts, transactions, selectedAccountId } from '$lib/stores/budget';
   import { t } from '$lib/i18n';
 
   // State
   let expandedGroups = $state<Set<string>>(new Set(['onBudget', 'offBudget', 'checking', 'savings', 'creditCard', 'cash']));
   let groupBy = $state<'budget' | 'type'>('budget');
+  let viewMode = $state<'dynamic' | 'normal' | 'showClosed'>('normal');
+  let sortBy = $state<'ynab' | 'name' | 'balance'>('ynab');
   let showOptions = $state(false);
 
   // Calculate balances from transactions
@@ -19,18 +21,86 @@
     return balances;
   });
 
-  // Active accounts
-  const activeAccounts = $derived(
-    $accounts.filter(a => !a.closed && !a.hidden)
-  );
+  // Get current month range
+  const getCurrentMonthRange = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const from = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    const to = `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`;
+    return { from, to };
+  };
+
+  // Accounts with activity this month
+  const accountsActiveThisMonth = $derived.by(() => {
+    const activeSet = new Set<string>();
+    const { from, to } = getCurrentMonthRange();
+    
+    for (const tx of $transactions) {
+      if (tx.accountId && tx.date && tx.date >= from && tx.date <= to && Math.abs(tx.amount) > 0.005) {
+        activeSet.add(tx.accountId);
+      }
+    }
+    return activeSet;
+  });
+
+  // Check if account is closed
+  const isAccountClosed = (account: typeof $accounts[0]) => {
+    return account.closed === true || account.hidden === true;
+  };
+
+  // Check if account is inactive (no balance, no activity this month)
+  const isInactiveAccount = (account: typeof $accounts[0]) => {
+    if (isAccountClosed(account)) return false;
+    const balance = accountBalances[account.id] || 0;
+    const hasBalance = Math.abs(balance) > 0.001;
+    const hasActivityThisMonth = accountsActiveThisMonth.has(account.id);
+    return !hasBalance && !hasActivityThisMonth;
+  };
+
+  // Filter accounts based on viewMode
+  const filteredAccounts = $derived.by(() => {
+    return $accounts.filter(a => {
+      const isClosed = isAccountClosed(a);
+      const balance = accountBalances[a.id] || 0;
+      const hasBalance = Math.abs(balance) > 0.001;
+      const hasActivityThisMonth = accountsActiveThisMonth.has(a.id);
+
+      if (viewMode === 'dynamic') {
+        // Only show accounts with balance OR activity this month
+        if (isClosed) return false;
+        return hasBalance || hasActivityThisMonth;
+      } else if (viewMode === 'normal') {
+        // Show active accounts, hide closed
+        return !isClosed;
+      } else {
+        // showClosed: show all
+        return true;
+      }
+    });
+  });
+
+  // Count closed and inactive
+  const closedCount = $derived($accounts.filter(a => isAccountClosed(a)).length);
+  const inactiveCount = $derived($accounts.filter(a => isInactiveAccount(a)).length);
 
   // Group accounts
   const groupedAccounts = $derived.by(() => {
     const groups: Map<string, { label: string; accounts: typeof $accounts; total: number; order: number }> = new Map();
     
+    // Sort accounts
+    let sortedAccounts = [...filteredAccounts];
+    if (sortBy === 'name') {
+      sortedAccounts.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === 'balance') {
+      sortedAccounts.sort((a, b) => (accountBalances[b.id] || 0) - (accountBalances[a.id] || 0));
+    }
+    // 'ynab' keeps original order
+    
     if (groupBy === 'budget') {
-      const onBudget = activeAccounts.filter(a => a.onBudget);
-      const offBudget = activeAccounts.filter(a => !a.onBudget);
+      const onBudget = sortedAccounts.filter(a => a.onBudget);
+      const offBudget = sortedAccounts.filter(a => !a.onBudget);
       
       if (onBudget.length > 0) {
         const total = onBudget.reduce((sum, a) => sum + (accountBalances[a.id] || 0), 0);
@@ -51,7 +121,7 @@
         other: { label: $t('accountTypes.other'), order: 6 },
       };
       
-      for (const account of activeAccounts) {
+      for (const account of sortedAccounts) {
         const type = getAccountType(account.type);
         if (!groups.has(type)) {
           const config = typeGroups[type] || { label: type, order: 99 };
@@ -68,7 +138,7 @@
 
   // Net worth calculation
   const netWorth = $derived.by(() => {
-    return activeAccounts.reduce((sum, a) => sum + (accountBalances[a.id] || 0), 0);
+    return filteredAccounts.reduce((sum, a) => sum + (accountBalances[a.id] || 0), 0);
   });
 
   function getAccountType(type: string): string {
@@ -158,10 +228,26 @@
   {#if showOptions}
     <div class="ap-options">
       <div class="ap-option-row">
+        <label for="ap-view-mode">{$t('accounts.view')}:</label>
+        <select id="ap-view-mode" bind:value={viewMode}>
+          <option value="dynamic">{$t('accounts.viewDynamic')} ({inactiveCount})</option>
+          <option value="normal">{$t('accounts.viewNormal')}</option>
+          <option value="showClosed">{$t('accounts.viewClosed')} ({closedCount})</option>
+        </select>
+      </div>
+      <div class="ap-option-row">
         <label for="ap-group-by">{$t('accounts.groupBy')}:</label>
         <select id="ap-group-by" bind:value={groupBy}>
           <option value="budget">{$t('accounts.byBudget')}</option>
           <option value="type">{$t('accounts.byType')}</option>
+        </select>
+      </div>
+      <div class="ap-option-row">
+        <label for="ap-sort-by">{$t('accounts.sortBy')}:</label>
+        <select id="ap-sort-by" bind:value={sortBy}>
+          <option value="ynab">YNAB</option>
+          <option value="name">{$t('common.name')}</option>
+          <option value="balance">{$t('accounts.balance')}</option>
         </select>
       </div>
     </div>
@@ -196,12 +282,16 @@
             {#each group.accounts as account}
               {@const balance = accountBalances[account.id] || 0}
               {@const Icon = getAccountIcon(account.type)}
+              {@const isClosed = isAccountClosed(account)}
+              {@const isInactive = isInactiveAccount(account)}
               <button
                 class="ap-account"
                 class:active={$selectedAccountId === account.id}
+                class:closed={isClosed}
+                class:inactive={isInactive}
                 onclick={() => selectAccount(account.id)}
               >
-                <Icon class="h-4 w-4 ap-account-icon" />
+                <Icon class="h-3.5 w-3.5 ap-account-icon" />
                 <span class="ap-account-name">{account.name}</span>
                 <span class="ap-account-balance {getBalanceClass(balance)}">
                   {balance < 0 ? '-' : ''}{formatBalance(balance)}
@@ -217,27 +307,29 @@
 
 <style>
   .accounts-panel {
-    width: 280px;
-    min-width: 260px;
+    width: 200px;
+    min-width: 180px;
+    max-width: 220px;
     background: var(--card);
     border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     height: 100%;
+    font-size: 0.75rem;
   }
 
   .ap-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.625rem;
     border-bottom: 1px solid var(--border);
   }
 
   .ap-title {
     font-weight: 600;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--muted-foreground);
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -252,10 +344,10 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 24px;
+    height: 24px;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 4px;
     background: var(--background);
     color: var(--muted-foreground);
     cursor: pointer;
@@ -274,35 +366,40 @@
   }
 
   .ap-options {
-    padding: 0.75rem;
+    padding: 0.5rem;
     background: var(--muted);
     border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
   }
 
   .ap-option-row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.8rem;
+    gap: 0.375rem;
+    font-size: 0.7rem;
   }
 
   .ap-option-row label {
     color: var(--muted-foreground);
     font-weight: 500;
+    white-space: nowrap;
   }
 
   .ap-option-row select {
     flex: 1;
-    padding: 0.375rem 0.5rem;
+    min-width: 0;
+    padding: 0.25rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
-    font-size: 0.8rem;
+    border-radius: 3px;
+    font-size: 0.7rem;
     background: var(--background);
     color: var(--foreground);
   }
 
   .ap-totals {
-    padding: 0.5rem 0.75rem;
+    padding: 0.375rem 0.625rem;
     background: var(--muted);
     border-bottom: 1px solid var(--border);
   }
@@ -314,7 +411,7 @@
   }
 
   .ap-total-label {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 500;
     color: var(--muted-foreground);
     text-transform: uppercase;
@@ -323,7 +420,7 @@
 
   .ap-total-value {
     font-family: var(--font-family-mono);
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     font-weight: 600;
     font-feature-settings: "tnum";
   }
@@ -335,26 +432,26 @@
   .ap-groups {
     flex: 1;
     overflow-y: auto;
-    padding: 0.5rem 0;
+    padding: 0.25rem 0;
   }
 
   .ap-group {
-    margin-bottom: 0.125rem;
+    margin-bottom: 0;
   }
 
   .ap-group-header {
     width: 100%;
     display: flex;
     align-items: center;
-    padding: 0.5rem 0.5rem;
+    padding: 0.375rem 0.5rem;
     border: none;
     background: transparent;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     font-weight: 600;
     color: var(--muted-foreground);
     transition: all 0.15s;
-    gap: 0.35rem;
+    gap: 0.25rem;
     border-bottom: 1px solid var(--border);
   }
 
@@ -362,12 +459,12 @@
     color: var(--foreground);
   }
 
-  .ap-chevron {
+  :global(.ap-chevron) {
     transition: transform 0.15s;
     color: var(--muted-foreground);
   }
 
-  .ap-chevron.expanded {
+  :global(.ap-chevron.expanded) {
     transform: rotate(90deg);
   }
 
@@ -378,7 +475,7 @@
 
   .ap-group-total {
     font-family: var(--font-family-mono);
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 600;
     font-feature-settings: "tnum";
   }
@@ -395,14 +492,14 @@
     width: 100%;
     display: flex;
     align-items: center;
-    padding: 0.5rem 0.5rem 0.5rem 1rem;
+    padding: 0.375rem 0.375rem 0.375rem 0.75rem;
     border: none;
     background: transparent;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     color: var(--foreground);
     transition: all 0.15s;
-    gap: 0.5rem;
+    gap: 0.375rem;
   }
 
   .ap-account:hover {
@@ -418,11 +515,21 @@
     color: var(--primary-foreground) !important;
   }
 
-  .ap-account.active .ap-account-icon {
+  .ap-account.active :global(.ap-account-icon) {
     color: var(--primary-foreground);
   }
 
-  .ap-account-icon {
+  .ap-account.closed {
+    opacity: 0.5;
+    text-decoration: line-through;
+  }
+
+  .ap-account.inactive {
+    opacity: 0.6;
+    font-style: italic;
+  }
+
+  :global(.ap-account-icon) {
     color: var(--muted-foreground);
     flex-shrink: 0;
   }
@@ -438,7 +545,7 @@
 
   .ap-account-balance {
     font-family: var(--font-family-mono);
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     font-weight: 500;
     font-feature-settings: "tnum";
     white-space: nowrap;
@@ -456,8 +563,8 @@
       top: 0;
       bottom: 0;
       z-index: 900;
+      width: 240px;
       box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
     }
   }
 </style>
-
