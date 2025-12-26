@@ -147,24 +147,40 @@
   });
 
   function getAccountType(type: string): string {
-    // Map YNAB4 account types - keep each as its own category
-    const typeMap: Record<string, string> = {
-      'Checking': 'checking',
-      'Savings': 'savings',
-      'Cash': 'cash',
-      'CreditCard': 'creditCard',
-      'LineOfCredit': 'lineOfCredit',
-      'Merchant': 'merchant',
-      'PayPal': 'paypal',
-      'Investment': 'investment',
-      'Mortgage': 'mortgage',
-      'OtherAsset': 'otherAsset',
-      'OtherLiability': 'otherLiability',
-      // Also handle variations
-      'InvestmentAccount': 'investment',
-      'OtherCredit': 'lineOfCredit',
-    };
-    return typeMap[type] || 'otherAsset';
+    // Map YNAB4 account types - using ynab-library's exact values
+    // YNAB4 exact values from pynab reference:
+    // - Checking, Savings, CreditCard, Cash
+    // - LineofCredit (note: lowercase 'o' in 'of')
+    // - Paypal
+    // - MerchantAccount (department store cards)
+    // - InvestmentAccount
+    // - Mortgage
+    // - OtherAsset, OtherLiability
+    
+    const normalized = (type || '').toLowerCase();
+    
+    if (normalized === 'cash') return 'cash';
+    if (normalized === 'checking') return 'checking';
+    if (normalized === 'savings') return 'savings';
+    if (normalized === 'creditcard' || normalized === 'credit card') return 'creditCard';
+    // YNAB4 uses "LineofCredit" (lowercase 'o')
+    if (normalized === 'lineofcredit' || normalized === 'line of credit') return 'lineOfCredit';
+    // Paypal
+    if (normalized === 'paypal') return 'paypal';
+    // YNAB4 uses "MerchantAccount" for department store cards
+    if (normalized === 'merchantaccount' || normalized === 'merchant account' || normalized === 'merchant') return 'merchant';
+    // YNAB4 uses "InvestmentAccount"
+    if (normalized === 'investmentaccount' || normalized === 'investment account' || normalized === 'investment') return 'investment';
+    // Mortgage
+    if (normalized === 'mortgage') return 'mortgage';
+    // Other assets/liabilities
+    if (normalized === 'otherasset' || normalized === 'other asset') return 'otherAsset';
+    if (normalized === 'otherliability' || normalized === 'other liability') return 'otherLiability';
+    
+    // Log unrecognized types for debugging
+    console.warn('[AccountsPanel] Unknown account type:', type, '- treating as otherAsset');
+    
+    return 'otherAsset';
   }
 
   function toggleGroup(key: string) {
