@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split } from 'lucide-svelte';
+  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
   import DateNavigation from './date-navigation.svelte';
@@ -9,6 +9,124 @@
   import { isMobile, isEditMode, addPendingChange, addToast } from '$lib/stores/ui';
   import { formatCurrency } from '$lib/utils';
   import { t } from '$lib/i18n';
+  import { browser } from '$app/environment';
+  
+  // Column configuration
+  interface ColumnConfig {
+    id: string;
+    label: string;
+    defaultWidth: number;
+    minWidth: number;
+    canHide: boolean;
+    canResize: boolean;
+  }
+  
+  const COLUMNS: ColumnConfig[] = [
+    { id: 'flag', label: '', defaultWidth: 22, minWidth: 22, canHide: false, canResize: false },
+    { id: 'date', label: 'transactions.date', defaultWidth: 85, minWidth: 60, canHide: false, canResize: true },
+    { id: 'account', label: 'transactions.account', defaultWidth: 90, minWidth: 60, canHide: true, canResize: true },
+    { id: 'payee', label: 'transactions.payee', defaultWidth: 140, minWidth: 80, canHide: false, canResize: true },
+    { id: 'category', label: 'transactions.category', defaultWidth: 160, minWidth: 80, canHide: true, canResize: true },
+    { id: 'memo', label: 'transactions.memo', defaultWidth: 120, minWidth: 60, canHide: true, canResize: true },
+    { id: 'outflow', label: 'transactions.outflow', defaultWidth: 80, minWidth: 60, canHide: true, canResize: true },
+    { id: 'inflow', label: 'transactions.inflow', defaultWidth: 80, minWidth: 60, canHide: true, canResize: true },
+    { id: 'balance', label: 'transactions.balance', defaultWidth: 90, minWidth: 60, canHide: true, canResize: true },
+    { id: 'status', label: '', defaultWidth: 24, minWidth: 24, canHide: false, canResize: false },
+  ];
+  
+  // Load/save column settings from localStorage
+  const COLUMN_SETTINGS_KEY = 'ynab4-tx-columns';
+  
+  interface ColumnSettings {
+    widths: Record<string, number>;
+    hidden: string[];
+  }
+  
+  function loadColumnSettings(): ColumnSettings {
+    if (!browser) return { widths: {}, hidden: [] };
+    try {
+      const saved = localStorage.getItem(COLUMN_SETTINGS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { widths: {}, hidden: [] };
+  }
+  
+  function saveColumnSettings(settings: ColumnSettings) {
+    if (!browser) return;
+    try {
+      localStorage.setItem(COLUMN_SETTINGS_KEY, JSON.stringify(settings));
+    } catch {}
+  }
+  
+  let columnSettings = $state<ColumnSettings>(loadColumnSettings());
+  let showColumnSettings = $state(false);
+  
+  // Get column width
+  function getColumnWidth(id: string): number {
+    return columnSettings.widths[id] || COLUMNS.find(c => c.id === id)?.defaultWidth || 80;
+  }
+  
+  // Check if column is visible
+  function isColumnVisible(id: string): boolean {
+    const col = COLUMNS.find(c => c.id === id);
+    if (!col?.canHide) return true;
+    return !columnSettings.hidden.includes(id);
+  }
+  
+  // Toggle column visibility
+  function toggleColumnVisibility(id: string) {
+    const col = COLUMNS.find(c => c.id === id);
+    if (!col?.canHide) return;
+    
+    const hidden = [...columnSettings.hidden];
+    const idx = hidden.indexOf(id);
+    if (idx >= 0) {
+      hidden.splice(idx, 1);
+    } else {
+      hidden.push(id);
+    }
+    columnSettings = { ...columnSettings, hidden };
+    saveColumnSettings(columnSettings);
+  }
+  
+  // Resize column
+  let resizingColumn = $state<string | null>(null);
+  let resizeStartX = 0;
+  let resizeStartWidth = 0;
+  
+  function startResize(e: MouseEvent, columnId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingColumn = columnId;
+    resizeStartX = e.clientX;
+    resizeStartWidth = getColumnWidth(columnId);
+    
+    document.addEventListener('mousemove', handleResize);
+    document.addEventListener('mouseup', stopResize);
+  }
+  
+  function handleResize(e: MouseEvent) {
+    if (!resizingColumn) return;
+    const col = COLUMNS.find(c => c.id === resizingColumn);
+    if (!col) return;
+    
+    const delta = e.clientX - resizeStartX;
+    const newWidth = Math.max(col.minWidth, resizeStartWidth + delta);
+    
+    columnSettings = {
+      ...columnSettings,
+      widths: { ...columnSettings.widths, [resizingColumn]: newWidth }
+    };
+  }
+  
+  function stopResize() {
+    if (resizingColumn) {
+      saveColumnSettings(columnSettings);
+      resizingColumn = null;
+    }
+    document.removeEventListener('mousemove', handleResize);
+    document.removeEventListener('mouseup', stopResize);
+  }
 
   interface Props {
     onAddTransaction?: () => void;
@@ -731,6 +849,45 @@
           <Lock class="h-4 w-4" />
         </button>
         
+        <div class="column-settings-wrapper">
+          <button 
+            class="tx-icon-btn"
+            class:active={showColumnSettings}
+            onclick={() => showColumnSettings = !showColumnSettings}
+            title={$t('transactions.columnSettings') || 'Columnas'}
+          >
+            <Settings2 class="h-4 w-4" />
+          </button>
+          
+          {#if showColumnSettings}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <div class="column-settings-dropdown" onclick={(e) => e.stopPropagation()}>
+              <div class="column-settings-header">
+                <span>{$t('transactions.visibleColumns') || 'Columnas visibles'}</span>
+                <button class="column-settings-close" onclick={() => showColumnSettings = false}>
+                  <X class="h-3 w-3" />
+                </button>
+              </div>
+              <div class="column-settings-list">
+                {#each COLUMNS.filter(c => c.canHide) as col (col.id)}
+                  <label class="column-toggle">
+                    <input 
+                      type="checkbox" 
+                      checked={isColumnVisible(col.id)}
+                      onchange={() => toggleColumnVisibility(col.id)}
+                    />
+                    <span>{col.label ? $t(col.label) : col.id}</span>
+                  </label>
+                {/each}
+              </div>
+              <div class="column-settings-hint">
+                {$t('transactions.resizeHint') || 'Arrastra bordes de columnas para ajustar ancho'}
+              </div>
+            </div>
+          {/if}
+        </div>
+        
         <div class="tx-search">
           <Search class="h-4 w-4 tx-search-icon" />
           <input
@@ -758,12 +915,12 @@
     {/if}
 
     <!-- Table (Desktop) -->
-    <div class="tx-table-container" bind:this={tableContainer} onscroll={handleScroll}>
+    <div class="tx-table-container" class:resizing={resizingColumn !== null} bind:this={tableContainer} onscroll={handleScroll}>
       <table class="tx-table">
         <thead>
           <tr>
-            <th class="col-flag"></th>
-            <th class="col-date">
+            <th class="col-flag" style="width: {getColumnWidth('flag')}px"></th>
+            <th class="col-date resizable" style="width: {getColumnWidth('date')}px">
               <button class="sort-header" onclick={toggleSortOrder}>
                 {$t('transactions.date')}
                 {#if sortOrder === 'desc'}
@@ -772,18 +929,57 @@
                   <ChevronUp class="h-3 w-3" />
                 {/if}
               </button>
+              <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+              <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'date')}></div>
             </th>
-            {#if !selectedAccount}
-              <th class="col-account">{$t('transactions.account')}</th>
+            {#if !selectedAccount && isColumnVisible('account')}
+              <th class="col-account resizable" style="width: {getColumnWidth('account')}px">
+                {$t('transactions.account')}
+                <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'account')}></div>
+              </th>
             {/if}
-            <th class="col-payee">{$t('transactions.payee')}</th>
-            <th class="col-category">{$t('transactions.category')} / {$t('transactions.memo')}</th>
-            <th class="col-outflow">{$t('transactions.outflow')}</th>
-            <th class="col-inflow">{$t('transactions.inflow')}</th>
-            {#if selectedAccount}
-              <th class="col-balance">{$t('transactions.balance')}</th>
+            <th class="col-payee resizable" style="width: {getColumnWidth('payee')}px">
+              {$t('transactions.payee')}
+              <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+              <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'payee')}></div>
+            </th>
+            {#if isColumnVisible('category')}
+              <th class="col-category resizable" style="width: {getColumnWidth('category')}px">
+                {$t('transactions.category')}
+                <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'category')}></div>
+              </th>
             {/if}
-            <th class="col-status"></th>
+            {#if isColumnVisible('memo')}
+              <th class="col-memo resizable" style="width: {getColumnWidth('memo')}px">
+                {$t('transactions.memo')}
+                <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'memo')}></div>
+              </th>
+            {/if}
+            {#if isColumnVisible('outflow')}
+              <th class="col-outflow resizable" style="width: {getColumnWidth('outflow')}px">
+                {$t('transactions.outflow')}
+                <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'outflow')}></div>
+              </th>
+            {/if}
+            {#if isColumnVisible('inflow')}
+              <th class="col-inflow resizable" style="width: {getColumnWidth('inflow')}px">
+                {$t('transactions.inflow')}
+                <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'inflow')}></div>
+              </th>
+            {/if}
+            {#if selectedAccount && isColumnVisible('balance')}
+              <th class="col-balance resizable" style="width: {getColumnWidth('balance')}px">
+                {$t('transactions.balance')}
+                <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
+                <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'balance')}></div>
+              </th>
+            {/if}
+            <th class="col-status" style="width: {getColumnWidth('status')}px"></th>
           </tr>
         </thead>
         <tbody>
@@ -1044,7 +1240,7 @@
                   <span class="flag-tag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : 'flag-empty'}"></span>
                 </td>
                 <td class="col-date">{formatDate(tx.date)}</td>
-                {#if !selectedAccount}
+                {#if !selectedAccount && isColumnVisible('account')}
                   <td class="col-account">{tx.accountName}</td>
                 {/if}
                 <td class="col-payee">
@@ -1056,8 +1252,8 @@
                     {tx.payee || ''}
                   {/if}
                 </td>
-                <td class="col-category">
-                  <div class="category-memo">
+                {#if isColumnVisible('category')}
+                  <td class="col-category">
                     {#if txHasSplits}
                       <span class="split-indicator" class:expanded={isExpanded}>
                         <Split class="h-3 w-3" />
@@ -1075,18 +1271,24 @@
                         {/if}
                       </span>
                     {/if}
-                    {#if tx.memo}
-                      <span class="memo-text">{tx.memo}</span>
-                    {/if}
-                  </div>
-                </td>
-                <td class="col-outflow" class:has-value={isOutflow}>
-                  {isOutflow ? formatAmount(tx.amount) : ''}
-                </td>
-                <td class="col-inflow" class:has-value={isInflow}>
-                  {isInflow ? formatAmount(tx.amount) : ''}
-                </td>
-                {#if selectedAccount}
+                  </td>
+                {/if}
+                {#if isColumnVisible('memo')}
+                  <td class="col-memo">
+                    {tx.memo || ''}
+                  </td>
+                {/if}
+                {#if isColumnVisible('outflow')}
+                  <td class="col-outflow" class:has-value={isOutflow}>
+                    {isOutflow ? formatAmount(tx.amount) : ''}
+                  </td>
+                {/if}
+                {#if isColumnVisible('inflow')}
+                  <td class="col-inflow" class:has-value={isInflow}>
+                    {isInflow ? formatAmount(tx.amount) : ''}
+                  </td>
+                {/if}
+                {#if selectedAccount && isColumnVisible('balance')}
                   <td class="col-balance" class:positive={tx.runningBalance >= 0} class:negative={tx.runningBalance < 0}>
                     {formatAmount(tx.runningBalance)}
                   </td>
@@ -1683,24 +1885,127 @@
     background: var(--accent);
   }
 
-  .col-flag { width: 22px; text-align: center; padding: 0 !important; }
-  .col-date { width: 85px; font-size: 0.75rem; white-space: nowrap; }
-  .col-account { width: 80px; font-size: 0.7rem; }
-  .col-payee { min-width: 100px; font-size: 0.75rem; }
-  .col-category { min-width: 120px; font-size: 0.7rem; }
+  .col-flag { text-align: center; padding: 0 !important; }
+  .col-date { font-size: 0.75rem; white-space: nowrap; }
+  .col-account { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-payee { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-category { font-size: 0.7rem; overflow: hidden; text-overflow: ellipsis; }
+  .col-memo { font-size: 0.7rem; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-outflow, .col-inflow, .col-balance { 
-    width: 70px; 
     text-align: right; 
     font-family: var(--font-family-mono);
     font-feature-settings: "tnum";
     font-size: 0.75rem;
   }
-  .col-status { width: 24px; text-align: center; padding: 0 !important; }
+  .col-status { text-align: center; padding: 0 !important; }
 
   .col-outflow.has-value { color: var(--destructive); }
   .col-inflow.has-value { color: var(--success); }
   .col-balance.positive { color: var(--success); }
   .col-balance.negative { color: var(--destructive); }
+  
+  /* Column Settings */
+  .column-settings-wrapper {
+    position: relative;
+  }
+  
+  .column-settings-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    min-width: 200px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+  }
+  
+  .column-settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+  
+  .column-settings-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  
+  .column-settings-close:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+  
+  .column-settings-list {
+    padding: 0.5rem;
+  }
+  
+  .column-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    color: var(--foreground);
+  }
+  
+  .column-toggle:hover {
+    background: var(--accent);
+  }
+  
+  .column-toggle input {
+    accent-color: var(--primary);
+  }
+  
+  .column-settings-hint {
+    padding: 0.5rem 0.75rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.7rem;
+    color: var(--muted-foreground);
+    font-style: italic;
+  }
+  
+  /* Resize handles */
+  .tx-table th.resizable {
+    position: relative;
+  }
+  
+  .resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.15s;
+  }
+  
+  .resize-handle:hover,
+  .tx-table-container.resizing .resize-handle {
+    background: var(--primary);
+  }
+  
+  .tx-table-container.resizing {
+    cursor: col-resize;
+    user-select: none;
+  }
 
   /* Add Transaction Row */
   .tx-add-row {

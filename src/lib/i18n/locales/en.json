@@ -169,7 +169,11 @@
     "selectCategory": "Select category",
     "selectAccount": "Select account",
     "searchPayee": "Search payee...",
-    "createPayee": "Create \"{{name}}\""
+    "createPayee": "Create \"{{name}}\"",
+    "columnSettings": "Columns",
+    "visibleColumns": "Visible columns",
+    "resizeHint": "Drag column borders to resize",
+    "toggleDateFilter": "Date filter"
   },
   "categories": {
     "deferredIncome": "Deferred Income",

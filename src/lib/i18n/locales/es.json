@@ -169,7 +169,11 @@
     "selectCategory": "Seleccionar categoría",
     "selectAccount": "Seleccionar cuenta",
     "searchPayee": "Buscar beneficiario...",
-    "createPayee": "Crear \"{{name}}\""
+    "createPayee": "Crear \"{{name}}\"",
+    "columnSettings": "Columnas",
+    "visibleColumns": "Columnas visibles",
+    "resizeHint": "Arrastra bordes de columnas para ajustar ancho",
+    "toggleDateFilter": "Filtro de fechas"
   },
   "categories": {
     "deferredIncome": "Ingreso mes siguiente",
