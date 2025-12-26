@@ -953,7 +953,7 @@
 
   .acc-amounts { display: flex; flex-direction: column; align-items: flex-end; gap: 0.125rem; }
   .acc-balance { font-family: var(--font-family-mono); font-size: 0.75rem; font-weight: 500; color: var(--foreground); }
-  .acc-change { font-family: var(--font-family-mono); font-size: 0.65rem; }
+  .acc-change { font-family: var(--font-family-mono); font-size: 0.7rem; }
   .positive { color: var(--success); }
   .negative { color: var(--destructive); }
 
