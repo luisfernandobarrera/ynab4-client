@@ -14,6 +14,7 @@
   import { PayeesView } from '$lib/components/payees';
   import { EditModeWarning } from '$lib/components/edit-mode';
   import { CreateAccountView } from '$lib/components/accounts';
+  import { ImportEditor } from '$lib/components/import';
   import { budgetInfo, currentView, isLoading, loadFromLocal, loadFromDropbox } from '$lib/stores/budget';
   import { activeModal, openModal, closeModal, isMobile } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
@@ -356,9 +357,7 @@
   {:else if $currentView === 'payees'}
     <PayeesView />
   {:else if $currentView === 'import'}
-    <div class="p-4 text-center text-[var(--muted-foreground)]">
-      <p>{$t('common.comingSoon')}</p>
-    </div>
+    <ImportEditor />
   {:else if $currentView === 'createAccount'}
     <CreateAccountView />
   {:else if $currentView === 'settings'}
