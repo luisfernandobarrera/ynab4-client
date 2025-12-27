@@ -92,6 +92,68 @@
 }
 
 /* ========================================
+   LIGHT MODE (explicit)
+   ======================================== */
+[data-theme="light"] {
+  /* Surfaces */
+  --background: #f8fafc;
+  --foreground: #1e293b;
+  --card: #ffffff;
+  --card-foreground: #1e293b;
+  --popover: #ffffff;
+  --popover-foreground: #1e293b;
+  
+  /* Primary - Terracota */
+  --primary: #C75B39;
+  --primary-foreground: #ffffff;
+  
+  /* Secondary - Sodalita */
+  --secondary: #2D4A6F;
+  --secondary-foreground: #ffffff;
+  
+  /* Muted */
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  
+  /* Accent */
+  --accent: #e0f2fe;
+  --accent-foreground: #1e293b;
+  
+  /* Destructive */
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  
+  /* Borders */
+  --border: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  --input: #e2e8f0;
+  --ring: #C75B39;
+  
+  /* Semantic */
+  --success: #22c55e;
+  --success-foreground: #ffffff;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  
+  /* Table */
+  --table-header: #f8fafc;
+  --table-row-hover: rgba(59, 130, 246, 0.08);
+  --table-row-alt: #fafafa;
+  
+  /* Sidebar */
+  --sidebar-bg: #1e293b;
+  --sidebar-text: rgba(255, 255, 255, 0.9);
+  --sidebar-text-muted: rgba(255, 255, 255, 0.6);
+  --sidebar-hover: rgba(255, 255, 255, 0.1);
+  --sidebar-active: rgba(255, 255, 255, 0.15);
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.06);
+}
+
+/* ========================================
    DARK MODE
    ======================================== */
 [data-theme="dark"] {

@@ -3,6 +3,7 @@
   import { MonthlyBudgetCalculator } from 'ynab-library';
   import { 
     rawTransactions, 
+    transactions,
     monthlyBudgets, 
     rawCategories, 
     rawMasterCategories,
@@ -22,7 +23,8 @@
   let selectedYear = $state(currentDate.getFullYear());
   let centerMonth = $state(currentDate.getMonth());
   let visibleMonths = $state(4);
-  let showOnlyActive = $state(true);
+  // Category filter: 'active' (with activity in visible months), 'open' (not hidden), 'all'
+  let categoryFilter = $state<'active' | 'open' | 'all'>('active');
   let showSummary = $state(true);
   
   // Expansion state
@@ -74,6 +76,19 @@
     
     return months;
   });
+
+  // When there's a selection, show only that month
+  const displayMonthRange = $derived.by(() => {
+    if (showTransactions && selection) {
+      // Parse the selected month key
+      const [year, month] = selection.monthKey.split('-').map(Number);
+      return [{ month: month - 1, year, key: selection.monthKey }];
+    }
+    return monthRange;
+  });
+
+  // Check if we're in single month mode (selection active)
+  const isSingleMonthMode = $derived(showTransactions && selection !== null);
 
   // Get years with data - primarily from transactions, limited range from budgets
   const yearsWithData = $derived.by(() => {
@@ -258,26 +273,57 @@
       .sort((a, b) => a.sortableIndex - b.sortableIndex);
   });
 
-  // Filter categories based on showOnlyActive
-  const categoryStructure = $derived.by(() => {
-    if (!showOnlyActive) return allCategoryStructure;
+  // Check if category has activity in the visible months
+  function hasActivityInVisibleMonths(categoryId: string, isMaster: boolean): boolean {
+    const monthsToCheck = isSingleMonthMode && selection ? [selection.monthKey] : displayMonthRange.map(m => m.key);
     
+    for (const monthKey of monthsToCheck) {
+      const data = getCategoryData(categoryId, monthKey, isMaster);
+      if (data.budgeted !== 0 || data.activity !== 0 || Math.abs(data.available) > 0.01) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Filter categories based on categoryFilter
+  const categoryStructure = $derived.by(() => {
+    if (categoryFilter === 'all') return allCategoryStructure;
+    
+    if (categoryFilter === 'open') {
+      // Show all non-hidden categories
+      return allCategoryStructure
+        .map(master => ({
+          ...master,
+          subCategories: master.subCategories.filter(sub => sub.isActive)
+        }))
+        .filter(master => master.subCategories.length > 0);
+    }
+    
+    // 'active' - only categories with activity in visible months
     return allCategoryStructure
       .map(master => ({
         ...master,
-        subCategories: master.subCategories.filter(sub => sub.isActive)
+        subCategories: master.subCategories.filter(sub => 
+          sub.isActive && hasActivityInVisibleMonths(sub.id, false)
+        )
       }))
-      .filter(master => master.subCategories.length > 0);
+      .filter(master => master.subCategories.length > 0 || hasActivityInVisibleMonths(master.id, true));
   });
 
   // Category statistics
   const categoryStats = $derived.by(() => {
     const totalSubs = allCategoryStructure.reduce((sum, m) => sum + m.subCategories.length, 0);
-    const activeSubs = allCategoryStructure.reduce(
+    const openSubs = allCategoryStructure.reduce(
       (sum, m) => sum + m.subCategories.filter(s => s.isActive).length, 
       0
     );
-    return { total: totalSubs, active: activeSubs };
+    const activeSubs = allCategoryStructure.reduce(
+      (sum, m) => sum + m.subCategories.filter(s => s.isActive && hasActivityInVisibleMonths(s.id, false)).length, 
+      0
+    );
+    const currentCount = categoryStructure.reduce((sum, m) => sum + m.subCategories.length, 0);
+    return { total: totalSubs, open: openSubs, active: activeSubs, current: currentCount };
   });
 
   // Get category data for a specific month
@@ -298,9 +344,25 @@
     return { budgeted: 0, activity: 0, available: 0 };
   }
 
-  // Get transactions for selected category/month
+  // Get previous month key
+  function getPreviousMonthKey(monthKey: string): string {
+    const [year, month] = monthKey.split('-').map(Number);
+    if (month === 1) {
+      return `${year - 1}-12`;
+    }
+    return `${year}-${String(month - 1).padStart(2, '0')}`;
+  }
+
+  // Get category data for previous month (balance from last month)
+  function getPreviousMonthBalance(categoryId: string, monthKey: string, isMaster: boolean = false): number {
+    const prevKey = getPreviousMonthKey(monthKey);
+    const data = getCategoryData(categoryId, prevKey, isMaster);
+    return data.available || 0;
+  }
+
+  // Get transactions for selected category/month (using full transaction store)
   const selectedTransactions = $derived.by(() => {
-    if (!selection || !$rawTransactions) return [];
+    if (!selection || !$transactions) return [];
     
     const { type, id, monthKey } = selection;
     
@@ -320,15 +382,16 @@
       entityId: string;
       date: string;
       amount: number;
-      payeeId: string | null;
-      accountId: string;
+      payeeName: string;
+      accountName: string;
       memo: string;
+      flag: string | null;
       isSplit?: boolean;
-      transferAccountId?: string;
+      cleared: string;
     }> = [];
     
-    $rawTransactions.forEach(tx => {
-      if (tx.isTombstone || !tx.date || !tx.date.startsWith(monthKey)) return;
+    $transactions.forEach(tx => {
+      if (!tx.date || !tx.date.startsWith(monthKey)) return;
       
       // Handle split transactions
       if (tx.subTransactions?.length) {
@@ -338,10 +401,12 @@
               entityId: tx.entityId,
               date: tx.date,
               amount: split.amount || 0,
-              payeeId: null,
-              accountId: '',
-              memo: '',
-              isSplit: true
+              payeeName: tx.payee || '',
+              accountName: tx.accountName || '',
+              memo: split.memo || tx.memo || '',
+              flag: tx.flag || null,
+              isSplit: true,
+              cleared: tx.cleared || ''
             });
           }
         });
@@ -350,9 +415,12 @@
           entityId: tx.entityId,
           date: tx.date,
           amount: tx.amount,
-          payeeId: null,
-          accountId: '',
-          memo: ''
+          payeeName: tx.payee || '',
+          accountName: tx.accountName || '',
+          memo: tx.memo || '',
+          flag: tx.flag || null,
+          isSplit: false,
+          cleared: tx.cleared || ''
         });
       }
     });
@@ -363,19 +431,60 @@
   // Navigation
   function navigateMonth(direction: number) {
     let newMonth = centerMonth + direction;
+    let newYear = selectedYear;
+    
     if (newMonth < 0) {
-      selectedYear -= 1;
-      centerMonth = 11;
+      newYear -= 1;
+      newMonth = 11;
     } else if (newMonth > 11) {
-      selectedYear += 1;
-      centerMonth = 0;
-    } else {
-      centerMonth = newMonth;
+      newYear += 1;
+      newMonth = 0;
     }
     
+    selectedYear = newYear;
+    centerMonth = newMonth;
+    
     // Update the global selectedMonth store
-    const key = `${selectedYear}-${String(centerMonth + 1).padStart(2, '0')}`;
+    const key = `${newYear}-${String(newMonth + 1).padStart(2, '0')}`;
     selectedMonth.set(key);
+    
+    // If there's an active selection, update its month key
+    if (selection) {
+      selection = {
+        ...selection,
+        monthKey: key
+      };
+    }
+  }
+
+  // Set a specific month (used by month buttons)
+  function setMonth(monthIndex: number) {
+    centerMonth = monthIndex;
+    const key = `${selectedYear}-${String(monthIndex + 1).padStart(2, '0')}`;
+    selectedMonth.set(key);
+    
+    // If there's an active selection, update its month key
+    if (selection) {
+      selection = {
+        ...selection,
+        monthKey: key
+      };
+    }
+  }
+
+  // Set a specific year (used by year buttons)
+  function setYear(year: number) {
+    selectedYear = year;
+    const key = `${year}-${String(centerMonth + 1).padStart(2, '0')}`;
+    selectedMonth.set(key);
+    
+    // If there's an active selection, update its month key
+    if (selection) {
+      selection = {
+        ...selection,
+        monthKey: key
+      };
+    }
   }
 
   function toggleMaster(masterId: string, e?: Event) {
@@ -607,7 +716,7 @@
           <button
             class="year-btn"
             class:active={selectedYear === year}
-            onclick={() => selectedYear = year}
+            onclick={() => setYear(year)}
           >
             {year}
           </button>
@@ -622,7 +731,7 @@
           <button
             class="month-btn"
             class:active={centerMonth === idx}
-            onclick={() => { centerMonth = idx; selectedMonth.set(`${selectedYear}-${String(idx + 1).padStart(2, '0')}`); }}
+            onclick={() => setMonth(idx)}
           >
             {name}
           </button>
@@ -686,8 +795,8 @@
     {/if}
   </div>
 
-  <div class="budget-main-area">
-    <!-- Main Grid -->
+  <div class="budget-main-area" class:detail-mode={showTransactions && selection}>
+    <!-- Main Grid (normal view) -->
     <div class="budget-grid-container">
       <!-- Categories Column -->
       <div class="budget-categories-column">
@@ -695,7 +804,7 @@
           <div class="header-label-row">
             <span class="header-label">{$t('budget.categories')}</span>
             <span class="category-count">
-              {showOnlyActive ? categoryStats.active : categoryStats.total}
+              {categoryStats.current}
             </span>
           </div>
           <div class="header-controls">
@@ -717,13 +826,14 @@
                 <ChevronsDownUp class="h-3.5 w-3.5" />
               </button>
             </div>
-            <label class="active-filter-toggle">
-              <input 
-                type="checkbox"
-                bind:checked={showOnlyActive}
-              />
-              <span class="toggle-label">{$t('budget.activeOnly')}</span>
-            </label>
+            <select 
+              class="category-filter-select"
+              bind:value={categoryFilter}
+            >
+              <option value="active">Activas ({categoryStats.active})</option>
+              <option value="open">Abiertas ({categoryStats.open})</option>
+              <option value="all">Todas ({categoryStats.total})</option>
+            </select>
           </div>
         </div>
         
@@ -759,14 +869,17 @@
       </div>
 
       <!-- Data Columns -->
-      <div class="budget-data-columns">
+      <div class="budget-data-columns" class:single-month={isSingleMonthMode}>
         <div class="budget-months-header">
-          {#each monthRange as { month, year, key }}
-            <div class="month-header-group">
+          {#each displayMonthRange as { month, year, key }}
+            <div class="month-header-group" class:single-month={isSingleMonthMode}>
               <div class="month-title">
                 {monthsShort[month]} {year}
               </div>
               <div class="month-columns">
+                {#if isSingleMonthMode}
+                  <span class="col-header">ANT</span>
+                {/if}
                 <span class="col-header">PRES</span>
                 <span class="col-header">GAST</span>
                 <span class="col-header">SALDO</span>
@@ -781,23 +894,30 @@
           onscroll={handleDataScroll}
         >
           {#each categoryStructure as master (master.id)}
-            {@const isMasterOverspent = monthRange.some(({ key }) => {
+            {@const isMasterOverspent = displayMonthRange.some(({ key }) => {
               const d = getCategoryData(master.id, key, true);
               return d.available < -0.01;
             })}
             <div class="data-group" class:overspent-group={isMasterOverspent}>
               <!-- Master Row -->
               <div class="data-row master-row" class:selected-row={selection?.type === 'master' && selection?.id === master.id}>
-                {#each monthRange as { key }}
+                {#each displayMonthRange as { key }}
                   {@const data = getCategoryData(master.id, key, true)}
+                  {@const prevBalance = getPreviousMonthBalance(master.id, key, true)}
                   {@const isSelected = isCellSelected('master', master.id, key)}
                   {@const isOverspent = data.available < -0.01}
                   <button 
                     class="month-data"
                     class:selected={isSelected}
                     class:overspent={isOverspent}
+                    class:single-month={isSingleMonthMode}
                     onclick={(e) => handleCellClick('master', master.id, key, master.name, e)}
                   >
+                    {#if isSingleMonthMode}
+                      <span class="cell previous {prevBalance < -0.01 ? 'negative' : (prevBalance > 0.01 ? 'positive' : '')}">
+                        {formatAmount(prevBalance)}
+                      </span>
+                    {/if}
                     <span class="cell budgeted">{formatAmount(data.budgeted)}</span>
                     <span class="cell outflows" class:negative={!isNearZero(data.activity) && data.activity < 0}>
                       {formatAmount(data.activity)}
@@ -812,21 +932,28 @@
               <!-- Subcategory Rows -->
               {#if expandedMasters.has(master.id)}
                 {#each master.subCategories as sub (sub.id)}
-                  {@const isSubOverspent = monthRange.some(({ key }) => {
+                  {@const isSubOverspent = displayMonthRange.some(({ key }) => {
                     const d = getCategoryData(sub.id, key, false);
                     return d.available < -0.01;
                   })}
                   <div class="data-row sub-row" class:selected-row={selection?.type === 'category' && selection?.id === sub.id} class:overspent-row={isSubOverspent}>
-                    {#each monthRange as { key }}
+                    {#each displayMonthRange as { key }}
                       {@const data = getCategoryData(sub.id, key, false)}
+                      {@const prevBalance = getPreviousMonthBalance(sub.id, key, false)}
                       {@const isSelected = isCellSelected('category', sub.id, key)}
                       {@const isOverspent = data.available < -0.01}
                       <button 
                         class="month-data"
                         class:selected={isSelected}
                         class:overspent={isOverspent}
+                        class:single-month={isSingleMonthMode}
                         onclick={(e) => handleCellClick('category', sub.id, key, sub.name, e)}
                       >
+                        {#if isSingleMonthMode}
+                          <span class="cell previous {prevBalance < -0.01 ? 'negative' : (prevBalance > 0.01 ? 'positive' : '')}">
+                            {formatAmount(prevBalance)}
+                          </span>
+                        {/if}
                         {#if editingBudget?.categoryId === sub.id && editingBudget?.monthKey === key}
                           <span class="cell budgeted editing">
                             <input
@@ -865,58 +992,52 @@
       </div>
     </div>
 
-    <!-- Transactions Panel -->
+    <!-- Transactions Panel (when category is selected) -->
     {#if showTransactions && selection}
-      <div class="budget-transactions-panel">
-        <div class="tx-panel-header">
-          <div class="tx-panel-title">
-            <h3>{selection.name}</h3>
-            <span class="tx-panel-month">{getMonthName(selection.monthKey)}</span>
+      <div class="detail-transactions">
+        <div class="detail-tx-header">
+          <div class="detail-tx-title">
+            <strong>{selection.name}</strong>
+            <span class="detail-tx-month">{getMonthName(selection.monthKey)}</span>
+            <span class="tx-count-label">· {selectedTransactions.length} {$t('budget.transactions')}</span>
           </div>
-          <button class="tx-panel-close" onclick={closePanel}>
-            <X class="h-5 w-5" />
+          <button class="detail-close-btn" onclick={closePanel}>
+            <X class="h-4 w-4" />
           </button>
         </div>
         
-        {#if selection}
-          {@const data = getCategoryData(selection.id, selection.monthKey, selection.type === 'master')}
-          <div class="tx-panel-summary">
-            <div class="summary-item">
-              <span class="label">{$t('budget.budgeted')}</span>
-              <span class="value">{formatAmountFull(data.budgeted)}</span>
-            </div>
-            <div class="summary-item">
-              <span class="label">{$t('budget.activity')}</span>
-              <span class="value {isNearZero(data.activity) ? 'zero' : (data.activity < 0 ? 'negative' : 'positive')}">
-                {formatAmountFull(data.activity, true)}
-              </span>
-            </div>
-            <div class="summary-item highlight">
-              <span class="label">{$t('budget.balance')}</span>
-              <span class="value {getBalanceClass(data.available)}">
-                {formatAmountFull(data.available)}
-              </span>
-            </div>
+        {#if selectedTransactions.length === 0}
+          <div class="no-transactions-detail">
+            {$t('budget.noTransactions')}
           </div>
-        {/if}
-        
-        <div class="tx-panel-list">
-          {#if selectedTransactions.length === 0}
-            <div class="no-transactions">
-              {$t('budget.noTransactions')}
-            </div>
-          {:else}
-            <table class="tx-mini-table">
+        {:else}
+          <div class="detail-tx-table-container">
+            <table class="detail-tx-table">
               <thead>
                 <tr>
-                  <th>{$t('transactions.date')}</th>
+                  <th class="col-flag"></th>
+                  <th class="col-date">{$t('transactions.date')}</th>
+                  <th class="col-account">{$t('transactions.account')}</th>
+                  <th class="col-payee">{$t('transactions.payee')}</th>
+                  <th class="col-memo">{$t('transactions.memo')}</th>
                   <th class="col-amount">{$t('transactions.amount')}</th>
                 </tr>
               </thead>
               <tbody>
                 {#each selectedTransactions as tx, idx (tx.entityId + '-' + idx)}
                   <tr class:split={tx.isSplit}>
+                    <td class="col-flag">
+                      {#if tx.flag}
+                        <span class="flag-indicator flag-{tx.flag.toLowerCase()}"></span>
+                      {/if}
+                    </td>
                     <td class="col-date">{tx.date}</td>
+                    <td class="col-account">{tx.accountName}</td>
+                    <td class="col-payee">
+                      {#if tx.isSplit}<span class="split-badge">÷</span>{/if}
+                      {tx.payeeName}
+                    </td>
+                    <td class="col-memo">{tx.memo || ''}</td>
                     <td class="col-amount {isNearZero(tx.amount) ? 'zero' : (tx.amount < 0 ? 'negative' : 'positive')}">
                       {formatAmountFull(tx.amount, true)}
                     </td>
@@ -924,14 +1045,8 @@
                 {/each}
               </tbody>
             </table>
-          {/if}
-        </div>
-        
-        <div class="tx-panel-footer">
-          <span class="tx-count">
-            {selectedTransactions.length} {$t('budget.transactions')}
-          </span>
-        </div>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -1154,6 +1269,11 @@
     min-height: 0;
   }
 
+  .budget-main-area.detail-mode .budget-grid-container {
+    flex: 0 0 auto;
+    max-width: 560px;
+  }
+
   .budget-grid-container {
     flex: 1;
     display: flex;
@@ -1241,26 +1361,20 @@
     border-radius: 10px;
   }
 
-  .active-filter-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    cursor: pointer;
+  .category-filter-select {
+    padding: 0.25rem 0.5rem;
     font-size: 0.65rem;
     font-weight: 500;
-    text-transform: none;
-    letter-spacing: 0;
-  }
-
-  .active-filter-toggle input {
-    width: 12px;
-    height: 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--background);
+    color: var(--foreground);
     cursor: pointer;
-    accent-color: var(--primary);
+    outline: none;
   }
 
-  .toggle-label {
-    color: var(--muted-foreground);
+  .category-filter-select:focus {
+    border-color: var(--primary);
   }
 
   .budget-categories-scroll {
@@ -1278,7 +1392,9 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.5rem 0.5rem 0.5rem 0.25rem;
+    padding: 0 0.5rem 0 0.25rem;
+    height: 32px;
+    box-sizing: border-box;
     background: var(--muted);
     cursor: pointer;
     font-size: 0.8rem;
@@ -1326,7 +1442,7 @@
   .category-sub {
     display: flex;
     align-items: center;
-    padding: 0.375rem 0.5rem 0.375rem 1.5rem;
+    padding: 0 0.5rem 0 1.5rem;
     font-size: 0.8rem;
     color: var(--foreground);
     height: 28px;
@@ -1375,6 +1491,59 @@
     flex-direction: column;
     overflow: hidden;
     min-width: 0;
+  }
+
+  /* Single month mode - add width for the extra "previous" column */
+  .budget-data-columns.single-month {
+    flex: 0 0 340px;
+    min-width: 340px;
+    max-width: 340px;
+  }
+
+  .budget-data-columns.single-month .budget-months-header {
+    height: auto;
+    min-height: 50px;
+  }
+
+  .month-header-group.single-month {
+    flex: 1;
+    width: 100%;
+  }
+
+  .month-header-group.single-month .month-columns {
+    display: flex;
+  }
+
+  .month-header-group.single-month .col-header {
+    flex: 1;
+    min-width: 55px;
+    text-align: right;
+    padding: 0 0.25rem;
+  }
+
+  .month-data.single-month {
+    display: flex !important;
+    width: 100% !important;
+    min-width: unset !important;
+  }
+
+  .month-data.single-month .cell {
+    flex: 1;
+    min-width: 55px;
+    text-align: right;
+    padding: 0 0.25rem;
+  }
+
+  .cell.previous {
+    color: var(--muted-foreground);
+  }
+
+  .cell.previous.positive {
+    color: var(--success);
+  }
+
+  .cell.previous.negative {
+    color: var(--destructive);
   }
 
   .budget-months-header {
@@ -1432,10 +1601,10 @@
 
   .data-row {
     display: flex;
-    height: 32px;
   }
 
   .data-row.master-row {
+    height: 32px;
     background: var(--muted);
     font-weight: 600;
   }
@@ -1456,21 +1625,7 @@
     background: rgba(59, 130, 246, 0.1) !important;
   }
 
-  .data-row.overspent-row {
-    background: rgba(220, 38, 38, 0.04);
-  }
-
-  .data-row.overspent-row:hover {
-    background: rgba(220, 38, 38, 0.08);
-  }
-
-  .data-group.overspent-group .master-row {
-    background: rgba(220, 38, 38, 0.06);
-  }
-
-  .data-group.overspent-group .master-row:hover {
-    background: rgba(220, 38, 38, 0.1);
-  }
+  /* Removed overspent row backgrounds - only the balance value shows red */
 
   .month-data {
     flex: 0 0 auto;
@@ -1490,13 +1645,7 @@
     background: var(--accent);
   }
 
-  .month-data.overspent {
-    background: rgba(220, 38, 38, 0.08);
-  }
-
-  .month-data.overspent:hover {
-    background: rgba(220, 38, 38, 0.12);
-  }
+  /* Removed overspent cell backgrounds - only the balance value shows red */
 
   .month-data.selected {
     background: var(--primary);
@@ -1582,10 +1731,320 @@
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
   }
 
-  /* Transactions Panel */
+  /* Detail View (single month + transactions) */
+  .detail-view {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .detail-budget-panel {
+    width: 420px;
+    min-width: 380px;
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .detail-budget-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .detail-back-btn {
+    padding: 0.375rem;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+
+  .detail-back-btn:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  .detail-month-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  .detail-budget-grid {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .detail-grid-header {
+    display: grid;
+    grid-template-columns: 1fr 65px 55px 55px 65px;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.6rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted-foreground);
+  }
+
+  .detail-grid-header .col-prev,
+  .detail-grid-header .col-bud,
+  .detail-grid-header .col-act,
+  .detail-grid-header .col-bal {
+    text-align: right;
+  }
+
+  .detail-grid-scroll {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .detail-grid-group {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .detail-grid-row {
+    display: grid;
+    grid-template-columns: 1fr 65px 55px 55px 65px;
+    gap: 0.25rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .detail-grid-row:hover {
+    background: var(--accent);
+  }
+
+  .detail-grid-row.selected {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .detail-grid-row.selected .col-prev,
+  .detail-grid-row.selected .col-bud,
+  .detail-grid-row.selected .col-act,
+  .detail-grid-row.selected .col-bal {
+    color: var(--primary-foreground) !important;
+  }
+
+  .detail-grid-row.master {
+    font-weight: 600;
+    background: var(--muted);
+  }
+
+  .detail-grid-row.sub {
+    padding-left: 1.5rem;
+  }
+
+  .detail-grid-row .col-cat {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .expand-btn-mini {
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    font-size: 0.65rem;
+    width: 12px;
+    transition: transform 0.15s;
+  }
+
+  .expand-btn-mini span.expanded {
+    display: inline-block;
+    transform: rotate(90deg);
+  }
+
+  .detail-grid-row .col-prev,
+  .detail-grid-row .col-bud,
+  .detail-grid-row .col-act,
+  .detail-grid-row .col-bal {
+    text-align: right;
+    font-family: var(--font-family-mono);
+    font-size: 0.7rem;
+  }
+
+  .detail-grid-row .col-prev.positive { color: var(--success); }
+  .detail-grid-row .col-prev.negative { color: var(--destructive); }
+  .detail-grid-row .col-act.negative { color: var(--destructive); }
+  .detail-grid-row .col-bal.positive { color: var(--success); }
+  .detail-grid-row .col-bal.negative { color: var(--destructive); }
+  .detail-grid-row .col-bal.warning { color: var(--warning); }
+
+  /* Detail Transactions */
+  .detail-transactions {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--background);
+  }
+
+  .detail-tx-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1rem;
+    background: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .detail-tx-title {
+    font-size: 0.85rem;
+    color: var(--foreground);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .detail-tx-title strong {
+    font-weight: 600;
+  }
+
+  .detail-tx-month {
+    color: var(--muted-foreground);
+    font-size: 0.8rem;
+  }
+
+  .tx-count-label {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--muted-foreground);
+  }
+
+  .detail-close-btn {
+    padding: 0.375rem;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s;
+  }
+
+  .detail-close-btn:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  .no-transactions-detail {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted-foreground);
+    font-size: 0.9rem;
+  }
+
+  .detail-tx-table-container {
+    flex: 1;
+    overflow: auto;
+  }
+
+  .detail-tx-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+  }
+
+  .detail-tx-table th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: var(--card);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  .detail-tx-table td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--foreground);
+  }
+
+  .detail-tx-table tr:hover td {
+    background: var(--accent);
+  }
+
+  .detail-tx-table tr.split td {
+    background: var(--muted);
+  }
+
+  .detail-tx-table .col-flag {
+    width: 24px;
+    padding: 0.25rem 0.5rem;
+    text-align: center;
+  }
+
+  .detail-tx-table .col-date {
+    width: 90px;
+    font-family: var(--font-family-mono);
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+
+  .detail-tx-table .col-account {
+    width: 120px;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+  }
+
+  .detail-tx-table .col-payee {
+    min-width: 150px;
+  }
+
+  .detail-tx-table .col-memo {
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .detail-tx-table th.col-amount,
+  .detail-tx-table .col-amount {
+    text-align: right;
+    font-family: var(--font-family-mono);
+    width: 100px;
+    font-weight: 500;
+  }
+
+  .detail-tx-table .col-amount.positive { color: var(--success); }
+  .detail-tx-table .col-amount.negative { color: var(--destructive); }
+  .detail-tx-table .col-amount.zero { color: var(--muted-foreground); }
+
+  /* Transactions Panel (legacy - keeping for compatibility) */
   .budget-transactions-panel {
-    width: 350px;
-    min-width: 300px;
+    width: 450px;
+    min-width: 400px;
     background: var(--card);
     border-left: 1px solid var(--border);
     display: flex;
@@ -1631,28 +2090,33 @@
   }
 
   .tx-panel-summary {
-    display: flex;
-    gap: 1rem;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
     background: var(--card);
+  }
+
+  .summary-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
   }
 
   .summary-item {
     display: flex;
     flex-direction: column;
     gap: 0.125rem;
+    min-width: 70px;
   }
 
   .summary-item .label {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--muted-foreground);
   }
 
   .summary-item .value {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 600;
     font-family: var(--font-family-mono);
     color: var(--foreground);
@@ -1750,6 +2214,58 @@
 
   .tx-mini-table .col-amount.zero {
     color: var(--muted-foreground);
+  }
+
+  .tx-mini-table .col-flag {
+    width: 20px;
+    padding: 0.25rem !important;
+    text-align: center;
+  }
+
+  .flag-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .flag-red { background: #ef4444; }
+  .flag-orange { background: #f97316; }
+  .flag-yellow { background: #eab308; }
+  .flag-green { background: #22c55e; }
+  .flag-blue { background: #3b82f6; }
+  .flag-purple { background: #a855f7; }
+
+  .tx-mini-table .col-account {
+    width: 90px;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+  }
+
+  .tx-mini-table .col-payee {
+    min-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .split-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 0.6rem;
+    font-weight: 700;
+    margin-right: 4px;
+    vertical-align: middle;
   }
 
   .tx-panel-footer {
