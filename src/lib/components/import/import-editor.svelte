@@ -12,6 +12,7 @@
     getExcelSheetNames,
     serializeImportFile,
     generateImportFilename,
+    downloadTemplate,
     type ImportTransaction,
     type ImportFile,
   } from '$lib/services/import-service';
@@ -438,8 +439,14 @@
         <p class="text-sm text-muted-foreground mt-1">
           Soporta Excel (.xlsx), CSV, o archivos guardados (.ynab-import.json)
         </p>
+        <div class="mt-4">
+          <Button variant="outline" size="sm" onclick={downloadTemplate}>
+            <Download class="mr-2 h-4 w-4" />
+            Descargar Plantilla Excel
+          </Button>
+        </div>
         <p class="text-xs text-muted-foreground mt-4 max-w-md">
-          Columnas sugeridas: Fecha, Descripción, Monto (o Cargo/Abono), Memo, Referencia, Payee Sugerido, Categoría
+          La plantilla incluye todas las columnas soportadas con ejemplos e instrucciones
         </p>
       </div>
     {:else}

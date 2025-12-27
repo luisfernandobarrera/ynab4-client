@@ -359,3 +359,94 @@ export function generateImportFilename(accountName: string): string {
   return `import-${safeName}-${date}.ynab-import.json`;
 }
 
+/**
+ * Template columns specification
+ */
+export const TEMPLATE_COLUMNS = [
+  { header: 'Fecha', key: 'date', width: 12, description: 'Fecha de la transacción (DD/MM/YYYY o YYYY-MM-DD)' },
+  { header: 'Descripción', key: 'description', width: 40, description: 'Descripción original del estado de cuenta' },
+  { header: 'Cargo', key: 'debit', width: 15, description: 'Monto de egreso (sin signo negativo)' },
+  { header: 'Abono', key: 'credit', width: 15, description: 'Monto de ingreso' },
+  { header: 'Referencia', key: 'reference', width: 20, description: 'Número de referencia o folio del banco' },
+  { header: 'Memo Original', key: 'originalMemo', width: 30, description: 'Información adicional del banco' },
+  { header: 'Payee', key: 'payee', width: 25, description: 'Beneficiario/Proveedor (autocompletado de YNAB)' },
+  { header: 'Payee Sugerido', key: 'suggestedPayee', width: 25, description: 'Payee sugerido (puedes editarlo)' },
+  { header: 'Categoría', key: 'category', width: 30, description: 'Categoría de YNAB (Master: SubCategoría)' },
+  { header: 'Memo', key: 'memo', width: 30, description: 'Notas adicionales para la transacción' },
+  { header: 'Bandera', key: 'flag', width: 10, description: 'Color: Red, Orange, Yellow, Green, Blue, Purple' },
+] as const;
+
+/**
+ * Generate template Excel file with sample data
+ */
+export function generateTemplateExcel(): ArrayBuffer {
+  // Create workbook
+  const wb = XLSX.utils.book_new();
+  
+  // Headers
+  const headers = TEMPLATE_COLUMNS.map(col => col.header);
+  
+  // Sample data rows
+  const sampleData = [
+    ['15/01/2025', 'PAGO TARJETA DE CREDITO', '5000.00', '', 'REF123456', 'PAGO TDC BANAMEX', '', 'Pago TDC', 'Deudas: Tarjeta Crédito', 'Pago mensual', ''],
+    ['16/01/2025', 'TRANSFERENCIA SPEI', '', '25000.00', 'SPEI987654', 'NOMINA EMPRESA SA', '', 'Empresa SA', 'Ingreso: Salario', 'Quincena enero', 'Green'],
+    ['17/01/2025', 'COMPRA AMAZON', '1200.00', '', 'AMZ001234', 'AMAZON MEXICO', 'Amazon', 'Amazon', 'Hogar: Varios', 'Compra audífonos', 'Blue'],
+    ['18/01/2025', 'PAGO LUZ CFE', '850.50', '', 'CFE456789', 'CFE SUMINISTRADOR', 'CFE', 'CFE', 'Casa: Servicios', '', ''],
+    ['19/01/2025', 'LIVERPOOL MSI 12', '12000.00', '', 'LIV789012', 'LIVERPOOL TIENDA', 'Liverpool', 'Liverpool', 'Ropa: Varios', 'Ropa invierno - MSI 12 meses', 'Orange'],
+  ];
+  
+  // Combine headers and data
+  const wsData = [headers, ...sampleData];
+  
+  // Create worksheet
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  
+  // Set column widths
+  ws['!cols'] = TEMPLATE_COLUMNS.map(col => ({ wch: col.width }));
+  
+  // Add worksheet to workbook
+  XLSX.utils.book_append_sheet(wb, ws, 'Transacciones');
+  
+  // Create instructions sheet
+  const instructionsData = [
+    ['INSTRUCCIONES DE USO'],
+    [''],
+    ['Este archivo es una plantilla para importar transacciones a YNAB4.'],
+    [''],
+    ['COLUMNAS:'],
+    ...TEMPLATE_COLUMNS.map(col => [`• ${col.header}: ${col.description}`]),
+    [''],
+    ['NOTAS:'],
+    ['• Puedes usar Cargo/Abono separados O una columna Monto (positivo=ingreso, negativo=egreso)'],
+    ['• Las fechas pueden estar en formato DD/MM/YYYY, MM/DD/YYYY o YYYY-MM-DD'],
+    ['• Los montos pueden incluir comas como separador de miles'],
+    ['• Las categorías deben coincidir con las de tu presupuesto YNAB'],
+    ['• Para MSI, marca la transacción y usa la función MSI en el importador'],
+    [''],
+    ['COLORES DE BANDERA:'],
+    ['Red, Orange, Yellow, Green, Blue, Purple (o vacío)'],
+  ];
+  
+  const wsInstructions = XLSX.utils.aoa_to_sheet(instructionsData);
+  wsInstructions['!cols'] = [{ wch: 80 }];
+  XLSX.utils.book_append_sheet(wb, wsInstructions, 'Instrucciones');
+  
+  // Write to buffer
+  const buffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+  return buffer;
+}
+
+/**
+ * Download template Excel file
+ */
+export function downloadTemplate(): void {
+  const buffer = generateTemplateExcel();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `plantilla-importacion-ynab-${new Date().toISOString().split('T')[0]}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
