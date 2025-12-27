@@ -390,7 +390,7 @@
   }
 
   function expandAllCategories() {
-    const allIds = categoryStructure.map(m => m.id).filter(Boolean) as string[];
+    const allIds = allCategoryStructure.map(m => m.id).filter(Boolean) as string[];
     expandedMasters = new Set(allIds);
   }
 
@@ -400,8 +400,8 @@
 
   // Check if all/none are expanded
   const allExpanded = $derived(
-    categoryStructure.length > 0 && 
-    categoryStructure.every(m => m.id && expandedMasters.has(m.id))
+    allCategoryStructure.length > 0 && 
+    allCategoryStructure.every(m => m.id && expandedMasters.has(m.id))
   );
 
   function handleCellClick(type: 'category' | 'master', id: string, monthKey: string, name: string, e?: Event) {
@@ -850,6 +850,9 @@
                         </span>
                         <span class="cell balance {getBalanceClass(data.available)}">
                           {formatAmount(data.available)}
+                          {#if data.available < -0.01 && data.overspendingHandling === 'Confined'}
+                            <span class="rolling-indicator" title="Se traslada al siguiente mes">→</span>
+                          {/if}
                         </span>
                       </button>
                     {/each}
@@ -1538,6 +1541,13 @@
 
   .cell.balance.zero {
     color: var(--muted-foreground);
+  }
+
+  .rolling-indicator {
+    margin-left: 0.25rem;
+    font-weight: 700;
+    color: var(--warning, #f59e0b);
+    font-size: 0.7rem;
   }
 
   /* Editable Budget Cells */
