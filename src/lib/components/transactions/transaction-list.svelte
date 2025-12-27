@@ -398,12 +398,17 @@
     const target = e.target as HTMLDivElement;
     
     if (isReverseScroll) {
-      // In reverse scroll mode (data reversed in JS):
-      // Oldest transactions at top, newest at bottom
-      // User scrolls UP to see older → load more when near TOP
-      const scrollTop = target.scrollTop;
-      if (scrollTop < 200 && hasMore) {
+      // Chat-style scroll: user scrolls UP to see older transactions
+      // When near top (scrollTop < 200), load more older transactions
+      // We need to preserve scroll position so user doesn't jump
+      if (target.scrollTop < 200 && hasMore) {
+        const oldHeight = target.scrollHeight;
         visibleCount += PAGE_SIZE;
+        // After DOM updates, adjust scroll to maintain position
+        requestAnimationFrame(() => {
+          const newHeight = target.scrollHeight;
+          target.scrollTop += (newHeight - oldHeight);
+        });
       }
     } else {
       // Normal mode: load more when near bottom
@@ -632,10 +637,22 @@
   });
 
   // Visible transactions (limited for performance)
-  // In reverse scroll mode, reverse the display order so newest appears at bottom
+  // In reverse scroll mode (chat-style): 
+  // - Take from the END of the sorted array (most recent in DESC order)
+  // - Display in order so newest appears at bottom
   const visibleTransactions = $derived.by(() => {
-    const sliced = transactionsWithBalance.slice(0, visibleCount);
-    return isReverseScroll ? [...sliced].reverse() : sliced;
+    if (isReverseScroll) {
+      // Chat-style: Take first N transactions (most recent when sorted DESC)
+      // Then reverse so newest appears at BOTTOM (like a chat)
+      // Array is [2026-06-13, 2026-06-01, ... , 2015-01-01] in DESC order
+      // We take first N: [2026-06-13 ... recent ones]
+      // Reverse to: [older of batch ... 2026-06-13] so newest is at bottom
+      const sliced = transactionsWithBalance.slice(0, visibleCount);
+      return [...sliced].reverse();
+    } else {
+      // Normal mode: Take first N transactions (newest first)
+      return transactionsWithBalance.slice(0, visibleCount);
+    }
   });
   const hasMore = $derived(visibleCount < transactionsWithBalance.length);
   
@@ -660,9 +677,14 @@
   let prevReverseScroll = $state(isReverseScroll);
   $effect(() => {
     if (isReverseScroll && !prevReverseScroll && tableContainer) {
-      // Reverse mode was just enabled, scroll to bottom
+      // Reverse mode was just enabled, scroll to bottom to show newest transactions
+      // Use double RAF to ensure DOM has updated with new transaction order
       requestAnimationFrame(() => {
-        tableContainer.scrollTop = tableContainer.scrollHeight;
+        requestAnimationFrame(() => {
+          if (tableContainer) {
+            tableContainer.scrollTop = tableContainer.scrollHeight;
+          }
+        });
       });
     }
     prevReverseScroll = isReverseScroll;
