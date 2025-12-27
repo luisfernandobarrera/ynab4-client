@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { Upload, Download, Save, CheckCheck, Tag, Banknote } from 'lucide-svelte';
+  import { Upload, Download, Save, CheckCheck, Tag, Banknote, FileSpreadsheet, FileText } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
   import ImportRow from './import-row.svelte';
+  import MSIDialog from './msi-dialog.svelte';
   import {
     parseCSV,
     detectColumns,
@@ -12,6 +13,7 @@
     type ImportTransaction,
     type ImportFile,
   } from '$lib/services/import-service';
+  import { generateAllMSITransactions, type MSIResult } from '$lib/services/msi-service';
   import { accounts, categories, payees } from '$lib/stores/budget';
   import { addToast } from '$lib/stores/ui';
   import { formatCurrency } from '$lib/utils';
@@ -27,6 +29,10 @@
   let selectedIds = $state<Set<string>>(new Set());
   let selectedAccountId = $state('');
   let importFileName = $state('');
+
+  // MSI Dialog state
+  let msiDialogOpen = $state(false);
+  let msiTransaction = $state<ImportTransaction | null>(null);
 
   // Stats
   const stats = $derived(() => {
@@ -170,8 +176,130 @@
 
   // Open MSI dialog
   function openMSI(txId: string) {
-    // TODO: Open MSI dialog
-    addToast({ type: 'info', message: 'MSI dialog coming soon' });
+    const tx = transactions.find(t => t.id === txId);
+    if (!tx) return;
+    
+    if (tx.amount >= 0) {
+      addToast({ type: 'warning', message: 'MSI solo aplica a gastos (egresos)' });
+      return;
+    }
+    
+    msiTransaction = tx;
+    msiDialogOpen = true;
+  }
+
+  // Handle MSI confirmation
+  function handleMSIConfirm(result: MSIResult) {
+    const tx = msiTransaction;
+    if (!tx || !selectedAccountId) return;
+
+    // Generate all MSI transactions
+    const msiTxs = generateAllMSITransactions({
+      originalTransaction: {
+        date: tx.date,
+        payeeId: tx.payeeId,
+        payeeName: tx.payeeName || tx.description,
+        categoryId: tx.categoryId,
+        categoryName: tx.categoryName,
+        accountId: selectedAccountId,
+        amount: tx.amount,
+        memo: tx.memo,
+      },
+      months: Math.round(Math.abs(tx.amount) / result.monthlyAmount),
+      startDate: result.scheduledTransaction.date,
+    });
+
+    // Mark original as MSI and add counter + payments
+    const originalId = tx.id;
+    const now = Date.now();
+
+    // Create counter-transaction
+    const counterTx: ImportTransaction = {
+      id: `import-msi-counter-${now}`,
+      date: tx.date,
+      description: `MSI Contrapartida: ${tx.description}`,
+      payeeId: null,
+      payeeName: `MSI: ${tx.payeeName || tx.description}`,
+      categoryId: tx.categoryId,
+      categoryName: tx.categoryName,
+      amount: Math.abs(tx.amount), // Positive (inflow)
+      memo: `Contrapartida MSI - ${msiTxs.length} meses`,
+      flag: 'Orange',
+      cleared: false,
+      isMSI: true,
+      msiMonths: msiTxs.length,
+      msiOriginalAmount: tx.amount,
+      status: tx.categoryId ? 'ready' : 'pending',
+    };
+
+    // Create payment transactions
+    const paymentTxs: ImportTransaction[] = msiTxs.map((msiTx, index) => ({
+      id: `import-msi-payment-${now}-${index}`,
+      date: msiTx.date,
+      description: `MSI Pago ${index + 1}/${msiTxs.length}`,
+      payeeId: tx.payeeId,
+      payeeName: tx.payeeName || tx.description,
+      categoryId: tx.categoryId,
+      categoryName: tx.categoryName,
+      amount: msiTx.amount,
+      memo: msiTx.memo,
+      flag: 'Orange',
+      cleared: false,
+      isMSI: true,
+      msiMonths: msiTxs.length,
+      msiOriginalAmount: tx.amount,
+      status: tx.categoryId ? 'ready' : 'pending',
+    }));
+
+    // Update transactions list: mark original as skipped, add counter and payments
+    transactions = transactions.map(t => 
+      t.id === originalId ? { ...t, status: 'skipped' as const, memo: 'Convertido a MSI' } : t
+    );
+    transactions = [...transactions, counterTx, ...paymentTxs];
+
+    msiDialogOpen = false;
+    msiTransaction = null;
+    addToast({ type: 'success', message: `MSI creado: ${msiTxs.length} pagos mensuales` });
+  }
+
+  // Export to YNAB4 CSV format
+  function exportToYNAB4CSV() {
+    if (!selectedAccount) {
+      addToast({ type: 'error', message: 'Selecciona una cuenta primero' });
+      return;
+    }
+
+    const readyTxs = transactions.filter(t => t.status === 'ready');
+    if (readyTxs.length === 0) {
+      addToast({ type: 'error', message: 'No hay transacciones listas para exportar' });
+      return;
+    }
+
+    // YNAB4 CSV format: Date,Payee,Category,Memo,Outflow,Inflow
+    const rows: string[] = [];
+    rows.push('Date,Payee,Category,Memo,Outflow,Inflow');
+
+    for (const tx of readyTxs) {
+      const date = tx.date; // YYYY-MM-DD format
+      const payee = `"${(tx.payeeName || tx.description).replace(/"/g, '""')}"`;
+      const category = tx.categoryName ? `"${tx.categoryName.replace(/"/g, '""')}"` : '';
+      const memo = tx.memo ? `"${tx.memo.replace(/"/g, '""')}"` : '';
+      const outflow = tx.amount < 0 ? Math.abs(tx.amount).toFixed(2) : '';
+      const inflow = tx.amount > 0 ? tx.amount.toFixed(2) : '';
+
+      rows.push(`${date},${payee},${category},${memo},${outflow},${inflow}`);
+    }
+
+    // Download CSV
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ynab4-import-${selectedAccount.name}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    addToast({ type: 'success', message: `Exportado: ${readyTxs.length} transacciones` });
   }
 </script>
 
@@ -179,15 +307,19 @@
   <!-- Header -->
   <div class="border-b p-4 space-y-4">
     <div class="flex items-center justify-between">
-      <h2 class="text-xl font-heading font-semibold">Import Transactions</h2>
+      <h2 class="text-xl font-heading font-semibold">Transaction Workbench</h2>
       <div class="flex gap-2">
         <Button variant="outline" onclick={saveImportFile}>
           <Download class="mr-2 h-4 w-4" />
-          Save
+          Guardar
+        </Button>
+        <Button variant="outline" onclick={exportToYNAB4CSV} disabled={stats().ready === 0}>
+          <FileText class="mr-2 h-4 w-4" />
+          CSV YNAB4
         </Button>
         <Button onclick={importTransactions} disabled={stats().ready === 0}>
           <CheckCheck class="mr-2 h-4 w-4" />
-          Import {stats().ready}
+          Importar {stats().ready}
         </Button>
       </div>
     </div>
@@ -288,4 +420,21 @@
     {/if}
   </div>
 </div>
+
+<!-- MSI Dialog -->
+<MSIDialog
+  bind:open={msiDialogOpen}
+  transaction={msiTransaction ? {
+    date: msiTransaction.date,
+    payeeId: msiTransaction.payeeId,
+    payeeName: msiTransaction.payeeName || msiTransaction.description,
+    categoryId: msiTransaction.categoryId,
+    categoryName: msiTransaction.categoryName,
+    accountId: selectedAccountId,
+    amount: msiTransaction.amount,
+    memo: msiTransaction.memo,
+  } : null}
+  onConfirm={handleMSIConfirm}
+  onClose={() => { msiDialogOpen = false; msiTransaction = null; }}
+/>
 
