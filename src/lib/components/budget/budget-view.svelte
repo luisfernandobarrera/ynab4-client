@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X, AlertTriangle } from 'lucide-svelte';
+  import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X, ChevronsDownUp, ChevronsUpDown } from 'lucide-svelte';
   import { MonthlyBudgetCalculator } from 'ynab-library';
   import { 
     rawTransactions, 
@@ -122,6 +122,13 @@
     
     const data: Record<string, ReturnType<typeof budgetCalculator.calculateMonthlyBudget>> = {};
     
+    // Prepare account data for the calculator
+    const accountData = ($accounts || []).map(a => ({
+      entityId: a.entityId,
+      onBudget: a.onBudget,
+      isTombstone: a.isTombstone
+    }));
+    
     monthRange.forEach(({ key }) => {
       try {
         data[key] = budgetCalculator.calculateMonthlyBudget(
@@ -129,7 +136,8 @@
           $rawTransactions || [],
           $monthlyBudgets || [],
           subCategories,
-          masters
+          masters,
+          accountData
         );
       } catch (err) {
         console.error(`[BudgetView] Error calculating ${key}:`, err);
@@ -143,6 +151,7 @@
           income: 0,
           fromLastMonth: 0,
           lastMonthOverspent: 0,
+          deferredIncome: 0,
           availableToBudget: 0
         };
       }
@@ -155,9 +164,29 @@
   const currentMonthKey = $derived(`${selectedYear}-${String(centerMonth + 1).padStart(2, '0')}`);
   const currentMonthSummary = $derived.by(() => {
     const data = monthsData[currentMonthKey];
+    
+    // Debug logging
+    if (data) {
+      // Formula: fromLastMonth + lastMonthOverspent + income + deferredIncome - totalBudgeted = ATB
+      const deferredIncome = data.deferredIncome || 0;
+      const calculatedATB = data.fromLastMonth + data.lastMonthOverspent + data.income + deferredIncome - data.totalBudgeted;
+      
+      console.log(`[Budget Debug] ${currentMonthKey}:`, {
+        fromLastMonth: data.fromLastMonth,
+        lastMonthOverspent: data.lastMonthOverspent,
+        income: data.income,
+        deferredIncome: deferredIncome,
+        totalBudgeted: data.totalBudgeted,
+        availableToBudget: data.availableToBudget,
+        formula: `${data.fromLastMonth} + ${data.lastMonthOverspent} + ${data.income} + ${deferredIncome} - ${data.totalBudgeted} = ${calculatedATB}`,
+        match: Math.abs(calculatedATB - data.availableToBudget) < 0.01 ? '✓' : '✗ MISMATCH!'
+      });
+    }
+    
     if (!data) {
       return {
         income: 0,
+        deferredIncome: 0,
         fromLastMonth: 0,
         lastMonthOverspent: 0,
         totalBudgeted: 0,
@@ -166,6 +195,7 @@
     }
     return {
       income: data.income || 0,
+      deferredIncome: data.deferredIncome || 0,
       fromLastMonth: data.fromLastMonth || 0,
       lastMonthOverspent: data.lastMonthOverspent || 0,
       totalBudgeted: data.totalBudgeted || 0,
@@ -358,6 +388,21 @@
     }
     expandedMasters = next;
   }
+
+  function expandAllCategories() {
+    const allIds = categoryStructure.map(m => m.id).filter(Boolean) as string[];
+    expandedMasters = new Set(allIds);
+  }
+
+  function collapseAllCategories() {
+    expandedMasters = new Set();
+  }
+
+  // Check if all/none are expanded
+  const allExpanded = $derived(
+    categoryStructure.length > 0 && 
+    categoryStructure.every(m => m.id && expandedMasters.has(m.id))
+  );
 
   function handleCellClick(type: 'category' | 'master', id: string, monthKey: string, name: string, e?: Event) {
     e?.stopPropagation();
@@ -653,13 +698,33 @@
               {showOnlyActive ? categoryStats.active : categoryStats.total}
             </span>
           </div>
-          <label class="active-filter-toggle">
-            <input 
-              type="checkbox"
-              bind:checked={showOnlyActive}
-            />
-            <span class="toggle-label">{$t('budget.activeOnly')}</span>
-          </label>
+          <div class="header-controls">
+            <div class="expand-buttons">
+              <button 
+                class="expand-btn"
+                title={$t('budget.expandAll')}
+                onclick={expandAllCategories}
+                disabled={allExpanded}
+              >
+                <ChevronsUpDown class="h-3.5 w-3.5" />
+              </button>
+              <button 
+                class="expand-btn"
+                title={$t('budget.collapseAll')}
+                onclick={collapseAllCategories}
+                disabled={expandedMasters.size === 0}
+              >
+                <ChevronsDownUp class="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <label class="active-filter-toggle">
+              <input 
+                type="checkbox"
+                bind:checked={showOnlyActive}
+              />
+              <span class="toggle-label">{$t('budget.activeOnly')}</span>
+            </label>
+          </div>
         </div>
         
         <div 
@@ -680,18 +745,10 @@
               
               {#if expandedMasters.has(master.id)}
                 {#each master.subCategories as sub (sub.id)}
-                  {@const isSubCatOverspent = monthRange.some(({ key }) => {
-                    const d = getCategoryData(sub.id, key, false);
-                    return d.available < -0.01;
-                  })}
                   <div 
                     class="category-sub"
                     class:selected={selection?.type === 'category' && selection?.id === sub.id}
-                    class:overspent={isSubCatOverspent}
                   >
-                    {#if isSubCatOverspent}
-                      <AlertTriangle class="overspent-icon" />
-                    {/if}
                     <span class="sub-name">{sub.name}</span>
                   </div>
                 {/each}
@@ -1132,6 +1189,44 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: space-between;
+  }
+
+  .expand-buttons {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .expand-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--background);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .expand-btn:hover:not(:disabled) {
+    background: var(--accent);
+    color: var(--foreground);
+    border-color: var(--primary);
+  }
+
+  .expand-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
   .category-count {

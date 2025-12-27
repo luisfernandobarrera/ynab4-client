@@ -103,6 +103,8 @@
     "transactions": "transactions",
     "noTransactions": "No transactions this month",
     "activeOnly": "Active only",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
     "noActiveCategories": "No active categories this month",
     "showAll": "Show all",
     "selectCategory": "Select a category to see transactions",

@@ -12,6 +12,7 @@ export interface Account {
   closed: boolean;
   hidden: boolean;
   balance: number;
+  isTombstone?: boolean;
 }
 
 export interface Transaction {
@@ -81,6 +82,7 @@ export interface MonthlySubCategoryBudget {
   categoryId: string;
   budgeted: number;
   isTombstone?: boolean;
+  overspendingHandling?: string | null;
 }
 
 export interface MonthlyBudget {
@@ -397,6 +399,7 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
         categoryId: b.categoryId as string,
         budgeted: (b.budgeted as number) || 0,
         isTombstone: b.isTombstone as boolean | undefined,
+        overspendingHandling: b.overspendingHandling as string | null | undefined,
       })),
     }))
   );

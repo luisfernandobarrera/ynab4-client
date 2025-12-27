@@ -12,12 +12,44 @@
     Home,
     Menu,
     X,
-    PlusCircle
+    PlusCircle,
+    Sun,
+    Moon,
+    Monitor
   } from 'lucide-svelte';
   import { budgetInfo, currentView, resetBudget } from '$lib/stores/budget';
-  import { isMobile } from '$lib/stores/ui';
+  import { isMobile, theme, type Theme } from '$lib/stores/ui';
   import { t } from '$lib/i18n';
   import { EditModeToggle } from '$lib/components/edit-mode';
+  
+  const themeOrder: Theme[] = ['light', 'system', 'dark'];
+  const themeLabels: Record<Theme, string> = {
+    light: 'Light',
+    system: 'System', 
+    dark: 'Dark'
+  };
+  
+  function cycleTheme() {
+    theme.update(current => {
+      const idx = themeOrder.indexOf(current);
+      return themeOrder[(idx + 1) % themeOrder.length];
+    });
+  }
+  
+  // Apply theme to document
+  $effect(() => {
+    const t = $theme;
+    const root = document.documentElement;
+    
+    if (t === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.classList.toggle('dark', prefersDark);
+      root.classList.toggle('light', !prefersDark);
+    } else {
+      root.classList.toggle('dark', t === 'dark');
+      root.classList.toggle('light', t === 'light');
+    }
+  });
 
   interface Props {
     open?: boolean;
@@ -88,10 +120,6 @@
   </div>
 
   {#if $budgetInfo.client}
-    <div class="edit-mode-section">
-      <EditModeToggle compact={!open} />
-    </div>
-    
     <nav class="sidebar-nav">
       <ul class="sidebar-menu">
         {#each menuItems as item}
@@ -114,10 +142,31 @@
   {/if}
 
   <div class="sidebar-footer">
-    <button class="home-btn" onclick={handleGoHome}>
-      <Home class="h-5 w-5" />
+    {#if $budgetInfo.client}
+      <div class="footer-item">
+        <EditModeToggle compact={!open} />
+      </div>
+    {/if}
+    
+    <button class="footer-btn" onclick={cycleTheme} title={themeLabels[$theme]}>
+      <span class="footer-icon">
+        {#if $theme === 'light'}
+          <Sun class="h-5 w-5" />
+        {:else if $theme === 'system'}
+          <Monitor class="h-5 w-5" />
+        {:else}
+          <Moon class="h-5 w-5" />
+        {/if}
+      </span>
       {#if open}
-        <span>{$t('common.home')}</span>
+        <span class="footer-text">{themeLabels[$theme]}</span>
+      {/if}
+    </button>
+    
+    <button class="footer-btn" onclick={handleGoHome} title={$t('common.home')}>
+      <span class="footer-icon"><Home class="h-5 w-5" /></span>
+      {#if open}
+        <span class="footer-text">{$t('common.home')}</span>
       {/if}
     </button>
   </div>
@@ -150,8 +199,7 @@
 
   .sidebar.collapsed .menu-text,
   .sidebar.collapsed .budget-name,
-  .sidebar.collapsed .budget-switch,
-  .sidebar.collapsed .home-btn span {
+  .sidebar.collapsed .budget-switch {
     display: none;
   }
 
@@ -221,17 +269,6 @@
     color: var(--foreground);
   }
 
-  .edit-mode-section {
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .sidebar.collapsed .edit-mode-section {
-    padding: 0.75rem 0.5rem;
-    display: flex;
-    justify-content: center;
-  }
-
   .sidebar-nav {
     flex: 1;
     overflow-y: auto;
@@ -284,34 +321,63 @@
   }
 
   .sidebar-footer {
-    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
     border-top: 1px solid var(--border);
   }
 
-  .home-btn {
+  .footer-item {
+    display: flex;
+    justify-content: center;
+  }
+
+  .sidebar:not(.collapsed) .footer-item {
+    justify-content: flex-start;
+  }
+
+  .footer-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.75rem;
     width: 100%;
-    padding: 0.75rem;
-    border: 1px solid var(--border);
-    background: var(--background);
+    padding: 0.625rem;
+    border: none;
+    background: transparent;
     color: var(--muted-foreground);
     font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
-    border-radius: 8px;
+    border-radius: 6px;
     transition: all 0.15s;
   }
   
-  .sidebar:not(.collapsed) .home-btn {
+  .sidebar:not(.collapsed) .footer-btn {
     justify-content: flex-start;
   }
 
-  .home-btn:hover {
+  .footer-btn:hover {
     background: var(--accent);
     color: var(--foreground);
+  }
+
+  .footer-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+  }
+
+  .footer-text {
+    white-space: nowrap;
+  }
+
+  .sidebar.collapsed .footer-text {
+    display: none;
   }
 
   /* Mobile */
@@ -333,7 +399,7 @@
     .sidebar.collapsed .menu-text,
     .sidebar.collapsed .budget-name,
     .sidebar.collapsed .budget-switch,
-    .sidebar.collapsed .home-btn span {
+    .sidebar.collapsed .footer-text {
       display: inline;
     }
   }

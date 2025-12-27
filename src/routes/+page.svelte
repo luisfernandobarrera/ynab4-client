@@ -324,7 +324,7 @@
       <div class="fixed inset-0 bg-[var(--background)]/80 backdrop-blur-sm flex items-center justify-center z-50">
         <div class="flex flex-col items-center gap-4 p-8 rounded-2xl bg-[var(--card)] border border-[var(--border)] shadow-2xl">
           <Loader2 class="h-12 w-12 animate-spin text-[var(--primary)]" />
-          <p class="text-lg font-medium text-[var(--foreground)]">{$t('budget.loading')}</p>
+          <p class="text-lg font-medium text-[var(--foreground)]">{$t('common.loading')}</p>
           <p class="text-sm text-[var(--muted-foreground)] max-w-xs text-center truncate">
             {loadingBudgetPath.split('/').pop() || loadingBudgetPath}
           </p>

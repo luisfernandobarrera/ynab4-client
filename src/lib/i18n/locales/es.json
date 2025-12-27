@@ -103,6 +103,8 @@
     "transactions": "transacciones",
     "noTransactions": "Sin transacciones este mes",
     "activeOnly": "Solo activas",
+    "expandAll": "Expandir todo",
+    "collapseAll": "Colapsar todo",
     "noActiveCategories": "Sin categorías activas este mes",
     "showAll": "Mostrar todas",
     "selectCategory": "Selecciona una categoría para ver las transacciones",
