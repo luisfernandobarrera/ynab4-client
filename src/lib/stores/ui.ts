@@ -216,10 +216,12 @@ export type TransactionSortOrder = 'asc' | 'desc'; // asc = oldest first (top to
 
 export interface UserPreferences {
   transactionSortOrder: TransactionSortOrder;
+  reverseScroll: boolean; // Chat-style: scroll container is flipped
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
-  transactionSortOrder: 'desc', // Default: newest first at top, scroll down for older
+  transactionSortOrder: 'desc', // Default: newest first at top
+  reverseScroll: false, // Default: normal scroll (scroll down for more)
 };
 
 function loadPreferences(): UserPreferences {
@@ -253,6 +255,7 @@ userPreferences.subscribe((prefs) => {
 
 // Derived stores for easy access
 export const transactionSortOrder = derived(userPreferences, ($prefs) => $prefs.transactionSortOrder);
+export const reverseScroll = derived(userPreferences, ($prefs) => $prefs.reverseScroll);
 
 // Helper functions
 export function setTransactionSortOrder(order: TransactionSortOrder) {
@@ -263,6 +266,13 @@ export function toggleTransactionSortOrder() {
   userPreferences.update((prefs) => ({
     ...prefs,
     transactionSortOrder: prefs.transactionSortOrder === 'asc' ? 'desc' : 'asc'
+  }));
+}
+
+export function toggleReverseScroll() {
+  userPreferences.update((prefs) => ({
+    ...prefs,
+    reverseScroll: !prefs.reverseScroll
   }));
 }
 

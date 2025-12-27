@@ -6,7 +6,7 @@
   import DateNavigation from './date-navigation.svelte';
   import Autocomplete from '$lib/components/ui/autocomplete.svelte';
   import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories, budgetInfo } from '$lib/stores/budget';
-  import { isMobile, isEditMode, addPendingChange, addToast, transactionSortOrder, toggleTransactionSortOrder } from '$lib/stores/ui';
+  import { isMobile, isEditMode, addPendingChange, addToast, transactionSortOrder, toggleTransactionSortOrder, reverseScroll, toggleReverseScroll } from '$lib/stores/ui';
   import { formatCurrency } from '$lib/utils';
   import { t } from '$lib/i18n';
   import { browser } from '$app/environment';
@@ -214,6 +214,7 @@
   
   // Sort order from user preferences: 'asc' = oldest first (top to bottom), 'desc' = newest first
   const sortOrder = $derived($transactionSortOrder);
+  const isReverseScroll = $derived($reverseScroll);
   
   // Date filter state
   const currentDate = new Date();
@@ -395,11 +396,20 @@
   // Infinite scroll handler
   function handleScroll(e: Event) {
     const target = e.target as HTMLDivElement;
-    const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
     
-    // Load more when within 200px of bottom
-    if (scrollBottom < 200 && hasMore) {
-      visibleCount += PAGE_SIZE;
+    if (isReverseScroll) {
+      // In reverse scroll mode, load more when near TOP
+      // Note: with scaleY(-1), scrollTop is inverted
+      const scrollTop = target.scrollTop;
+      if (scrollTop < 200 && hasMore) {
+        visibleCount += PAGE_SIZE;
+      }
+    } else {
+      // Normal mode: load more when near BOTTOM
+      const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+      if (scrollBottom < 200 && hasMore) {
+        visibleCount += PAGE_SIZE;
+      }
     }
   }
   
@@ -1022,6 +1032,15 @@
         
         <button 
           class="tx-icon-btn"
+          class:active={isReverseScroll}
+          onclick={toggleReverseScroll}
+          title={isReverseScroll ? 'Scroll normal' : 'Scroll invertido (tipo chat)'}
+        >
+          <ArrowUpDown class="h-4 w-4" />
+        </button>
+        
+        <button 
+          class="tx-icon-btn"
           class:active={hideReconciled}
           onclick={() => hideReconciled = !hideReconciled}
           title={hideReconciled ? $t('transactions.showAll') : $t('transactions.hideReconciled')}
@@ -1117,7 +1136,7 @@
     {/if}
 
     <!-- Table (Desktop) -->
-    <div class="tx-table-container" class:resizing={resizingColumn !== null} bind:this={tableContainer} onscroll={handleScroll}>
+    <div class="tx-table-container" class:resizing={resizingColumn !== null} class:reverse-scroll={isReverseScroll} bind:this={tableContainer} onscroll={handleScroll}>
       <table class="tx-table" class:show-grid={showGrid}>
         <thead>
           <tr>
@@ -2063,6 +2082,37 @@
   .tx-table-container {
     flex: 1;
     overflow: auto;
+  }
+
+  /* Reverse scroll mode (chat-style) */
+  .tx-table-container.reverse-scroll {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+
+  .tx-table-container.reverse-scroll .tx-table {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tx-table-container.reverse-scroll thead {
+    order: 1; /* Header at the bottom visually but stays at top of scroll */
+    position: sticky;
+    bottom: 0;
+    top: auto;
+    z-index: 10;
+    background: var(--background);
+  }
+
+  .tx-table-container.reverse-scroll tbody {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+
+  .tx-table-container.reverse-scroll tbody tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
   }
 
   .sort-header {
