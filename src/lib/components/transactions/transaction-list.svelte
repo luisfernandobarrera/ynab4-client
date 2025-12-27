@@ -396,17 +396,18 @@
   // Infinite scroll handler
   function handleScroll(e: Event) {
     const target = e.target as HTMLDivElement;
-    const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
     
     if (isReverseScroll) {
-      // In reverse scroll mode with scaleY(-1):
-      // Visual "top" (where older transactions appear) = actual scroll bottom
-      // So we load more when scrollBottom is small (user scrolled to visual top)
-      if (scrollBottom < 200 && hasMore) {
+      // In reverse scroll mode (data reversed in JS):
+      // Oldest transactions at top, newest at bottom
+      // User scrolls UP to see older → load more when near TOP
+      const scrollTop = target.scrollTop;
+      if (scrollTop < 200 && hasMore) {
         visibleCount += PAGE_SIZE;
       }
     } else {
       // Normal mode: load more when near bottom
+      const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
       if (scrollBottom < 200 && hasMore) {
         visibleCount += PAGE_SIZE;
       }
@@ -631,7 +632,11 @@
   });
 
   // Visible transactions (limited for performance)
-  const visibleTransactions = $derived(transactionsWithBalance.slice(0, visibleCount));
+  // In reverse scroll mode, reverse the display order so newest appears at bottom
+  const visibleTransactions = $derived.by(() => {
+    const sliced = transactionsWithBalance.slice(0, visibleCount);
+    return isReverseScroll ? [...sliced].reverse() : sliced;
+  });
   const hasMore = $derived(visibleCount < transactionsWithBalance.length);
   
   function loadMore() {
@@ -649,6 +654,18 @@
     $selectedAccountId;
     // Reset
     visibleCount = PAGE_SIZE;
+  });
+  
+  // Auto-scroll to bottom when reverse mode is toggled ON
+  let prevReverseScroll = $state(isReverseScroll);
+  $effect(() => {
+    if (isReverseScroll && !prevReverseScroll && tableContainer) {
+      // Reverse mode was just enabled, scroll to bottom
+      requestAnimationFrame(() => {
+        tableContainer.scrollTop = tableContainer.scrollHeight;
+      });
+    }
+    prevReverseScroll = isReverseScroll;
   });
 
   // Start new entry
@@ -1136,7 +1153,7 @@
     {/if}
 
     <!-- Table (Desktop) -->
-    <div class="tx-table-container" class:resizing={resizingColumn !== null} class:reverse-scroll={isReverseScroll} bind:this={tableContainer} onscroll={handleScroll}>
+    <div class="tx-table-container" class:resizing={resizingColumn !== null} bind:this={tableContainer} onscroll={handleScroll}>
       <table class="tx-table" class:show-grid={showGrid}>
         <thead>
           <tr>
@@ -2084,22 +2101,6 @@
     overflow: auto;
   }
 
-  /* Reverse scroll mode (chat-style) - uses transform to flip scroll direction */
-  .tx-table-container.reverse-scroll {
-    transform: scaleY(-1);
-  }
-
-  .tx-table-container.reverse-scroll .tx-table {
-    transform: scaleY(-1);
-  }
-
-  /* Keep header at top (visually bottom due to flip, but sticky top works) */
-  .tx-table-container.reverse-scroll thead {
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    background: var(--background);
-  }
 
   .sort-header {
     display: inline-flex;
