@@ -8,6 +8,8 @@
     parseCSV,
     detectColumns,
     csvToTransactions,
+    excelToTransactions,
+    getExcelSheetNames,
     serializeImportFile,
     generateImportFilename,
     type ImportTransaction,
@@ -55,32 +57,68 @@
     if (!file) return;
 
     importFileName = file.name;
-    const content = await file.text();
 
     // Check if it's our custom format
     if (file.name.endsWith('.ynab-import.json')) {
       try {
+        const content = await file.text();
         const importFile: ImportFile = JSON.parse(content);
         transactions = importFile.transactions;
         selectedAccountId = importFile.accountId;
-        addToast({ type: 'success', message: `Loaded ${transactions.length} transactions` });
+        addToast({ type: 'success', message: `Cargadas ${transactions.length} transacciones` });
         return;
       } catch (e) {
-        addToast({ type: 'error', message: 'Invalid import file format' });
+        addToast({ type: 'error', message: 'Formato de archivo inválido' });
+        return;
+      }
+    }
+
+    // Check if it's Excel
+    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+      try {
+        const buffer = await file.arrayBuffer();
+        const sheetNames = getExcelSheetNames(buffer);
+        
+        // For now, use first sheet. TODO: Add sheet selector
+        if (sheetNames.length === 0) {
+          addToast({ type: 'error', message: 'El archivo Excel está vacío' });
+          return;
+        }
+        
+        transactions = excelToTransactions(buffer, 0);
+        
+        if (transactions.length === 0) {
+          addToast({ type: 'warning', message: 'No se encontraron transacciones en el Excel' });
+        } else {
+          addToast({ 
+            type: 'success', 
+            message: `Cargadas ${transactions.length} transacciones de "${sheetNames[0]}"` 
+          });
+        }
+        return;
+      } catch (e) {
+        console.error('Excel parse error:', e);
+        addToast({ type: 'error', message: 'Error al leer el archivo Excel' });
         return;
       }
     }
 
     // Parse as CSV
-    const rows = parseCSV(content);
-    if (rows.length < 2) {
-      addToast({ type: 'error', message: 'CSV file is empty or invalid' });
-      return;
-    }
+    try {
+      const content = await file.text();
+      const rows = parseCSV(content);
+      if (rows.length < 2) {
+        addToast({ type: 'error', message: 'El archivo CSV está vacío o es inválido' });
+        return;
+      }
 
-    const mapping = detectColumns(rows[0]);
-    transactions = csvToTransactions(rows, mapping, true);
-    addToast({ type: 'success', message: `Parsed ${transactions.length} transactions from CSV` });
+      const mapping = detectColumns(rows[0]);
+      transactions = csvToTransactions(rows, mapping, true);
+      addToast({ type: 'success', message: `Cargadas ${transactions.length} transacciones del CSV` });
+    } catch (e) {
+      console.error('CSV parse error:', e);
+      addToast({ type: 'error', message: 'Error al leer el archivo CSV' });
+    }
   }
 
   // Update a transaction
@@ -218,12 +256,18 @@
       id: `import-msi-counter-${now}`,
       date: tx.date,
       description: `MSI Contrapartida: ${tx.description}`,
+      originalMemo: tx.originalMemo || '',
       payeeId: null,
       payeeName: `MSI: ${tx.payeeName || tx.description}`,
+      suggestedPayee: tx.suggestedPayee || '',
       categoryId: tx.categoryId,
       categoryName: tx.categoryName,
+      suggestedCategory: tx.suggestedCategory || '',
       amount: Math.abs(tx.amount), // Positive (inflow)
+      outflow: 0,
+      inflow: Math.abs(tx.amount),
       memo: `Contrapartida MSI - ${msiTxs.length} meses`,
+      reference: tx.reference || '',
       flag: 'Orange',
       cleared: false,
       isMSI: true,
@@ -237,12 +281,18 @@
       id: `import-msi-payment-${now}-${index}`,
       date: msiTx.date,
       description: `MSI Pago ${index + 1}/${msiTxs.length}`,
+      originalMemo: '',
       payeeId: tx.payeeId,
       payeeName: tx.payeeName || tx.description,
+      suggestedPayee: tx.suggestedPayee || '',
       categoryId: tx.categoryId,
       categoryName: tx.categoryName,
+      suggestedCategory: tx.suggestedCategory || '',
       amount: msiTx.amount,
+      outflow: Math.abs(msiTx.amount),
+      inflow: 0,
       memo: msiTx.memo,
+      reference: '',
       flag: 'Orange',
       cleared: false,
       isMSI: true,
@@ -329,13 +379,13 @@
       <label class="flex-1">
         <input
           type="file"
-          accept=".csv,.ynab-import.json"
+          accept=".csv,.xlsx,.xls,.ynab-import.json"
           class="hidden"
           onchange={handleFileUpload}
         />
         <span class="flex items-center justify-center h-10 w-full rounded-md border border-input bg-background px-3 cursor-pointer hover:bg-accent hover:text-accent-foreground text-sm">
           <Upload class="mr-2 h-4 w-4" />
-          {importFileName || 'Upload CSV or Import File'}
+          {importFileName || 'Cargar Excel, CSV o archivo guardado'}
         </span>
       </label>
 
@@ -383,10 +433,13 @@
   <div class="flex-1 overflow-auto">
     {#if transactions.length === 0}
       <div class="flex flex-col items-center justify-center h-full text-center p-8">
-        <Upload class="h-12 w-12 text-muted-foreground mb-4" />
-        <p class="text-lg font-medium">Upload a CSV file to start</p>
+        <FileSpreadsheet class="h-12 w-12 text-muted-foreground mb-4" />
+        <p class="text-lg font-medium">Carga un archivo para empezar</p>
         <p class="text-sm text-muted-foreground mt-1">
-          Or load a previously saved .ynab-import.json file
+          Soporta Excel (.xlsx), CSV, o archivos guardados (.ynab-import.json)
+        </p>
+        <p class="text-xs text-muted-foreground mt-4 max-w-md">
+          Columnas sugeridas: Fecha, Descripción, Monto (o Cargo/Abono), Memo, Referencia, Payee Sugerido, Categoría
         </p>
       </div>
     {:else}

@@ -1,18 +1,26 @@
 /**
  * Import Service
- * Handles CSV parsing and custom import format
+ * Handles CSV and Excel parsing with extended fields
  */
+
+import * as XLSX from 'xlsx';
 
 export interface ImportTransaction {
   id: string;
   date: string;
-  description: string; // Original from CSV
+  description: string; // Original description from source
+  originalMemo: string; // Original memo from source (e.g., bank reference)
   payeeId: string | null;
   payeeName: string;
+  suggestedPayee: string; // Suggested payee (can be edited)
   categoryId: string | null;
   categoryName: string;
+  suggestedCategory: string; // Suggested category
   amount: number;
-  memo: string;
+  outflow: number; // Explicit outflow (for split view)
+  inflow: number; // Explicit inflow (for split view)
+  memo: string; // Editable memo
+  reference: string; // Bank reference number
   flag: string | null;
   cleared: boolean;
   // MSI fields
@@ -71,7 +79,7 @@ export function parseCSV(content: string, delimiter = ','): string[][] {
 }
 
 /**
- * Detect CSV column mappings
+ * Extended column mapping for CSV/Excel
  */
 export interface ColumnMapping {
   date: number;
@@ -80,37 +88,50 @@ export interface ColumnMapping {
   debit?: number;
   credit?: number;
   balance?: number;
+  memo?: number;
+  originalMemo?: number;
+  reference?: number;
+  payee?: number;
+  suggestedPayee?: number;
+  category?: number;
+  suggestedCategory?: number;
+  flag?: number;
 }
 
+/**
+ * Detect column mappings from headers
+ */
 export function detectColumns(headers: string[]): ColumnMapping {
-  const lowered = headers.map((h) => h.toLowerCase());
+  const lowered = headers.map((h) => h.toLowerCase().trim());
 
-  const dateIndex = lowered.findIndex((h) =>
-    ['date', 'fecha', 'transaction date', 'fecha operación'].includes(h)
-  );
-
-  const descIndex = lowered.findIndex((h) =>
-    ['description', 'descripción', 'concepto', 'detail', 'detalle'].includes(h)
-  );
-
-  const amountIndex = lowered.findIndex((h) =>
-    ['amount', 'monto', 'importe', 'cantidad'].includes(h)
-  );
-
-  const debitIndex = lowered.findIndex((h) =>
-    ['debit', 'cargo', 'débito', 'withdrawal'].includes(h)
-  );
-
-  const creditIndex = lowered.findIndex((h) =>
-    ['credit', 'abono', 'crédito', 'deposit'].includes(h)
-  );
+  const findColumn = (patterns: string[]): number => {
+    return lowered.findIndex((h) => patterns.some(p => h.includes(p) || h === p));
+  };
 
   return {
-    date: dateIndex >= 0 ? dateIndex : 0,
-    description: descIndex >= 0 ? descIndex : 1,
-    amount: amountIndex >= 0 ? amountIndex : -1,
-    debit: debitIndex >= 0 ? debitIndex : undefined,
-    credit: creditIndex >= 0 ? creditIndex : undefined,
+    date: Math.max(0, findColumn(['date', 'fecha', 'transaction date', 'fecha operación', 'fecha op'])),
+    description: Math.max(1, findColumn(['description', 'descripción', 'concepto', 'detail', 'detalle', 'movimiento'])),
+    amount: findColumn(['amount', 'monto', 'importe', 'cantidad']),
+    debit: findColumn(['debit', 'cargo', 'débito', 'withdrawal', 'retiro', 'egreso', 'outflow']) >= 0 
+      ? findColumn(['debit', 'cargo', 'débito', 'withdrawal', 'retiro', 'egreso', 'outflow']) : undefined,
+    credit: findColumn(['credit', 'abono', 'crédito', 'deposit', 'depósito', 'ingreso', 'inflow']) >= 0
+      ? findColumn(['credit', 'abono', 'crédito', 'deposit', 'depósito', 'ingreso', 'inflow']) : undefined,
+    memo: findColumn(['memo', 'nota', 'notas', 'observaciones']) >= 0
+      ? findColumn(['memo', 'nota', 'notas', 'observaciones']) : undefined,
+    originalMemo: findColumn(['original memo', 'memo original', 'referencia banco', 'bank memo']) >= 0
+      ? findColumn(['original memo', 'memo original', 'referencia banco', 'bank memo']) : undefined,
+    reference: findColumn(['reference', 'referencia', 'ref', 'folio', 'número']) >= 0
+      ? findColumn(['reference', 'referencia', 'ref', 'folio', 'número']) : undefined,
+    payee: findColumn(['payee', 'beneficiario', 'destinatario', 'proveedor']) >= 0
+      ? findColumn(['payee', 'beneficiario', 'destinatario', 'proveedor']) : undefined,
+    suggestedPayee: findColumn(['suggested payee', 'payee sugerido', 'beneficiario sugerido']) >= 0
+      ? findColumn(['suggested payee', 'payee sugerido', 'beneficiario sugerido']) : undefined,
+    category: findColumn(['category', 'categoría', 'categoria']) >= 0
+      ? findColumn(['category', 'categoría', 'categoria']) : undefined,
+    suggestedCategory: findColumn(['suggested category', 'categoría sugerida', 'categoria sugerida']) >= 0
+      ? findColumn(['suggested category', 'categoría sugerida', 'categoria sugerida']) : undefined,
+    flag: findColumn(['flag', 'bandera', 'marca', 'color']) >= 0
+      ? findColumn(['flag', 'bandera', 'marca', 'color']) : undefined,
   };
 }
 
@@ -176,44 +197,143 @@ export function parseDate(value: string): string {
 }
 
 /**
- * Convert CSV to ImportTransactions
+ * Convert rows to ImportTransactions (works for both CSV and Excel)
+ */
+export function rowsToTransactions(
+  rows: string[][],
+  mapping: ColumnMapping,
+  skipHeader = true
+): ImportTransaction[] {
+  const dataRows = skipHeader ? rows.slice(1) : rows;
+  const now = Date.now();
+
+  return dataRows
+    .filter(row => row.some(cell => cell && cell.trim())) // Skip empty rows
+    .map((row, index) => {
+      let amount = 0;
+      let outflow = 0;
+      let inflow = 0;
+
+      if (mapping.amount >= 0 && row[mapping.amount]) {
+        amount = parseAmount(row[mapping.amount] || '0');
+        if (amount < 0) {
+          outflow = Math.abs(amount);
+        } else {
+          inflow = amount;
+        }
+      } else {
+        const debit = mapping.debit !== undefined ? parseAmount(row[mapping.debit] || '0') : 0;
+        const credit = mapping.credit !== undefined ? parseAmount(row[mapping.credit] || '0') : 0;
+        outflow = debit;
+        inflow = credit;
+        amount = credit - debit;
+      }
+
+      const description = row[mapping.description] || '';
+      const payeeFromCol = mapping.payee !== undefined ? row[mapping.payee] || '' : '';
+      const suggestedPayee = mapping.suggestedPayee !== undefined ? row[mapping.suggestedPayee] || '' : '';
+      const categoryFromCol = mapping.category !== undefined ? row[mapping.category] || '' : '';
+      const suggestedCategory = mapping.suggestedCategory !== undefined ? row[mapping.suggestedCategory] || '' : '';
+      const memo = mapping.memo !== undefined ? row[mapping.memo] || '' : '';
+      const originalMemo = mapping.originalMemo !== undefined ? row[mapping.originalMemo] || '' : '';
+      const reference = mapping.reference !== undefined ? row[mapping.reference] || '' : '';
+      const flag = mapping.flag !== undefined ? row[mapping.flag] || null : null;
+
+      return {
+        id: `import-${now}-${index}`,
+        date: parseDate(row[mapping.date] || ''),
+        description,
+        originalMemo,
+        payeeId: null,
+        payeeName: payeeFromCol || suggestedPayee || '',
+        suggestedPayee: suggestedPayee || payeeFromCol || description,
+        categoryId: null,
+        categoryName: categoryFromCol || '',
+        suggestedCategory: suggestedCategory || categoryFromCol || '',
+        amount,
+        outflow,
+        inflow,
+        memo,
+        reference,
+        flag,
+        cleared: false,
+        isMSI: false,
+        msiMonths: 0,
+        msiOriginalAmount: 0,
+        status: 'pending' as const,
+      };
+    });
+}
+
+/**
+ * Legacy function name for backwards compatibility
  */
 export function csvToTransactions(
   rows: string[][],
   mapping: ColumnMapping,
   skipHeader = true
 ): ImportTransaction[] {
-  const dataRows = skipHeader ? rows.slice(1) : rows;
+  return rowsToTransactions(rows, mapping, skipHeader);
+}
 
-  return dataRows.map((row, index) => {
-    let amount = 0;
+/**
+ * Parse Excel file to rows
+ */
+export function parseExcel(data: ArrayBuffer, sheetIndex = 0): { headers: string[]; rows: string[][] } {
+  const workbook = XLSX.read(data, { type: 'array' });
+  const sheetName = workbook.SheetNames[sheetIndex];
+  const worksheet = workbook.Sheets[sheetName];
+  
+  // Convert to array of arrays
+  const rawData: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+  
+  // Convert all values to strings
+  const rows: string[][] = rawData.map(row => 
+    (row as unknown[]).map(cell => {
+      if (cell === null || cell === undefined) return '';
+      if (cell instanceof Date) {
+        return cell.toISOString().split('T')[0];
+      }
+      return String(cell).trim();
+    })
+  );
 
-    if (mapping.amount >= 0) {
-      amount = parseAmount(row[mapping.amount] || '0');
-    } else if (mapping.debit !== undefined || mapping.credit !== undefined) {
-      const debit = mapping.debit !== undefined ? parseAmount(row[mapping.debit] || '0') : 0;
-      const credit = mapping.credit !== undefined ? parseAmount(row[mapping.credit] || '0') : 0;
-      amount = credit - debit;
-    }
+  if (rows.length === 0) {
+    return { headers: [], rows: [] };
+  }
 
-    return {
-      id: `import-${Date.now()}-${index}`,
-      date: parseDate(row[mapping.date] || ''),
-      description: row[mapping.description] || '',
-      payeeId: null,
-      payeeName: '',
-      categoryId: null,
-      categoryName: '',
-      amount,
-      memo: '',
-      flag: null,
-      cleared: false,
-      isMSI: false,
-      msiMonths: 0,
-      msiOriginalAmount: 0,
-      status: 'pending' as const,
-    };
-  });
+  return {
+    headers: rows[0],
+    rows: rows,
+  };
+}
+
+/**
+ * Get sheet names from Excel file
+ */
+export function getExcelSheetNames(data: ArrayBuffer): string[] {
+  const workbook = XLSX.read(data, { type: 'array' });
+  return workbook.SheetNames;
+}
+
+/**
+ * Parse Excel file directly to ImportTransactions
+ */
+export function excelToTransactions(
+  data: ArrayBuffer,
+  sheetIndex = 0,
+  customMapping?: Partial<ColumnMapping>
+): ImportTransaction[] {
+  const { headers, rows } = parseExcel(data, sheetIndex);
+  
+  if (rows.length < 2) {
+    return [];
+  }
+
+  const detectedMapping = detectColumns(headers);
+  const mapping = { ...detectedMapping, ...customMapping };
+  
+  return rowsToTransactions(rows, mapping, true);
 }
 
 /**
