@@ -1,8 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { browser } from '$app/environment';
   import { Sun, Moon, Monitor } from 'lucide-svelte';
-  import { t } from '$lib/i18n';
+  import { theme, type Theme } from '$lib/stores/ui';
 
   interface Props {
     compact?: boolean;
@@ -10,46 +8,26 @@
 
   let { compact = false }: Props = $props();
 
-  const THEME_KEY = 'ynab4-theme';
-  
-  let theme = $state<'light' | 'dark' | 'system'>('system');
+  const themes = [
+    { id: 'light' as Theme, icon: Sun, label: 'Light' },
+    { id: 'dark' as Theme, icon: Moon, label: 'Dark' },
+    { id: 'system' as Theme, icon: Monitor, label: 'System' },
+  ];
 
-  onMount(() => {
-    if (browser) {
-      const saved = localStorage.getItem(THEME_KEY);
-      if (saved === 'light' || saved === 'dark' || saved === 'system') {
-        theme = saved;
-      }
-      applyTheme(theme);
-    }
-  });
-
-  function applyTheme(newTheme: 'light' | 'dark' | 'system') {
-    if (browser) {
-      document.documentElement.setAttribute('data-theme', newTheme);
-      localStorage.setItem(THEME_KEY, newTheme);
-    }
-  }
-
-  function setTheme(newTheme: 'light' | 'dark' | 'system') {
-    theme = newTheme;
-    applyTheme(newTheme);
+  function setTheme(newTheme: Theme) {
+    theme.set(newTheme);
   }
 
   function cycleTheme() {
-    const order: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system'];
-    const currentIndex = order.indexOf(theme);
-    const nextIndex = (currentIndex + 1) % order.length;
-    setTheme(order[nextIndex]);
+    const order: Theme[] = ['light', 'dark', 'system'];
+    theme.update(current => {
+      const currentIndex = order.indexOf(current);
+      const nextIndex = (currentIndex + 1) % order.length;
+      return order[nextIndex];
+    });
   }
 
-  const themes = [
-    { id: 'light' as const, icon: Sun, label: 'Light' },
-    { id: 'dark' as const, icon: Moon, label: 'Dark' },
-    { id: 'system' as const, icon: Monitor, label: 'System' },
-  ];
-
-  const currentTheme = $derived(themes.find(t => t.id === theme) || themes[2]);
+  const currentTheme = $derived(themes.find(t => t.id === $theme) || themes[2]);
 </script>
 
 {#if compact}
@@ -66,7 +44,7 @@
     {#each themes as { id, icon: Icon, label }}
       <button
         class="theme-toggle-btn"
-        class:active={theme === id}
+        class:active={$theme === id}
         onclick={() => setTheme(id)}
         title={label}
       >
@@ -76,3 +54,53 @@
   </div>
 {/if}
 
+<style>
+  .theme-toggle {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    background: var(--muted);
+    border-radius: 0.5rem;
+  }
+
+  .theme-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    background: transparent;
+    border: none;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .theme-toggle-btn:hover {
+    color: var(--foreground);
+    background: var(--background);
+  }
+
+  .theme-toggle-btn.active {
+    background: var(--background);
+    color: var(--foreground);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .theme-toggle-compact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    background: transparent;
+    border: none;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    border-radius: 0.375rem;
+  }
+
+  .theme-toggle-compact:hover {
+    color: var(--foreground);
+    background: var(--muted);
+  }
+</style>

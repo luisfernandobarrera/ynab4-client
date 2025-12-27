@@ -140,7 +140,18 @@ if (browser) {
 
 // Theme
 export type Theme = 'light' | 'dark' | 'system';
-export const theme = writable<Theme>('dark');
+
+function getInitialTheme(): Theme {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('ynab4-theme');
+    if (saved === 'light' || saved === 'dark' || saved === 'system') {
+      return saved;
+    }
+  }
+  return 'dark'; // default
+}
+
+export const theme = writable<Theme>(getInitialTheme());
 
 // Modal state
 export const activeModal = writable<string | null>(null);

@@ -36,18 +36,21 @@
     });
   }
   
-  // Apply theme to document
+  // Apply theme to document using data-theme attribute (matches CSS selectors)
   $effect(() => {
     const t = $theme;
     const root = document.documentElement;
     
     if (t === 'system') {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      root.classList.toggle('dark', prefersDark);
-      root.classList.toggle('light', !prefersDark);
+      root.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
     } else {
-      root.classList.toggle('dark', t === 'dark');
-      root.classList.toggle('light', t === 'light');
+      root.setAttribute('data-theme', t);
+    }
+    
+    // Also save to localStorage for persistence
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ynab4-theme', t);
     }
   });
 
