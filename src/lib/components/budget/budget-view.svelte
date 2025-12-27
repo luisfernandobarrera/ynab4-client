@@ -274,12 +274,15 @@
   });
 
   // Check if category has activity in the visible months
+  // Activity = budgeted OR spent (not just balance from previous months)
   function hasActivityInVisibleMonths(categoryId: string, isMaster: boolean): boolean {
     const monthsToCheck = isSingleMonthMode && selection ? [selection.monthKey] : displayMonthRange.map(m => m.key);
     
     for (const monthKey of monthsToCheck) {
       const data = getCategoryData(categoryId, monthKey, isMaster);
-      if (data.budgeted !== 0 || data.activity !== 0 || Math.abs(data.available) > 0.01) {
+      // Only consider budgeted and activity (spending), NOT balance
+      // Balance alone doesn't mean the category is "active" this month
+      if (data.budgeted !== 0 || data.activity !== 0) {
         return true;
       }
     }

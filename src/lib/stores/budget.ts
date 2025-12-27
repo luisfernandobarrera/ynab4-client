@@ -112,11 +112,14 @@ export interface RawTransaction {
   date: string;
   amount: number;
   categoryId?: string;
+  accountId?: string;
+  transferAccountId?: string;
   isTombstone?: boolean;
   subTransactions?: Array<{
     categoryId?: string;
     amount?: number;
     isTombstone?: boolean;
+    transferAccountId?: string;
   }>;
 }
 
@@ -382,11 +385,14 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
       date: tx.date as string,
       amount: (tx.amount as number) || 0,
       categoryId: (tx.categoryId as string) || undefined,
+      accountId: (tx.accountId as string) || undefined,
+      transferAccountId: (tx.transferAccountId as string) || undefined,
       isTombstone: tx.isTombstone as boolean | undefined,
-      subTransactions: tx.subTransactions as Array<{
+      subTransactions: (tx.subTransactions || tx.splitTransactions) as Array<{
         categoryId?: string;
         amount?: number;
         isTombstone?: boolean;
+        transferAccountId?: string;
       }> | undefined,
     }))
   );
