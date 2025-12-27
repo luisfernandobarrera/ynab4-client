@@ -30,8 +30,26 @@
 
   let transactions = $state<ImportTransaction[]>([]);
   let selectedIds = $state<Set<string>>(new Set());
+  let expandedIds = $state<Set<string>>(new Set());
   let selectedAccountId = $state('');
   let importFileName = $state('');
+
+  // Expand/collapse functions
+  function toggleExpand(id: string) {
+    if (expandedIds.has(id)) {
+      expandedIds = new Set([...expandedIds].filter(i => i !== id));
+    } else {
+      expandedIds = new Set([...expandedIds, id]);
+    }
+  }
+
+  function expandAll() {
+    expandedIds = new Set(transactions.map(t => t.id));
+  }
+
+  function collapseAll() {
+    expandedIds = new Set();
+  }
 
   // MSI Dialog state
   let msiDialogOpen = $state(false);
@@ -451,20 +469,38 @@
       </div>
     {:else}
       <!-- Table header -->
-      <div class="grid grid-cols-12 gap-2 items-center p-3 border-b bg-muted/50 text-sm font-medium sticky top-0">
-        <div class="col-span-1">
+      <div class="flex items-center justify-between p-2 border-b bg-muted/50 sticky top-0 z-10">
+        <div class="flex items-center gap-2">
           <input
             type="checkbox"
             checked={selectedIds.size === transactions.length}
             onchange={selectAll}
             class="h-4 w-4 rounded border-input"
+            title="Seleccionar todas"
           />
+          <span class="text-sm text-muted-foreground">
+            {selectedIds.size > 0 ? `${selectedIds.size} seleccionadas` : `${transactions.length} transacciones`}
+          </span>
         </div>
-        <div class="col-span-2">Date</div>
-        <div class="col-span-3">Payee</div>
-        <div class="col-span-2">Category</div>
-        <div class="col-span-2 text-right">Amount</div>
-        <div class="col-span-2 text-right">Status</div>
+        <div class="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onclick={expandAll}>
+            Expandir
+          </Button>
+          <Button variant="ghost" size="sm" onclick={collapseAll}>
+            Colapsar
+          </Button>
+        </div>
+      </div>
+
+      <!-- Column Headers -->
+      <div class="grid grid-cols-[auto,1fr,1fr,1fr,auto,auto,auto] gap-2 items-center px-2 py-1 border-b bg-muted/30 text-xs font-medium text-muted-foreground">
+        <div class="w-14"></div>
+        <div>Fecha</div>
+        <div>Payee</div>
+        <div>Categoría</div>
+        <div class="text-right min-w-[120px]">Monto</div>
+        <div class="w-6"></div>
+        <div class="w-24 text-right">Acciones</div>
       </div>
 
       <!-- Rows -->
@@ -472,9 +508,11 @@
         <ImportRow
           transaction={tx}
           selected={selectedIds.has(tx.id)}
+          expanded={expandedIds.has(tx.id)}
           onUpdate={(updates) => updateTransaction(tx.id, updates)}
           onSelect={() => toggleSelect(tx.id)}
           onMSI={() => openMSI(tx.id)}
+          onToggleExpand={() => toggleExpand(tx.id)}
         />
       {/each}
     {/if}
