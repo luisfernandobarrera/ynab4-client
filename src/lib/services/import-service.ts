@@ -437,16 +437,62 @@ export function generateTemplateExcel(): ArrayBuffer {
 }
 
 /**
- * Download template Excel file
+ * Check if running in Tauri
  */
-export function downloadTemplate(): void {
+function isTauriRuntime(): boolean {
+  if (typeof window === 'undefined') return false;
+  const win = window as { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
+  return '__TAURI__' in win || '__TAURI_INTERNALS__' in win;
+}
+
+/**
+ * Download template Excel file
+ * Works in both browser and Tauri
+ */
+export async function downloadTemplate(): Promise<void> {
   const buffer = generateTemplateExcel();
+  const filename = `plantilla-importacion-ynab-${new Date().toISOString().split('T')[0]}.xlsx`;
+
+  if (isTauriRuntime()) {
+    // Use Tauri's save dialog
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { writeFile } = await import('@tauri-apps/plugin-fs');
+      
+      const filePath = await save({
+        defaultPath: filename,
+        filters: [{
+          name: 'Excel',
+          extensions: ['xlsx']
+        }]
+      });
+      
+      if (filePath) {
+        await writeFile(filePath, new Uint8Array(buffer));
+        console.log('[ImportService] Template saved to:', filePath);
+      }
+    } catch (error) {
+      console.error('[ImportService] Error saving template in Tauri:', error);
+      // Fallback to browser method
+      downloadViaBrowser(buffer, filename);
+    }
+  } else {
+    downloadViaBrowser(buffer, filename);
+  }
+}
+
+/**
+ * Download via browser (fallback)
+ */
+function downloadViaBrowser(buffer: ArrayBuffer, filename: string): void {
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `plantilla-importacion-ynab-${new Date().toISOString().split('T')[0]}.xlsx`;
+  a.download = filename;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 

@@ -458,7 +458,7 @@
           Soporta Excel (.xlsx), CSV, o archivos guardados (.ynab-import.json)
         </p>
         <div class="mt-4">
-          <Button variant="outline" size="sm" onclick={downloadTemplate}>
+          <Button variant="outline" size="sm" onclick={() => downloadTemplate()}>
             <Download class="mr-2 h-4 w-4" />
             Descargar Plantilla Excel
           </Button>
