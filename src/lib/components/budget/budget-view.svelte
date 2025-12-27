@@ -22,10 +22,15 @@
   const currentDate = new Date();
   let selectedYear = $state(currentDate.getFullYear());
   let centerMonth = $state(currentDate.getMonth());
-  let visibleMonths = $state(4);
+  let baseVisibleMonths = $state(4);
+  // visibleMonths is derived from baseVisibleMonths (which is responsive)
+  const visibleMonths = $derived(baseVisibleMonths);
   // Category filter: 'active' (with activity in visible months), 'open' (not hidden), 'all'
   let categoryFilter = $state<'active' | 'open' | 'all'>('active');
   let showSummary = $state(true);
+  
+  // View mode: 'budget' (normal budget view) or 'spending' (income/expenses only)
+  let viewMode = $state<'budget' | 'spending'>('budget');
   
   // Expansion state
   let expandedMasters = $state<Set<string>>(new Set());
@@ -242,6 +247,130 @@
     
     return active;
   });
+
+  // === SPENDING MODE DATA ===
+  
+  // Set of on-budget account IDs for quick lookup
+  const onBudgetAccountIds = $derived(
+    new Set(($accounts || []).filter(a => a.onBudget && !a.isTombstone).map(a => a.entityId))
+  );
+
+  // Helper to check if transaction should be excluded from spending report
+  // Returns true if it's a transfer BETWEEN on-budget accounts (just moves money, not real income/expense)
+  // Returns false if it's a transfer TO/FROM off-budget account (real income/expense)
+  function isInternalTransfer(tx: { transferAccountId?: string | null }): boolean {
+    if (!tx.transferAccountId) return false;
+    // If transfer target is ON-budget, it's internal (exclude)
+    // If transfer target is OFF-budget, it's a real expense/income (include)
+    return onBudgetAccountIds.has(tx.transferAccountId);
+  }
+
+  // Calculate income by payee for spending mode
+  const incomeByPayee = $derived.by(() => {
+    if (viewMode !== 'spending') return [];
+    
+    const byPayee = new Map<string, { 
+      payeeId: string; 
+      payeeName: string; 
+      total: number;
+      byMonth: Record<string, number>;
+    }>();
+    
+    $transactions?.forEach(tx => {
+      if (!tx.date || tx.amount <= 0) return;
+      // Only exclude transfers between on-budget accounts
+      if (isInternalTransfer(tx)) return;
+      
+      const monthKey = tx.date.substring(0, 7);
+      if (!displayMonthRange.some(m => m.key === monthKey)) return;
+      
+      const payeeId = tx.payeeId || 'unknown';
+      const payeeName = tx.payee || $payees?.find(p => p.entityId === payeeId)?.name || 'Sin Beneficiario';
+      
+      if (!byPayee.has(payeeId)) {
+        byPayee.set(payeeId, { payeeId, payeeName, total: 0, byMonth: {} });
+      }
+      
+      const data = byPayee.get(payeeId)!;
+      data.total += tx.amount;
+      data.byMonth[monthKey] = (data.byMonth[monthKey] || 0) + tx.amount;
+    });
+    
+    return Array.from(byPayee.values()).sort((a, b) => b.total - a.total);
+  });
+
+  // Calculate expenses by category for spending mode (simplified, no budget data)
+  const expensesByCategory = $derived.by(() => {
+    if (viewMode !== 'spending') return new Map<string, Record<string, number>>();
+    
+    const byCat = new Map<string, Record<string, number>>();
+    
+    $transactions?.forEach(tx => {
+      if (!tx.date || tx.amount >= 0) return;
+      // Only exclude transfers between on-budget accounts
+      if (isInternalTransfer(tx)) return;
+      
+      const monthKey = tx.date.substring(0, 7);
+      if (!displayMonthRange.some(m => m.key === monthKey)) return;
+      
+      // Handle split transactions
+      if (tx.subTransactions && tx.subTransactions.length > 0) {
+        tx.subTransactions.forEach(sub => {
+          // Also check sub-transactions for internal transfers
+          if (sub.transferAccountId && onBudgetAccountIds.has(sub.transferAccountId)) return;
+          
+          if (sub.amount && sub.amount < 0 && sub.categoryId) {
+            if (!byCat.has(sub.categoryId)) {
+              byCat.set(sub.categoryId, {});
+            }
+            const data = byCat.get(sub.categoryId)!;
+            data[monthKey] = (data[monthKey] || 0) + Math.abs(sub.amount);
+          }
+        });
+      } else if (tx.categoryId) {
+        if (!byCat.has(tx.categoryId)) {
+          byCat.set(tx.categoryId, {});
+        }
+        const data = byCat.get(tx.categoryId)!;
+        data[monthKey] = (data[monthKey] || 0) + Math.abs(tx.amount);
+      }
+    });
+    
+    return byCat;
+  });
+
+  // Get expense for category in month (spending mode)
+  function getExpenseForMonth(categoryId: string, monthKey: string): number {
+    const catData = expensesByCategory.get(categoryId);
+    return catData?.[monthKey] || 0;
+  }
+
+  // Get income totals per month
+  const incomeTotalsByMonth = $derived.by(() => {
+    const totals: Record<string, number> = {};
+    displayMonthRange.forEach(({ key }) => {
+      totals[key] = incomeByPayee.reduce((sum, p) => sum + (p.byMonth[key] || 0), 0);
+    });
+    return totals;
+  });
+
+  // Get expense totals per month
+  const expenseTotalsByMonth = $derived.by(() => {
+    const totals: Record<string, number> = {};
+    displayMonthRange.forEach(({ key }) => {
+      let sum = 0;
+      expensesByCategory.forEach((byMonth) => {
+        sum += byMonth[key] || 0;
+      });
+      totals[key] = sum;
+    });
+    return totals;
+  });
+
+  // Get net totals for spending mode
+  const totalIncomeAll = $derived(Object.values(incomeTotalsByMonth).reduce((a, b) => a + b, 0));
+  const totalExpensesAll = $derived(Object.values(expenseTotalsByMonth).reduce((a, b) => a + b, 0));
+  const totalNetAll = $derived(totalIncomeAll - totalExpensesAll);
 
   // Build category structure
   const allCategoryStructure = $derived.by(() => {
@@ -661,6 +790,7 @@
   // Sync scroll between categories and data
   let categoriesRef: HTMLDivElement;
   let dataRef: HTMLDivElement;
+  let dataColumnsRef: HTMLDivElement;
 
   function handleCategoriesScroll(e: Event) {
     if (dataRef) {
@@ -674,23 +804,56 @@
     }
   }
 
-  // Responsive: adjust visible months based on width
+  // Responsive: adjust visible months based on actual container width
   $effect(() => {
-    function updateVisibleMonths() {
+    if (!dataColumnsRef) {
+      // For mobile, also calculate based on container when available
       if ($isMobile) {
-        visibleMonths = 1;
-      } else {
-        const width = window.innerWidth;
-        const panelAdjustment = showTransactions ? 350 : 0;
-        const availableWidth = width - 200 - panelAdjustment; // 200 = categories column width
-        const monthWidth = 270;
-        visibleMonths = Math.max(2, Math.min(5, Math.floor(availableWidth / monthWidth)));
+        baseVisibleMonths = 1;
       }
+      return;
     }
     
+    // Different min/max widths based on mode and whether transactions panel is open
+    const isDetailMode = showTransactions && selection;
+    let minColumnWidth: number;
+    let maxColumnWidth: number;
+    
+    if (viewMode === 'spending') {
+      // Spending mode: wider columns since only 1 value per month
+      minColumnWidth = $isMobile ? 80 : (isDetailMode ? 70 : 100);
+      maxColumnWidth = $isMobile ? 120 : (isDetailMode ? 120 : 180);
+    } else {
+      // Budget mode: need more space for 3-4 columns
+      minColumnWidth = $isMobile ? 200 : (isDetailMode ? 180 : 220);
+      maxColumnWidth = $isMobile ? 300 : (isDetailMode ? 300 : 380);
+    }
+    
+    function updateVisibleMonths() {
+      if (!dataColumnsRef) return;
+      
+      const containerWidth = dataColumnsRef.clientWidth;
+      if (containerWidth === 0) return;
+      
+      // Calculate how many columns fit at minimum width
+      const maxColumns = Math.floor(containerWidth / minColumnWidth);
+      // But also don't go too wide - ensure we don't have columns wider than max
+      const minColumns = Math.max(1, Math.ceil(containerWidth / maxColumnWidth));
+      
+      // Use optimal: prefer fitting more columns but not too small
+      const optimalColumns = Math.max(minColumns, Math.min(maxColumns, 12));
+      
+      // On mobile, allow at least 1, on desktop at least 2
+      const minimumCols = $isMobile ? 1 : 2;
+      baseVisibleMonths = Math.max(minimumCols, optimalColumns);
+    }
+    
+    const resizeObserver = new ResizeObserver(updateVisibleMonths);
+    resizeObserver.observe(dataColumnsRef);
+    
     updateVisibleMonths();
-    window.addEventListener('resize', updateVisibleMonths);
-    return () => window.removeEventListener('resize', updateVisibleMonths);
+    
+    return () => resizeObserver.disconnect();
   });
 
   // Initialize expanded masters
@@ -713,6 +876,23 @@
         </div>
         <button class="nav-arrow-lg" onclick={() => navigateMonth(1)}>›</button>
       </div>
+      <!-- Mobile View Mode Toggle -->
+      <div class="view-mode-toggle mobile">
+        <button 
+          class="mode-btn"
+          class:active={viewMode === 'budget'}
+          onclick={() => viewMode = 'budget'}
+        >
+          {$t('budget.budgetMode')}
+        </button>
+        <button 
+          class="mode-btn"
+          class:active={viewMode === 'spending'}
+          onclick={() => viewMode = 'spending'}
+        >
+          {$t('budget.spendingMode')}
+        </button>
+      </div>
     {:else}
       <div class="budget-nav-years">
         {#each yearsWithData as year}
@@ -726,22 +906,42 @@
         {/each}
       </div>
       
-      <div class="budget-nav-months">
-        <button class="nav-arrow" onclick={() => navigateMonth(-1)}>
-          <ChevronLeft class="h-4 w-4" />
-        </button>
-        {#each monthsShort as name, idx}
-          <button
-            class="month-btn"
-            class:active={centerMonth === idx}
-            onclick={() => setMonth(idx)}
-          >
-            {name}
+      <div class="budget-nav-row">
+        <div class="budget-nav-months">
+          <button class="nav-arrow" onclick={() => navigateMonth(-1)}>
+            <ChevronLeft class="h-4 w-4" />
           </button>
-        {/each}
-        <button class="nav-arrow" onclick={() => navigateMonth(1)}>
-          <ChevronRight class="h-4 w-4" />
-        </button>
+          {#each monthsShort as name, idx}
+            <button
+              class="month-btn"
+              class:active={centerMonth === idx}
+              onclick={() => setMonth(idx)}
+            >
+              {name}
+            </button>
+          {/each}
+          <button class="nav-arrow" onclick={() => navigateMonth(1)}>
+            <ChevronRight class="h-4 w-4" />
+          </button>
+        </div>
+        
+        <!-- View Mode Toggle -->
+        <div class="view-mode-toggle">
+          <button 
+            class="mode-btn"
+            class:active={viewMode === 'budget'}
+            onclick={() => viewMode = 'budget'}
+          >
+            {$t('budget.budgetMode')}
+          </button>
+          <button 
+            class="mode-btn"
+            class:active={viewMode === 'spending'}
+            onclick={() => viewMode = 'spending'}
+          >
+            {$t('budget.spendingMode')}
+          </button>
+        </div>
       </div>
     {/if}
   </div>
@@ -798,11 +998,11 @@
     {/if}
   </div>
 
-  <div class="budget-main-area" class:detail-mode={showTransactions && selection}>
-    <!-- Main Grid (normal view) -->
+  <div class="budget-main-area" class:detail-mode={showTransactions && selection} class:spending-mode={viewMode === 'spending'}>
+    <!-- Budget/Spending Grid -->
     <div class="budget-grid-container">
-      <!-- Categories Column -->
-      <div class="budget-categories-column">
+        <!-- Categories Column -->
+        <div class="budget-categories-column">
         <div class="categories-header">
           <div class="header-label-row">
             <span class="header-label">{$t('budget.categories')}</span>
@@ -872,21 +1072,23 @@
       </div>
 
       <!-- Data Columns -->
-      <div class="budget-data-columns" class:single-month={isSingleMonthMode}>
+      <div class="budget-data-columns" class:single-month={isSingleMonthMode} bind:this={dataColumnsRef}>
         <div class="budget-months-header">
           {#each displayMonthRange as { month, year, key }}
-            <div class="month-header-group" class:single-month={isSingleMonthMode}>
+            <div class="month-header-group" class:single-month={isSingleMonthMode} class:spending-mode={viewMode === 'spending'}>
               <div class="month-title">
                 {monthsShort[month]} {year}
               </div>
-              <div class="month-columns">
-                {#if isSingleMonthMode}
-                  <span class="col-header">ANT</span>
-                {/if}
-                <span class="col-header">PRES</span>
-                <span class="col-header">GAST</span>
-                <span class="col-header">SALDO</span>
-              </div>
+              {#if viewMode !== 'spending'}
+                <div class="month-columns">
+                  {#if isSingleMonthMode}
+                    <span class="col-header">ANT</span>
+                  {/if}
+                  <span class="col-header">PRES</span>
+                  <span class="col-header">GAST</span>
+                  <span class="col-header">SALDO</span>
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
@@ -914,20 +1116,25 @@
                     class:selected={isSelected}
                     class:overspent={isOverspent}
                     class:single-month={isSingleMonthMode}
+                    class:spending-mode={viewMode === 'spending'}
                     onclick={(e) => handleCellClick('master', master.id, key, master.name, e)}
                   >
-                    {#if isSingleMonthMode}
+                    {#if isSingleMonthMode && viewMode !== 'spending'}
                       <span class="cell previous {prevBalance < -0.01 ? 'negative' : (prevBalance > 0.01 ? 'positive' : '')}">
                         {formatAmount(prevBalance)}
                       </span>
                     {/if}
-                    <span class="cell budgeted">{formatAmount(data.budgeted)}</span>
+                    {#if viewMode !== 'spending'}
+                      <span class="cell budgeted">{formatAmount(data.budgeted)}</span>
+                    {/if}
                     <span class="cell outflows" class:negative={!isNearZero(data.activity) && data.activity < 0}>
                       {formatAmount(data.activity)}
                     </span>
-                    <span class="cell balance {getBalanceClass(data.available)}">
-                      {formatAmount(data.available)}
-                    </span>
+                    {#if viewMode !== 'spending'}
+                      <span class="cell balance {getBalanceClass(data.available)}">
+                        {formatAmount(data.available)}
+                      </span>
+                    {/if}
                   </button>
                 {/each}
               </div>
@@ -950,40 +1157,45 @@
                         class:selected={isSelected}
                         class:overspent={isOverspent}
                         class:single-month={isSingleMonthMode}
+                        class:spending-mode={viewMode === 'spending'}
                         onclick={(e) => handleCellClick('category', sub.id, key, sub.name, e)}
                       >
-                        {#if isSingleMonthMode}
+                        {#if isSingleMonthMode && viewMode !== 'spending'}
                           <span class="cell previous {prevBalance < -0.01 ? 'negative' : (prevBalance > 0.01 ? 'positive' : '')}">
                             {formatAmount(prevBalance)}
                           </span>
                         {/if}
-                        {#if editingBudget?.categoryId === sub.id && editingBudget?.monthKey === key}
-                          <span class="cell budgeted editing">
-                            <input
-                              type="text"
-                              class="budget-input"
-                              bind:value={editingBudget.inputValue}
-                              onkeydown={handleBudgetKeydown}
-                              onblur={saveBudgetEdit}
-                            />
-                          </span>
-                        {:else}
-                          <!-- svelte-ignore a11y_no_static_element_interactions -->
-                          <span 
-                            class="cell budgeted"
-                            class:editable={$isEditMode}
-                            ondblclick={(e) => { if ($isEditMode) { e.stopPropagation(); startBudgetEdit(sub.id, key, data.budgeted, e); } }}
-                          >{formatAmount(data.budgeted)}</span>
+                        {#if viewMode !== 'spending'}
+                          {#if editingBudget?.categoryId === sub.id && editingBudget?.monthKey === key}
+                            <span class="cell budgeted editing">
+                              <input
+                                type="text"
+                                class="budget-input"
+                                bind:value={editingBudget.inputValue}
+                                onkeydown={handleBudgetKeydown}
+                                onblur={saveBudgetEdit}
+                              />
+                            </span>
+                          {:else}
+                            <!-- svelte-ignore a11y_no_static_element_interactions -->
+                            <span 
+                              class="cell budgeted"
+                              class:editable={$isEditMode}
+                              ondblclick={(e) => { if ($isEditMode) { e.stopPropagation(); startBudgetEdit(sub.id, key, data.budgeted, e); } }}
+                            >{formatAmount(data.budgeted)}</span>
+                          {/if}
                         {/if}
                         <span class="cell outflows" class:negative={!isNearZero(data.activity) && data.activity < 0}>
                           {formatAmount(data.activity)}
                         </span>
-                        <span class="cell balance {getBalanceClass(data.available)}">
-                          {formatAmount(data.available)}
-                          {#if data.available < -0.01 && 'overspendingHandling' in data && data.overspendingHandling === 'Confined'}
-                            <span class="rolling-indicator" title="Se traslada al siguiente mes">→</span>
-                          {/if}
-                        </span>
+                        {#if viewMode !== 'spending'}
+                          <span class="cell balance {getBalanceClass(data.available)}">
+                            {formatAmount(data.available)}
+                            {#if data.available < -0.01 && 'overspendingHandling' in data && data.overspendingHandling === 'Confined'}
+                              <span class="rolling-indicator" title="Se traslada al siguiente mes">→</span>
+                            {/if}
+                          </span>
+                        {/if}
                       </button>
                     {/each}
                   </div>
@@ -1213,11 +1425,18 @@
     color: var(--primary-foreground);
   }
 
+  .budget-nav-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.25rem 0.5rem;
+    gap: 0.5rem;
+  }
+
   .budget-nav-months {
     display: flex;
     align-items: center;
     gap: 0;
-    padding: 0.375rem 0.5rem;
     overflow-x: auto;
   }
 
@@ -1274,7 +1493,14 @@
 
   .budget-main-area.detail-mode .budget-grid-container {
     flex: 0 0 auto;
-    max-width: 560px;
+    max-width: 50%;
+    min-width: 380px;
+  }
+
+  /* Detail mode with spending - much more compact */
+  .budget-main-area.detail-mode.spending-mode .budget-grid-container {
+    max-width: 45%;
+    min-width: 320px;
   }
 
   .budget-grid-container {
@@ -1558,9 +1784,9 @@
   }
 
   .month-header-group {
-    flex: 0 0 auto;
-    width: 270px;
-    min-width: 220px;
+    flex: 1;
+    min-width: 200px;
+    max-width: 350px;
     display: flex;
     flex-direction: column;
     border-right: 1px solid var(--border);
@@ -1612,6 +1838,10 @@
     font-weight: 600;
   }
 
+  .data-row.master-row .cell {
+    font-size: 0.8rem;
+  }
+
   .data-row.sub-row {
     height: 28px;
   }
@@ -1631,9 +1861,9 @@
   /* Removed overspent row backgrounds - only the balance value shows red */
 
   .month-data {
-    flex: 0 0 auto;
-    width: 270px;
-    min-width: 220px;
+    flex: 1;
+    min-width: 200px;
+    max-width: 350px;
     display: flex;
     align-items: center;
     border-right: 1px solid var(--border);
@@ -1660,9 +1890,9 @@
 
   .cell {
     flex: 1;
-    padding: 0 0.25rem;
+    padding: 0 0.35rem;
     text-align: right;
-    font-size: 0.65rem;
+    font-size: 0.75rem;
     font-family: var(--font-family-mono);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -1676,6 +1906,86 @@
 
   .cell.outflows.negative {
     color: var(--destructive);
+  }
+
+  /* Spending mode - single column layout, flexible to fill space */
+  .budget-main-area.spending-mode .budget-months-header {
+    display: flex;
+  }
+
+  .month-data.spending-mode {
+    flex: 1;
+    min-width: 90px;
+    max-width: 200px;
+    justify-content: flex-end;
+    padding: 0 0.75rem;
+  }
+
+  .month-data.spending-mode .cell {
+    flex: none;
+    text-align: right;
+    font-size: 0.85rem;
+  }
+
+  .month-header-group.spending-mode {
+    flex: 1;
+    min-width: 90px;
+    max-width: 200px;
+  }
+
+  .month-header-group.spending-mode .month-title {
+    font-size: 0.8rem;
+    padding: 0.5rem 0.25rem;
+    text-align: center;
+  }
+
+  .budget-main-area.spending-mode .budget-data-columns {
+    flex: 1;
+  }
+
+  .budget-main-area.spending-mode .budget-categories-column {
+    flex: 0 0 auto;
+    max-width: 220px;
+  }
+
+  .budget-main-area.spending-mode .data-row {
+    display: flex;
+  }
+
+  /* Detail mode - more compact columns */
+  .budget-main-area.detail-mode .month-data {
+    min-width: 160px;
+    max-width: 280px;
+  }
+
+  .budget-main-area.detail-mode .month-header-group {
+    min-width: 160px;
+    max-width: 280px;
+  }
+
+  /* Detail mode with spending - even more compact */
+  .budget-main-area.detail-mode.spending-mode .month-data.spending-mode {
+    min-width: 55px;
+    max-width: 100px;
+    padding: 0 0.25rem;
+  }
+
+  .budget-main-area.detail-mode.spending-mode .month-header-group.spending-mode {
+    min-width: 55px;
+    max-width: 100px;
+  }
+
+  .budget-main-area.detail-mode.spending-mode .budget-categories-column {
+    max-width: 150px;
+  }
+
+  .budget-main-area.detail-mode.spending-mode .cell {
+    font-size: 0.7rem;
+  }
+
+  .budget-main-area.detail-mode.spending-mode .month-title {
+    font-size: 0.65rem;
+    padding: 0.25rem;
   }
 
   .cell.balance {
@@ -2358,7 +2668,42 @@
   }
 
   .budget-view.mobile-view .month-title {
-    display: none;
+    font-size: 0.8rem;
+    padding: 0.5rem;
+    text-align: center;
+  }
+
+  .budget-view.mobile-view .month-columns {
+    justify-content: center;
+    gap: 0;
+  }
+
+  .budget-view.mobile-view .col-header {
+    font-size: 0.6rem;
+    padding: 0 0.25rem;
+  }
+
+  .budget-view.mobile-view .cell {
+    font-size: 0.7rem;
+    padding: 0 0.15rem;
+  }
+
+  /* Mobile spending mode - allow multiple columns */
+  .budget-view.mobile-view .month-header-group.spending-mode,
+  .budget-view.mobile-view .month-data.spending-mode {
+    width: auto;
+    min-width: 75px;
+    max-width: 130px;
+    flex: 1;
+  }
+
+  .budget-view.mobile-view .month-header-group.spending-mode .month-title {
+    font-size: 0.7rem;
+    padding: 0.35rem 0.25rem;
+  }
+
+  .budget-view.mobile-view .month-data.spending-mode .cell {
+    font-size: 0.75rem;
   }
 
   .budget-view.mobile-view.with-panel .budget-grid-container {
@@ -2454,4 +2799,51 @@
       min-width: 100%;
     }
   }
+
+  /* ==============================================
+     VIEW MODE TOGGLE STYLES
+     ============================================== */
+  .view-mode-toggle {
+    display: flex;
+    gap: 0;
+    background: var(--muted);
+    border-radius: 6px;
+    padding: 3px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .view-mode-toggle.mobile {
+    margin: 0 auto 0.5rem auto;
+    justify-content: center;
+  }
+
+  .view-mode-toggle.mobile .mode-btn {
+    padding: 8px 20px;
+    font-size: 0.85rem;
+  }
+
+  .mode-btn {
+    padding: 6px 14px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+  }
+
+  .mode-btn:hover {
+    color: var(--foreground);
+  }
+
+  .mode-btn.active {
+    background: var(--background);
+    color: var(--primary);
+    box-shadow: var(--shadow-sm);
+  }
+
 </style>
+

@@ -121,7 +121,12 @@
     "lastMonthOverspent": "Overspent last month",
     "budgetedThisMonth": "Budgeted this month",
     "showSummary": "Show summary",
-    "hideSummary": "Hide summary"
+    "hideSummary": "Hide summary",
+    "budgetMode": "Budget",
+    "spendingMode": "Spending",
+    "income": "Income",
+    "expenses": "Expenses",
+    "source": "Source"
   },
   "transactions": {
     "title": "Transactions",
