@@ -34,6 +34,7 @@
   
   // Expansion state
   let expandedMasters = $state<Set<string>>(new Set());
+  let userManuallyChangedExpansion = $state(false);
   
   // Selection state for transactions panel
   let selection = $state<{
@@ -633,10 +634,12 @@
   function expandAllCategories() {
     const allIds = allCategoryStructure.map(m => m.id).filter(Boolean) as string[];
     expandedMasters = new Set(allIds);
+    userManuallyChangedExpansion = true;
   }
 
   function collapseAllCategories() {
     expandedMasters = new Set();
+    userManuallyChangedExpansion = true;
   }
 
   // Check if all/none are expanded
@@ -856,9 +859,9 @@
     return () => resizeObserver.disconnect();
   });
 
-  // Initialize expanded masters
+  // Initialize expanded masters (only on first load, not after user changes)
   $effect(() => {
-    if (allCategoryStructure.length > 0 && expandedMasters.size === 0) {
+    if (allCategoryStructure.length > 0 && expandedMasters.size === 0 && !userManuallyChangedExpansion) {
       expandedMasters = new Set(allCategoryStructure.map(m => m.id));
     }
   });
@@ -1004,13 +1007,9 @@
         <!-- Categories Column -->
         <div class="budget-categories-column">
         <div class="categories-header">
-          <div class="header-label-row">
+          <div class="header-top-row">
             <span class="header-label">{$t('budget.categories')}</span>
-            <span class="category-count">
-              {categoryStats.current}
-            </span>
-          </div>
-          <div class="header-controls">
+            <span class="category-count">{categoryStats.current}</span>
             <div class="expand-buttons">
               <button 
                 class="expand-btn"
@@ -1018,7 +1017,7 @@
                 onclick={expandAllCategories}
                 disabled={allExpanded}
               >
-                <ChevronsUpDown class="h-3.5 w-3.5" />
+                <ChevronsUpDown class="h-3 w-3" />
               </button>
               <button 
                 class="expand-btn"
@@ -1026,17 +1025,32 @@
                 onclick={collapseAllCategories}
                 disabled={expandedMasters.size === 0}
               >
-                <ChevronsDownUp class="h-3.5 w-3.5" />
+                <ChevronsDownUp class="h-3 w-3" />
               </button>
             </div>
-            <select 
-              class="category-filter-select"
-              bind:value={categoryFilter}
+          </div>
+          <div class="filter-toggle">
+            <button 
+              class="filter-btn"
+              class:active={categoryFilter === 'active'}
+              onclick={() => categoryFilter = 'active'}
             >
-              <option value="active">Activas ({categoryStats.active})</option>
-              <option value="open">Abiertas ({categoryStats.open})</option>
-              <option value="all">Todas ({categoryStats.total})</option>
-            </select>
+              Activas
+            </button>
+            <button 
+              class="filter-btn"
+              class:active={categoryFilter === 'open'}
+              onclick={() => categoryFilter = 'open'}
+            >
+              Abiertas
+            </button>
+            <button 
+              class="filter-btn"
+              class:active={categoryFilter === 'all'}
+              onclick={() => categoryFilter = 'all'}
+            >
+              Todas
+            </button>
           </div>
         </div>
         
@@ -1523,7 +1537,7 @@
   }
 
   .categories-header {
-    padding: 0.5rem 0.75rem;
+    padding: 0.4rem 0.5rem;
     background: var(--muted);
     border-bottom: 1px solid var(--border);
     font-size: 0.7rem;
@@ -1535,32 +1549,30 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    gap: 0.25rem;
   }
 
-  .header-label-row {
+  .header-top-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
   }
 
-  .header-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    justify-content: space-between;
+  .header-label {
+    flex: 1;
   }
 
   .expand-buttons {
     display: flex;
-    gap: 0.25rem;
+    gap: 0.15rem;
   }
 
   .expand-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     padding: 0;
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -1582,22 +1594,56 @@
   }
 
   .category-count {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     font-weight: 500;
     color: var(--muted-foreground);
     background: var(--background);
-    padding: 0.125rem 0.375rem;
-    border-radius: 10px;
+    padding: 0.1rem 0.3rem;
+    border-radius: 8px;
+    min-width: 18px;
+    text-align: center;
   }
 
-  .category-filter-select {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.65rem;
-    font-weight: 500;
-    border: 1px solid var(--border);
-    border-radius: 4px;
+  .filter-toggle {
+    display: flex;
+    gap: 0;
     background: var(--background);
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .filter-btn {
+    flex: 1;
+    padding: 0.2rem 0.35rem;
+    font-size: 0.55rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    background: transparent;
+    border: none;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .filter-btn:not(:last-child) {
+    border-right: 1px solid var(--border);
+  }
+
+  .filter-btn:hover:not(.active) {
+    background: var(--accent);
     color: var(--foreground);
+  }
+
+  .filter-btn.active {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  /* Remove old select styles */
+  .category-filter-select {
+    display: none;
     cursor: pointer;
     outline: none;
   }
