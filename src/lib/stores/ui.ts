@@ -219,7 +219,7 @@ export interface UserPreferences {
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
-  transactionSortOrder: 'asc', // Default: oldest first (top to bottom, most recent at bottom)
+  transactionSortOrder: 'desc', // Default: newest first (most recent at top)
 };
 
 function loadPreferences(): UserPreferences {
