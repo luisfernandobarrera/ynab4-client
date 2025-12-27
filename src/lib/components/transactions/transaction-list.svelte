@@ -2087,29 +2087,36 @@
   /* Reverse scroll mode (chat-style) */
   .tx-table-container.reverse-scroll {
     display: flex;
-    flex-direction: column-reverse;
+    flex-direction: column;
   }
 
   .tx-table-container.reverse-scroll .tx-table {
     display: flex;
     flex-direction: column;
+    min-height: 100%;
   }
 
   .tx-table-container.reverse-scroll thead {
-    order: 1; /* Header at the bottom visually but stays at top of scroll */
     position: sticky;
-    bottom: 0;
-    top: auto;
+    top: 0;
     z-index: 10;
     background: var(--background);
+    flex-shrink: 0;
   }
 
   .tx-table-container.reverse-scroll tbody {
     display: flex;
     flex-direction: column-reverse;
+    flex: 1;
   }
 
   .tx-table-container.reverse-scroll tbody tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+  }
+  
+  .tx-table-container.reverse-scroll thead tr {
     display: table;
     width: 100%;
     table-layout: fixed;
