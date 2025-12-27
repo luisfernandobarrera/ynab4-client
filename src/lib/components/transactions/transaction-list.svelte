@@ -396,17 +396,17 @@
   // Infinite scroll handler
   function handleScroll(e: Event) {
     const target = e.target as HTMLDivElement;
+    const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
     
     if (isReverseScroll) {
-      // In reverse scroll mode, load more when near TOP
-      // Note: with scaleY(-1), scrollTop is inverted
-      const scrollTop = target.scrollTop;
-      if (scrollTop < 200 && hasMore) {
+      // In reverse scroll mode with scaleY(-1):
+      // Visual "top" (where older transactions appear) = actual scroll bottom
+      // So we load more when scrollBottom is small (user scrolled to visual top)
+      if (scrollBottom < 200 && hasMore) {
         visibleCount += PAGE_SIZE;
       }
     } else {
-      // Normal mode: load more when near BOTTOM
-      const scrollBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+      // Normal mode: load more when near bottom
       if (scrollBottom < 200 && hasMore) {
         visibleCount += PAGE_SIZE;
       }
@@ -1709,8 +1709,8 @@
             {/if}
           {/if}
           
-          <!-- Loading indicator for infinite scroll -->
-          {#if hasMore}
+          <!-- Loading indicator for infinite scroll (hidden in reverse mode) -->
+          {#if hasMore && !isReverseScroll}
             <tr class="tx-loading-row">
               <td colspan={selectedAccount ? 9 : 9}>
                 <span class="loading-text">{$t('common.loading')}</span>
@@ -2084,42 +2084,21 @@
     overflow: auto;
   }
 
-  /* Reverse scroll mode (chat-style) */
+  /* Reverse scroll mode (chat-style) - uses transform to flip scroll direction */
   .tx-table-container.reverse-scroll {
-    display: flex;
-    flex-direction: column;
+    transform: scaleY(-1);
   }
 
   .tx-table-container.reverse-scroll .tx-table {
-    display: flex;
-    flex-direction: column;
-    min-height: 100%;
+    transform: scaleY(-1);
   }
 
+  /* Keep header at top (visually bottom due to flip, but sticky top works) */
   .tx-table-container.reverse-scroll thead {
     position: sticky;
     top: 0;
     z-index: 10;
     background: var(--background);
-    flex-shrink: 0;
-  }
-
-  .tx-table-container.reverse-scroll tbody {
-    display: flex;
-    flex-direction: column-reverse;
-    flex: 1;
-  }
-
-  .tx-table-container.reverse-scroll tbody tr {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
-  }
-  
-  .tx-table-container.reverse-scroll thead tr {
-    display: table;
-    width: 100%;
-    table-layout: fixed;
   }
 
   .sort-header {
