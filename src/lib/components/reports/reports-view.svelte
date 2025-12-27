@@ -1,14 +1,15 @@
 <script lang="ts">
-  import { PieChart, BarChart3, TrendingUp, Calendar } from 'lucide-svelte';
+  import { PieChart, BarChart3, TrendingUp, Calendar, Table2 } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
   import SpendingByCategory from './spending-by-category.svelte';
   import IncomeVsExpense from './income-vs-expense.svelte';
   import NetWorth from './net-worth.svelte';
+  import HierarchicalSpending from './hierarchical-spending.svelte';
 
-  type ReportType = 'spending' | 'income-expense' | 'net-worth';
+  type ReportType = 'spending' | 'income-expense' | 'net-worth' | 'hierarchical';
 
-  let activeReport = $state<ReportType>('spending');
+  let activeReport = $state<ReportType>('hierarchical');
 
   // Date range state
   let dateRange = $state<'month' | 'quarter' | 'year' | 'custom'>('month');
@@ -37,6 +38,7 @@
   });
 
   const reportTypes = [
+    { id: 'hierarchical' as const, label: 'Gastos e Ingresos', icon: Table2 },
     { id: 'spending' as const, label: 'Spending', icon: PieChart },
     { id: 'income-expense' as const, label: 'Income vs Expense', icon: BarChart3 },
     { id: 'net-worth' as const, label: 'Net Worth', icon: TrendingUp },
@@ -83,7 +85,12 @@
   <div class="flex-1 overflow-y-auto p-4">
     <Card>
       <CardContent class="p-6">
-        {#if activeReport === 'spending'}
+        {#if activeReport === 'hierarchical'}
+          <HierarchicalSpending
+            startDate={dateRanges().start}
+            endDate={dateRanges().end}
+          />
+        {:else if activeReport === 'spending'}
           <SpendingByCategory
             startDate={dateRanges().start}
             endDate={dateRanges().end}

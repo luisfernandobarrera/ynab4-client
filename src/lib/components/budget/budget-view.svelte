@@ -850,7 +850,7 @@
                         </span>
                         <span class="cell balance {getBalanceClass(data.available)}">
                           {formatAmount(data.available)}
-                          {#if data.available < -0.01 && data.overspendingHandling === 'Confined'}
+                          {#if data.available < -0.01 && 'overspendingHandling' in data && data.overspendingHandling === 'Confined'}
                             <span class="rolling-indicator" title="Se traslada al siguiente mes">→</span>
                           {/if}
                         </span>
