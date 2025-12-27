@@ -64,15 +64,20 @@
     return result;
   });
 
+  // Helper to check if transaction is a transfer
+  function isTransfer(tx: { transferAccountId?: string | null; payeeId?: string | null }): boolean {
+    return !!tx.transferAccountId || (tx.payeeId?.startsWith('Payee/Transfer:') ?? false);
+  }
+
   // Build hierarchical spending data
   const spendingData = $derived.by(() => {
-    // Filter expenses in date range
+    // Filter expenses in date range (excluding transfers)
     const expenses = $transactions.filter(
       (tx) => 
         tx.date >= startDate && 
         tx.date <= endDate && 
         tx.amount < 0 &&
-        !tx.transferAccountId // Exclude transfers
+        !isTransfer(tx)
     );
 
     // Group by category
@@ -191,7 +196,7 @@
         tx.date >= startDate && 
         tx.date <= endDate && 
         tx.amount > 0 &&
-        !tx.transferAccountId
+        !isTransfer(tx)
     );
 
     // Group by payee

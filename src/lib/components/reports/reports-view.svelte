@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { PieChart, BarChart3, TrendingUp, Calendar, Table2 } from 'lucide-svelte';
+  import { PieChart, BarChart3, TrendingUp, Calendar, Table2, ChevronLeft, ChevronRight } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
-  import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
+  import { Card, CardContent } from '$lib/components/ui/card';
   import SpendingByCategory from './spending-by-category.svelte';
   import IncomeVsExpense from './income-vs-expense.svelte';
   import NetWorth from './net-worth.svelte';
@@ -11,30 +11,60 @@
 
   let activeReport = $state<ReportType>('hierarchical');
 
-  // Date range state
-  let dateRange = $state<'month' | 'quarter' | 'year' | 'custom'>('month');
-  
+  // Month navigation state
+  const today = new Date();
+  let selectedYear = $state(today.getFullYear());
+  let selectedMonth = $state(today.getMonth()); // 0-indexed
+
+  // Month names in Spanish
+  const monthNames = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+
+  // Calculate date range for selected month
   const dateRanges = $derived(() => {
-    const today = new Date();
-    const ranges = {
-      month: {
-        start: new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0],
-        end: today.toISOString().split('T')[0],
-      },
-      quarter: {
-        start: new Date(today.getFullYear(), today.getMonth() - 2, 1).toISOString().split('T')[0],
-        end: today.toISOString().split('T')[0],
-      },
-      year: {
-        start: new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0],
-        end: today.toISOString().split('T')[0],
-      },
-      custom: {
-        start: new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0],
-        end: today.toISOString().split('T')[0],
-      },
+    const startDate = new Date(selectedYear, selectedMonth, 1);
+    const endDate = new Date(selectedYear, selectedMonth + 1, 0); // Last day of month
+    
+    return {
+      start: startDate.toISOString().split('T')[0],
+      end: endDate.toISOString().split('T')[0],
     };
-    return ranges[dateRange];
+  });
+
+  // Format displayed month
+  const displayedMonth = $derived(() => {
+    return `${monthNames[selectedMonth]} ${selectedYear}`;
+  });
+
+  // Navigation functions
+  function previousMonth() {
+    if (selectedMonth === 0) {
+      selectedMonth = 11;
+      selectedYear--;
+    } else {
+      selectedMonth--;
+    }
+  }
+
+  function nextMonth() {
+    if (selectedMonth === 11) {
+      selectedMonth = 0;
+      selectedYear++;
+    } else {
+      selectedMonth++;
+    }
+  }
+
+  function goToCurrentMonth() {
+    selectedYear = today.getFullYear();
+    selectedMonth = today.getMonth();
+  }
+
+  // Check if we're on the current month
+  const isCurrentMonth = $derived(() => {
+    return selectedYear === today.getFullYear() && selectedMonth === today.getMonth();
   });
 
   const reportTypes = [
@@ -48,10 +78,38 @@
 <div class="flex flex-col h-full">
   <!-- Header -->
   <div class="sticky top-0 z-10 bg-background border-b p-4 space-y-4">
-    <h2 class="text-xl font-heading font-semibold">Reports</h2>
+    <div class="flex items-center justify-between">
+      <h2 class="text-xl font-heading font-semibold">Reportes</h2>
+      
+      <!-- Month Navigator -->
+      <div class="flex items-center gap-2 bg-muted/50 rounded-lg p-1">
+        <Button variant="ghost" size="icon" class="h-8 w-8" onclick={previousMonth}>
+          <ChevronLeft class="h-4 w-4" />
+        </Button>
+        
+        <button 
+          class="px-4 py-1 min-w-[160px] text-center font-medium hover:bg-accent rounded transition-colors"
+          onclick={goToCurrentMonth}
+          title="Ir al mes actual"
+        >
+          <Calendar class="h-4 w-4 inline-block mr-2 opacity-60" />
+          {displayedMonth()}
+        </button>
+        
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          class="h-8 w-8" 
+          onclick={nextMonth}
+          disabled={isCurrentMonth()}
+        >
+          <ChevronRight class="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
 
     <!-- Report type tabs -->
-    <div class="flex gap-2 overflow-x-auto pb-2">
+    <div class="flex gap-2 overflow-x-auto pb-1">
       {#each reportTypes as report}
         <Button
           variant={activeReport === report.id ? 'default' : 'outline'}
@@ -62,22 +120,6 @@
           {report.label}
         </Button>
       {/each}
-    </div>
-
-    <!-- Date range selector -->
-    <div class="flex items-center gap-2">
-      <Calendar class="h-4 w-4 text-muted-foreground" />
-      <div class="flex gap-1">
-        {#each ['month', 'quarter', 'year'] as range}
-          <Button
-            variant={dateRange === range ? 'secondary' : 'ghost'}
-            size="sm"
-            onclick={() => (dateRange = range as typeof dateRange)}
-          >
-            {range === 'month' ? 'This Month' : range === 'quarter' ? 'Quarter' : 'Year'}
-          </Button>
-        {/each}
-      </div>
     </div>
   </div>
 
@@ -96,7 +138,7 @@
             endDate={dateRanges().end}
           />
         {:else if activeReport === 'income-expense'}
-          <IncomeVsExpense months={dateRange === 'month' ? 1 : dateRange === 'quarter' ? 3 : 12} />
+          <IncomeVsExpense months={1} />
         {:else if activeReport === 'net-worth'}
           <NetWorth />
         {/if}
@@ -104,4 +146,3 @@
     </Card>
   </div>
 </div>
-
