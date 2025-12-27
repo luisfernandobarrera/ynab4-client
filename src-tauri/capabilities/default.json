@@ -49,7 +49,18 @@
       "identifier": "fs:allow-write-text-file",
       "allow": [
         { "path": "$HOME/Dropbox/**" },
-        { "path": "$HOME/Documents/**" }
+        { "path": "$HOME/Documents/**" },
+        { "path": "$HOME/Downloads/**" },
+        { "path": "$HOME/Desktop/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [
+        { "path": "$HOME/Dropbox/**" },
+        { "path": "$HOME/Documents/**" },
+        { "path": "$HOME/Downloads/**" },
+        { "path": "$HOME/Desktop/**" }
       ]
     },
     {

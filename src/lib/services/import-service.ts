@@ -454,7 +454,6 @@ export async function downloadTemplate(): Promise<void> {
   const filename = 'plantilla-importacion-ynab.xlsx';
 
   if (isTauriRuntime()) {
-    // Use Tauri's save dialog
     try {
       const { save } = await import('@tauri-apps/plugin-dialog');
       const { writeFile } = await import('@tauri-apps/plugin-fs');
@@ -473,15 +472,18 @@ export async function downloadTemplate(): Promise<void> {
           filePath = filePath + '.xlsx';
         }
         
-        // Write the file
         const uint8Array = new Uint8Array(buffer);
+        console.log('[ImportService] Writing to:', filePath, 'Size:', uint8Array.length, 'bytes');
+        
+        // writeFile signature: (path, data, options?)
         await writeFile(filePath, uint8Array);
-        console.log('[ImportService] Template saved to:', filePath, 'Size:', uint8Array.length, 'bytes');
+        
+        console.log('[ImportService] Template saved successfully!');
+        alert(`Plantilla guardada en: ${filePath}`);
       }
     } catch (error) {
       console.error('[ImportService] Error saving template in Tauri:', error);
-      // Fallback to browser method
-      downloadViaBrowser(buffer, filename);
+      alert(`Error al guardar: ${error}`);
     }
   } else {
     downloadViaBrowser(buffer, filename);
