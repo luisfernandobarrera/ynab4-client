@@ -451,7 +451,7 @@ function isTauriRuntime(): boolean {
  */
 export async function downloadTemplate(): Promise<void> {
   const buffer = generateTemplateExcel();
-  const filename = `plantilla-importacion-ynab-${new Date().toISOString().split('T')[0]}.xlsx`;
+  const filename = 'plantilla-importacion-ynab.xlsx';
 
   if (isTauriRuntime()) {
     // Use Tauri's save dialog
@@ -459,7 +459,7 @@ export async function downloadTemplate(): Promise<void> {
       const { save } = await import('@tauri-apps/plugin-dialog');
       const { writeFile } = await import('@tauri-apps/plugin-fs');
       
-      const filePath = await save({
+      let filePath = await save({
         defaultPath: filename,
         filters: [{
           name: 'Excel',
@@ -468,8 +468,15 @@ export async function downloadTemplate(): Promise<void> {
       });
       
       if (filePath) {
-        await writeFile(filePath, new Uint8Array(buffer));
-        console.log('[ImportService] Template saved to:', filePath);
+        // Ensure .xlsx extension is present
+        if (!filePath.toLowerCase().endsWith('.xlsx')) {
+          filePath = filePath + '.xlsx';
+        }
+        
+        // Write the file
+        const uint8Array = new Uint8Array(buffer);
+        await writeFile(filePath, uint8Array);
+        console.log('[ImportService] Template saved to:', filePath, 'Size:', uint8Array.length, 'bytes');
       }
     } catch (error) {
       console.error('[ImportService] Error saving template in Tauri:', error);
