@@ -296,21 +296,74 @@
     addToast({ type: 'success', message: 'Guardado' });
   }
 
-  function downloadCurrentFile() {
-    if (!currentFile) return;
+  async function downloadCurrentFile() {
+    if (!currentFile) {
+      addToast({ type: 'error', message: 'No hay archivo para descargar' });
+      return;
+    }
     
-    currentFile.transactions = transactions;
-    
-    const json = exportImportFile(currentFile);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${currentFile.name}.ynab-import.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    addToast({ type: 'success', message: 'Archivo descargado' });
+    try {
+      // Update transactions in file
+      const fileToExport = {
+        ...currentFile,
+        transactions: transactions,
+        updatedAt: new Date().toISOString()
+      };
+      const json = exportImportFile(fileToExport);
+      const fileName = `${currentFile.name}.ynab-import.json`;
+      
+      if (isTauri()) {
+        try {
+          const { save } = await import('@tauri-apps/plugin-dialog');
+          const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+          
+          const filePath = await save({
+            defaultPath: fileName,
+            filters: [{ name: 'YNAB Import', extensions: ['json'] }]
+          });
+          
+          if (filePath) {
+            await writeTextFile(filePath, json);
+            addToast({ type: 'success', message: 'Archivo guardado' });
+          }
+        } catch (e) {
+          console.error('Tauri save error:', e);
+          // Fallback to browser download
+          browserDownload(json, fileName, 'application/json');
+        }
+      } else {
+        browserDownload(json, fileName, 'application/json');
+      }
+    } catch (e) {
+      console.error('Download error:', e);
+      addToast({ type: 'error', message: 'Error al descargar archivo' });
+    }
+  }
+  
+  function browserDownload(content: string, fileName: string, mimeType: string, successMessage?: string) {
+    try {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      
+      // Use setTimeout to ensure the element is in the DOM
+      setTimeout(() => {
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+      }, 0);
+      
+      addToast({ type: 'success', message: successMessage || 'Archivo descargado' });
+    } catch (e) {
+      console.error('Browser download error:', e);
+      addToast({ type: 'error', message: 'Error al descargar archivo' });
+    }
   }
 
   function goBackToList() {
@@ -827,34 +880,31 @@
       return;
     }
 
-    // YNAB4 import format
-    const rows: string[] = ['Date,Payee,Category,Memo,Outflow,Inflow'];
+    try {
+      // YNAB4 import format
+      const rows: string[] = ['Date,Payee,Category,Memo,Outflow,Inflow'];
 
-    for (const tx of txsToExport) {
-      const date = tx.date;
-      const payee = `"${(tx.payeeName || tx.description).replace(/"/g, '""')}"`;
-      const category = tx.categoryName ? `"${tx.categoryName.replace(/"/g, '""')}"` : '';
-      const memo = tx.memo ? `"${tx.memo.replace(/"/g, '""')}"` : '';
-      const outflow = tx.amount < 0 ? Math.abs(tx.amount).toFixed(2) : '';
-      const inflow = tx.amount > 0 ? tx.amount.toFixed(2) : '';
+      for (const tx of txsToExport) {
+        const date = tx.date;
+        const payee = `"${(tx.payeeName || tx.description).replace(/"/g, '""')}"`;
+        const category = tx.categoryName ? `"${tx.categoryName.replace(/"/g, '""')}"` : '';
+        const memo = tx.memo ? `"${tx.memo.replace(/"/g, '""')}"` : '';
+        const outflow = tx.amount < 0 ? Math.abs(tx.amount).toFixed(2) : '';
+        const inflow = tx.amount > 0 ? tx.amount.toFixed(2) : '';
 
-      rows.push(`${date},${payee},${category},${memo},${outflow},${inflow}`);
+        rows.push(`${date},${payee},${category},${memo},${outflow},${inflow}`);
+      }
+
+      const fileName = targetName 
+        ? `${currentFile?.name || 'export'}-${targetName.replace(/[^a-zA-Z0-9]/g, '_')}.csv`
+        : `${currentFile?.name || 'export'}-ynab4.csv`;
+
+      browserDownload(rows.join('\n'), fileName, 'text/csv', `CSV exportado: ${txsToExport.length} transacciones`);
+      showExportDialog = false;
+    } catch (e) {
+      console.error('CSV export error:', e);
+      addToast({ type: 'error', message: 'Error al exportar CSV' });
     }
-
-    const fileName = targetName 
-      ? `${currentFile?.name || 'export'}-${targetName.replace(/[^a-zA-Z0-9]/g, '_')}.csv`
-      : `${currentFile?.name || 'export'}-ynab4.csv`;
-
-    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    showExportDialog = false;
-    addToast({ type: 'success', message: `CSV exportado: ${txsToExport.length} transacciones` });
   }
 
   function formatDate(dateStr: string): string {
