@@ -2,6 +2,7 @@
   import { Upload, Download, Save, FileText, ChevronDown, ChevronUp, ArrowLeft, Eye, EyeOff, Flag, Banknote, Check, X, ChevronRight, FileSpreadsheet, PanelLeftClose, PanelLeft, Settings2 } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import ImportFileList from './import-file-list.svelte';
+  import ImportContextMenu from './import-context-menu.svelte';
   import BulkActionsBar from '../shared/bulk-actions-bar.svelte';
   import {
     parseCSV,
@@ -73,6 +74,11 @@
   let editingCategoryId = $state<string | null>(null);
   let payeeSearch = $state('');
   let categorySearch = $state('');
+
+  // Context menu state
+  let contextMenuOpen = $state(false);
+  let contextMenuX = $state(0);
+  let contextMenuY = $state(0);
 
   // Budget ID for storage
   const budgetId = $derived($budgetInfo?.budgetPath || 'default');
@@ -540,6 +546,92 @@
     clearSelection();
   }
 
+  function bulkDelete() {
+    transactions = transactions.filter(t => !selectedIds.has(t.id));
+    hasUnsavedChanges = true;
+    clearSelection();
+    addToast({ type: 'success', message: `${selectedIds.size} transacciones eliminadas` });
+  }
+
+  function bulkAssignAccount(accountName: string) {
+    transactions = transactions.map(t => {
+      if (selectedIds.has(t.id)) {
+        return { ...t, accountName };
+      }
+      return t;
+    });
+    hasUnsavedChanges = true;
+    addToast({ type: 'success', message: `Cuenta asignada a ${selectedIds.size} transacciones` });
+  }
+
+  // Rename all similar payees
+  function renameLikePayees(oldName: string, newPayeeId: string | null, newPayeeName: string) {
+    const nameLower = oldName.toLowerCase();
+    let count = 0;
+    
+    transactions = transactions.map(t => {
+      // Match by payeeName, description, or suggestedPayee
+      const matchPayee = t.payeeName?.toLowerCase() === nameLower;
+      const matchDesc = t.description?.toLowerCase() === nameLower;
+      const matchSuggested = t.suggestedPayee?.toLowerCase() === nameLower;
+      
+      if (matchPayee || matchDesc || (!t.payeeName && (matchSuggested))) {
+        count++;
+        return {
+          ...t,
+          payeeId: newPayeeId,
+          payeeName: newPayeeName,
+          status: t.categoryId ? 'ready' as const : 'pending' as const
+        };
+      }
+      return t;
+    });
+    
+    hasUnsavedChanges = true;
+    clearSelection();
+    addToast({ type: 'success', message: `${count} transacciones renombradas a "${newPayeeName}"` });
+  }
+
+  // Apply suggested payees to selected
+  function applySuggestions() {
+    let count = 0;
+    
+    transactions = transactions.map(t => {
+      if (selectedIds.has(t.id) && t.suggestedPayee && t.suggestedPayee !== t.payeeName) {
+        count++;
+        return {
+          ...t,
+          payeeName: t.suggestedPayee,
+          status: t.categoryId ? 'ready' as const : 'pending' as const
+        };
+      }
+      return t;
+    });
+    
+    hasUnsavedChanges = true;
+    clearSelection();
+    addToast({ type: 'success', message: `${count} sugerencias aplicadas` });
+  }
+
+  // Context menu handler
+  function handleContextMenu(e: MouseEvent, txId: string) {
+    e.preventDefault();
+    
+    // If the clicked transaction isn't selected, select only it
+    if (!selectedIds.has(txId)) {
+      selectedIds = new Set([txId]);
+    }
+    
+    contextMenuX = e.clientX;
+    contextMenuY = e.clientY;
+    contextMenuOpen = true;
+  }
+
+  // Get selected transactions for context menu
+  const selectedTransactions = $derived(
+    transactions.filter(t => selectedIds.has(t.id))
+  );
+
   // Inline editing
   function startEditPayee(txId: string, currentPayee: string) {
     editingPayeeId = txId;
@@ -985,6 +1077,7 @@
                   class:selected={isSelected}
                   class:skipped={tx.status === 'skipped'}
                   onclick={(e) => toggleSelect(tx.id, e)}
+                  oncontextmenu={(e) => handleContextMenu(e, tx.id)}
                 >
                   <td class="col-select" onclick={(e) => e.stopPropagation()}>
                     <input 
@@ -1103,6 +1196,24 @@
     </div>
   {/if}
 </div>
+
+<!-- Context Menu -->
+<ImportContextMenu
+  bind:open={contextMenuOpen}
+  x={contextMenuX}
+  y={contextMenuY}
+  selectedTransactions={selectedTransactions}
+  onClose={() => contextMenuOpen = false}
+  onAssignCategory={bulkAssignCategory}
+  onAssignPayee={bulkAssignPayee}
+  onAssignFlag={bulkAssignFlag}
+  onAssignAccount={bulkAssignAccount}
+  onMarkReady={bulkMarkReady}
+  onMarkSkipped={bulkMarkSkipped}
+  onDelete={bulkDelete}
+  onRenameLikePayees={renameLikePayees}
+  onApplySuggestions={applySuggestions}
+/>
 
 <!-- Export Dialog -->
 {#if showExportDialog}
