@@ -83,7 +83,7 @@
   <div
     bind:this={menuRef}
     class={cn(
-      'fixed z-50 min-w-[160px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95',
+      'context-menu-container fixed z-50 min-w-[160px] overflow-hidden rounded-md border p-1 shadow-lg animate-in fade-in-0 zoom-in-95',
       className
     )}
     role="menu"
@@ -91,4 +91,12 @@
     {@render children?.()}
   </div>
 {/if}
+
+<style>
+  .context-menu-container {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+    border-color: var(--border);
+  }
+</style>
 

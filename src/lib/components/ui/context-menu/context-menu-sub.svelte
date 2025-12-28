@@ -35,11 +35,19 @@
 
   {#if showSub}
     <div
-      class="absolute left-full top-0 min-w-[160px] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+      class="submenu-container absolute left-full top-0 min-w-[160px] overflow-hidden rounded-md border p-1 shadow-lg"
       role="menu"
     >
       {@render children?.()}
     </div>
   {/if}
 </div>
+
+<style>
+  .submenu-container {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+    border-color: var(--border);
+  }
+</style>
 

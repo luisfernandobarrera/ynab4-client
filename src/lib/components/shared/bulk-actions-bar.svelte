@@ -285,10 +285,11 @@
     left: 0;
     margin-top: 0.25rem;
     min-width: 220px;
-    background: var(--popover);
+    background-color: var(--popover);
+    color: var(--popover-foreground);
     border: 1px solid var(--border);
     border-radius: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
     z-index: 50;
     overflow: hidden;
   }
