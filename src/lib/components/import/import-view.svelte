@@ -50,6 +50,11 @@
   let filterMode = $state<'all' | 'pending' | 'ready' | 'skipped'>('all');
   let hasUnsavedChanges = $state(false);
   
+  // Sort state
+  type SortField = 'date' | 'payee' | 'category' | 'status' | 'flag' | 'amount';
+  let sortBy = $state<SortField>('date');
+  let sortOrder = $state<'asc' | 'desc'>('desc');
+  
   // Panel state
   let showAccountsPanel = $state(true);
   let selectedImportAccount = $state<string | null>(null);
@@ -381,7 +386,7 @@
   // ========================
   
   const filteredTransactions = $derived.by(() => {
-    let result = transactions;
+    let result = [...transactions];
     
     // Filter by account
     if (selectedImportAccount) {
@@ -393,8 +398,53 @@
       result = result.filter(tx => tx.status === filterMode);
     }
     
+    // Sort
+    result.sort((a, b) => {
+      let cmp = 0;
+      
+      switch (sortBy) {
+        case 'date':
+          cmp = (a.date || '').localeCompare(b.date || '');
+          break;
+        case 'payee':
+          const payeeA = (a.payeeName || a.description || '').toLowerCase();
+          const payeeB = (b.payeeName || b.description || '').toLowerCase();
+          cmp = payeeA.localeCompare(payeeB);
+          break;
+        case 'category':
+          const catA = (a.categoryName || '').toLowerCase();
+          const catB = (b.categoryName || '').toLowerCase();
+          cmp = catA.localeCompare(catB);
+          break;
+        case 'status':
+          const statusOrder = { ready: 0, pending: 1, skipped: 2 };
+          cmp = (statusOrder[a.status || 'pending'] || 1) - (statusOrder[b.status || 'pending'] || 1);
+          break;
+        case 'flag':
+          const flagA = a.flag || 'zzz';
+          const flagB = b.flag || 'zzz';
+          cmp = flagA.localeCompare(flagB);
+          break;
+        case 'amount':
+          cmp = a.amount - b.amount;
+          break;
+      }
+      
+      return sortOrder === 'asc' ? cmp : -cmp;
+    });
+    
     return result;
   });
+  
+  // Toggle sort
+  function toggleSort(field: SortField) {
+    if (sortBy === field) {
+      sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortBy = field;
+      sortOrder = field === 'date' ? 'desc' : 'asc';
+    }
+  }
 
   // Stats
   const stats = $derived(() => {
@@ -1054,16 +1104,44 @@
                     onchange={selectAll}
                   />
                 </th>
-                <th class="col-flag"></th>
-                <th class="col-date">fecha</th>
+                <th class="col-flag sortable" onclick={() => toggleSort('flag')}>
+                  {#if sortBy === 'flag'}
+                    {#if sortOrder === 'asc'}<ChevronUp class="sort-icon" />{:else}<ChevronDown class="sort-icon" />{/if}
+                  {/if}
+                </th>
+                <th class="col-date sortable" onclick={() => toggleSort('date')}>
+                  fecha
+                  {#if sortBy === 'date'}
+                    {#if sortOrder === 'asc'}<ChevronUp class="sort-icon" />{:else}<ChevronDown class="sort-icon" />{/if}
+                  {/if}
+                </th>
                 {#if !selectedImportAccount && importAccounts.length > 1}
                   <th class="col-account">cuenta</th>
                 {/if}
-                <th class="col-payee">beneficiario</th>
-                <th class="col-category">categoría</th>
-                <th class="col-outflow">egreso</th>
+                <th class="col-payee sortable" onclick={() => toggleSort('payee')}>
+                  beneficiario
+                  {#if sortBy === 'payee'}
+                    {#if sortOrder === 'asc'}<ChevronUp class="sort-icon" />{:else}<ChevronDown class="sort-icon" />{/if}
+                  {/if}
+                </th>
+                <th class="col-category sortable" onclick={() => toggleSort('category')}>
+                  categoría
+                  {#if sortBy === 'category'}
+                    {#if sortOrder === 'asc'}<ChevronUp class="sort-icon" />{:else}<ChevronDown class="sort-icon" />{/if}
+                  {/if}
+                </th>
+                <th class="col-outflow sortable" onclick={() => toggleSort('amount')}>
+                  egreso
+                  {#if sortBy === 'amount'}
+                    {#if sortOrder === 'asc'}<ChevronUp class="sort-icon" />{:else}<ChevronDown class="sort-icon" />{/if}
+                  {/if}
+                </th>
                 <th class="col-inflow">ingreso</th>
-                <th class="col-status"></th>
+                <th class="col-status sortable" onclick={() => toggleSort('status')}>
+                  {#if sortBy === 'status'}
+                    {#if sortOrder === 'asc'}<ChevronUp class="sort-icon" />{:else}<ChevronDown class="sort-icon" />{/if}
+                  {/if}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -1622,6 +1700,26 @@
     border-bottom: 2px solid var(--border);
     white-space: nowrap;
     z-index: 10;
+  }
+
+  .tx-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .tx-table th.sortable:hover {
+    color: var(--foreground);
+    background: var(--accent);
+  }
+
+  .tx-table th :global(.sort-icon) {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    vertical-align: middle;
+    margin-left: 0.25rem;
+    opacity: 0.7;
   }
 
   .tx-table td {
