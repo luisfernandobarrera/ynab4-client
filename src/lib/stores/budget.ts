@@ -36,6 +36,7 @@ export interface Transaction {
     amount?: number;
     memo?: string;
     payeeId?: string;
+    transferAccountId?: string;
   }>;
 }
 

@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { Upload, Download, Save, CheckCheck, Tag, Banknote, FileSpreadsheet, FileText, ChevronDown, ChevronUp, AlertTriangle, Plus, Wallet, CreditCard, PiggyBank, Landmark } from 'lucide-svelte';
+  import { Upload, Download, Save, Tag, FileSpreadsheet, FileText, ChevronDown, ChevronUp } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
-  import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
   import ImportRow from './import-row.svelte';
   import MSIDialog from './msi-dialog.svelte';
   import {
@@ -21,6 +20,8 @@
   import { accounts, categories, payees, budgetInfo } from '$lib/stores/budget';
   import { addToast, isEditMode, addPendingChange } from '$lib/stores/ui';
   import { formatCurrency } from '$lib/utils';
+  import { onMount, onDestroy } from 'svelte';
+  import { isTauri } from '$lib/services';
 
   interface Props {
     onImport?: (transactions: ImportTransaction[]) => void;
@@ -35,28 +36,97 @@
   let expandedGroups = $state<Set<string>>(new Set(['__default__'])); // Groups expanded by default
   let importFileName = $state('');
   let isDragging = $state(false);
+  let filterMode = $state<'all' | 'pending' | 'ready' | 'skipped'>('all');
   
-  // Multi-account: Map detected account names to YNAB account IDs
+  // Account mapping state (kept for future import functionality)
   let accountMapping = $state<Map<string, string>>(new Map());
-  
-  // Confirmation dialog state
-  let showConfirmDialog = $state(false);
-  let confirmStep = $state<'summary' | 'accounts' | 'final'>('summary');
-  
-  // Create account dialog state
   let showCreateAccountDialog = $state(false);
   let createAccountForGroup = $state<string | null>(null);
   let newAccountName = $state('');
   let newAccountType = $state('Checking');
   let newAccountOnBudget = $state(true);
+
+  // Tauri file drop handling
+  let tauriUnlisten: (() => void) | null = null;
   
-  // Account types for quick creation
-  const ACCOUNT_TYPES = [
-    { id: 'Checking', label: 'Cheques', icon: Landmark },
-    { id: 'Savings', label: 'Ahorro', icon: PiggyBank },
-    { id: 'CreditCard', label: 'Tarjeta de Crédito', icon: CreditCard },
-    { id: 'Cash', label: 'Efectivo', icon: Wallet },
-  ];
+  onMount(async () => {
+    // Initialize all groups as expanded
+    for (const key of transactionGroups.keys()) {
+      expandedGroups.add(key);
+    }
+    
+    // Set up Tauri file drop listener
+    if (isTauri()) {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        const { readFile } = await import('@tauri-apps/plugin-fs');
+        
+        tauriUnlisten = await listen<{ paths: string[] }>('tauri://drag-drop', async (event) => {
+          const paths = event.payload.paths;
+          if (!paths || paths.length === 0) return;
+          
+          const filePath = paths[0];
+          const fileName = filePath.split('/').pop() || filePath.split('\\').pop() || 'unknown';
+          
+          try {
+            importFileName = fileName;
+            
+            if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+              // Read Excel file
+              const data = await readFile(filePath);
+              const buffer = data.buffer;
+              const sheetNames = getExcelSheetNames(buffer);
+              
+              if (sheetNames.length === 0) {
+                addToast({ type: 'error', message: 'El archivo Excel está vacío' });
+                return;
+              }
+              
+              transactions = excelToTransactions(buffer, 0);
+              addToast({ type: 'success', message: `Cargadas ${transactions.length} transacciones de "${sheetNames[0]}"` });
+              
+            } else if (fileName.endsWith('.csv')) {
+              // Read CSV file
+              const data = await readFile(filePath);
+              const content = new TextDecoder().decode(data);
+              const rows = parseCSV(content);
+              
+              if (rows.length < 2) {
+                addToast({ type: 'error', message: 'El archivo CSV está vacío o es inválido' });
+                return;
+              }
+              
+              const mapping = detectColumns(rows[0]);
+              transactions = csvToTransactions(rows, mapping, true);
+              addToast({ type: 'success', message: `Cargadas ${transactions.length} transacciones del CSV` });
+              
+            } else if (fileName.endsWith('.ynab-import.json')) {
+              // Read JSON import file
+              const data = await readFile(filePath);
+              const content = new TextDecoder().decode(data);
+              const importFile: ImportFile = JSON.parse(content);
+              transactions = importFile.transactions;
+              addToast({ type: 'success', message: `Cargadas ${transactions.length} transacciones` });
+              
+            } else {
+              addToast({ type: 'warning', message: 'Formato de archivo no soportado. Usa .xlsx, .csv o .ynab-import.json' });
+            }
+          } catch (e) {
+            console.error('Error loading file:', e);
+            addToast({ type: 'error', message: 'Error al cargar el archivo' });
+          }
+        });
+      } catch (e) {
+        console.warn('Could not set up Tauri file drop listener:', e);
+      }
+    }
+  });
+  
+  onDestroy(() => {
+    if (tauriUnlisten) {
+      tauriUnlisten();
+    }
+  });
 
   // Expand/collapse functions
   function toggleExpand(id: string) {
@@ -79,11 +149,17 @@
   let msiDialogOpen = $state(false);
   let msiTransaction = $state<ImportTransaction | null>(null);
 
+  // Filtered transactions based on filterMode
+  const filteredTransactions = $derived.by(() => {
+    if (filterMode === 'all') return transactions;
+    return transactions.filter(tx => tx.status === filterMode);
+  });
+  
   // Group transactions by detected account name
   const transactionGroups = $derived.by(() => {
     const groups = new Map<string, ImportTransaction[]>();
     
-    for (const tx of transactions) {
+    for (const tx of filteredTransactions) {
       const groupKey = tx.accountName || '__default__';
       if (!groups.has(groupKey)) {
         groups.set(groupKey, []);
@@ -219,11 +295,6 @@
   
   // Open create account dialog for a group
   function openCreateAccountDialog(groupKey: string) {
-    if (!$isEditMode) {
-      addToast({ type: 'warning', message: 'Activa el modo edición para crear cuentas' });
-      return;
-    }
-    
     createAccountForGroup = groupKey;
     // Pre-fill name with detected account name if not default
     newAccountName = groupKey === '__default__' ? '' : groupKey;
@@ -232,6 +303,21 @@
     showCreateAccountDialog = true;
   }
   
+  // Virtual accounts created during this import session
+  let virtualAccounts = $state<Array<{ id: string; name: string; type: string; onBudget: boolean }>>([]);
+  
+  // Combined accounts: real accounts + virtual accounts
+  const allAccounts = $derived([...$accounts, ...virtualAccounts.map(va => ({
+    id: va.id,
+    name: va.name,
+    type: va.type,
+    onBudget: va.onBudget,
+    balance: 0,
+    clearedBalance: 0,
+    unclearedBalance: 0,
+    isTombstone: false
+  }))]);
+  
   // Create account and assign to group
   async function createAccount() {
     if (!newAccountName.trim()) {
@@ -239,13 +325,8 @@
       return;
     }
     
-    if (!$isEditMode) {
-      addToast({ type: 'warning', message: 'Activa el modo edición para crear cuentas' });
-      return;
-    }
-    
     // Generate a temporary ID for the new account
-    const tempAccountId = `new-account-${Date.now()}`;
+    const tempAccountId = `virtual-account-${Date.now()}`;
     
     // Create account data
     const accountData = {
@@ -256,23 +337,35 @@
       startingDate: new Date().toISOString().split('T')[0],
     };
     
-    // Track as pending change
-    addPendingChange({
-      type: 'account',
-      action: 'create',
-      entityId: tempAccountId,
-      entityName: newAccountName.trim(),
-      data: accountData
-    });
+    // Track as pending change only if in edit mode
+    if ($isEditMode) {
+      addPendingChange({
+        type: 'account',
+        action: 'create',
+        entityId: tempAccountId,
+        entityName: newAccountName.trim(),
+        data: accountData
+      });
+    }
     
-    // Add to local accounts list (temporary, will be replaced when budget reloads)
-    // For now, we'll use the name to match
-    addToast({ type: 'success', message: `Cuenta "${newAccountName}" creada. Selecciónala de la lista.` });
+    // Add to virtual accounts list
+    virtualAccounts = [...virtualAccounts, {
+      id: tempAccountId,
+      name: newAccountName.trim(),
+      type: newAccountType,
+      onBudget: newAccountOnBudget
+    }];
+    
+    // Auto-assign the new account to the group
+    if (createAccountForGroup) {
+      setGroupAccount(createAccountForGroup, tempAccountId);
+    }
+    
+    addToast({ type: 'success', message: `Cuenta "${newAccountName}" ${$isEditMode ? 'creada' : 'agregada para mapeo'}` });
     
     showCreateAccountDialog = false;
-    
-    // Note: The account won't appear in the dropdown until the budget is saved and reloaded
-    // This is a limitation of the current architecture
+    createAccountForGroup = null;
+    newAccountName = '';
   }
   
   // Cancel create account dialog
@@ -416,8 +509,8 @@
 
   // Save import file
   function saveImportFile() {
-    if (!selectedAccount) {
-      addToast({ type: 'error', message: 'Select an account first' });
+    if (transactions.length === 0) {
+      addToast({ type: 'error', message: 'No transactions to save' });
       return;
     }
 
@@ -425,8 +518,8 @@
       id: crypto.randomUUID(),
       name: importFileName || 'Import',
       sourceFile: importFileName,
-      accountId: selectedAccountId,
-      accountName: selectedAccount.name,
+      accountId: '', // Multi-account mode - accountId is per transaction
+      accountName: 'Multiple Accounts',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       transactions,
@@ -437,73 +530,11 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = generateImportFilename(selectedAccount.name);
+    a.download = generateImportFilename(importFileName || 'import');
     a.click();
     URL.revokeObjectURL(url);
 
     addToast({ type: 'success', message: 'Import file saved' });
-  }
-
-  // Start import flow - open confirmation dialog
-  function startImport() {
-    const ready = transactions.filter((t) => t.status === 'ready');
-    if (ready.length === 0) {
-      addToast({ type: 'error', message: 'No hay transacciones listas para importar' });
-      return;
-    }
-    
-    // Check if all groups have assigned accounts
-    if (!allGroupsAssigned) {
-      addToast({ type: 'error', message: 'Asigna una cuenta a todos los grupos antes de importar' });
-      return;
-    }
-    
-    // Open confirmation dialog
-    confirmStep = 'summary';
-    showConfirmDialog = true;
-  }
-  
-  // Move to next confirmation step
-  function nextConfirmStep() {
-    if (confirmStep === 'summary') {
-      confirmStep = 'accounts';
-    } else if (confirmStep === 'accounts') {
-      confirmStep = 'final';
-    }
-  }
-  
-  // Move to previous confirmation step
-  function prevConfirmStep() {
-    if (confirmStep === 'accounts') {
-      confirmStep = 'summary';
-    } else if (confirmStep === 'final') {
-      confirmStep = 'accounts';
-    }
-  }
-  
-  // Execute the import after confirmation
-  function executeImport() {
-    const ready = transactions.filter((t) => t.status === 'ready');
-    if (ready.length === 0) {
-      addToast({ type: 'error', message: 'No hay transacciones listas para importar' });
-      return;
-    }
-
-    onImport?.(ready);
-    addToast({ type: 'success', message: `Importadas ${ready.length} transacciones` });
-
-    // Mark as imported
-    transactions = transactions.map((t) =>
-      t.status === 'ready' ? { ...t, status: 'imported' as const } : t
-    );
-    
-    showConfirmDialog = false;
-  }
-  
-  // Cancel import
-  function cancelImport() {
-    showConfirmDialog = false;
-    confirmStep = 'summary';
   }
 
   // Open MSI dialog
@@ -621,11 +652,6 @@
 
   // Export to YNAB4 CSV format
   function exportToYNAB4CSV() {
-    if (!selectedAccount) {
-      addToast({ type: 'error', message: 'Selecciona una cuenta primero' });
-      return;
-    }
-
     const readyTxs = transactions.filter(t => t.status === 'ready');
     if (readyTxs.length === 0) {
       addToast({ type: 'error', message: 'No hay transacciones listas para exportar' });
@@ -652,7 +678,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ynab4-import-${selectedAccount.name}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `ynab4-import-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
 
@@ -664,19 +690,15 @@
   <!-- Header -->
   <div class="border-b p-4 space-y-4">
     <div class="flex items-center justify-between">
-      <h2 class="text-xl font-heading font-semibold">Transaction Workbench</h2>
+      <h2 class="text-xl font-heading font-semibold">Editor de Transacciones</h2>
       <div class="flex gap-2">
-        <Button variant="outline" onclick={saveImportFile}>
-          <Download class="mr-2 h-4 w-4" />
+        <Button variant="outline" onclick={saveImportFile} disabled={transactions.length === 0}>
+          <Save class="mr-2 h-4 w-4" />
           Guardar
         </Button>
-        <Button variant="outline" onclick={exportToYNAB4CSV} disabled={stats().ready === 0}>
+        <Button variant="outline" onclick={exportToYNAB4CSV} disabled={transactions.length === 0}>
           <FileText class="mr-2 h-4 w-4" />
-          CSV YNAB4
-        </Button>
-        <Button onclick={startImport} disabled={stats().ready === 0 || !allGroupsAssigned}>
-          <CheckCheck class="mr-2 h-4 w-4" />
-          Importar {stats().ready}
+          Exportar CSV
         </Button>
       </div>
     </div>
@@ -706,27 +728,37 @@
       </div>
     </label>
 
-    <!-- Stats and bulk actions -->
+    <!-- Stats and filters -->
     {#if transactions.length > 0}
-      <div class="flex items-center justify-between">
+      <div class="flex items-center justify-between flex-wrap gap-2">
         <div class="flex gap-4 text-sm">
           <span>Total: <strong>{transactions.length}</strong></span>
-          <span class="text-ynab-green">Ready: <strong>{stats().ready}</strong></span>
-          <span class="text-destructive">Pending: <strong>{stats().pending}</strong></span>
-          <span class="text-muted-foreground">Skipped: <strong>{stats().skipped}</strong></span>
+          <span class="text-ynab-green">Completas: <strong>{stats().ready}</strong></span>
+          <span class="text-destructive">Sin categoría: <strong>{stats().pending}</strong></span>
           <span class="amount">
-            Net: <strong class={stats().total >= 0 ? 'text-ynab-green' : 'text-ynab-red'}>
+            Neto: <strong class={stats().total >= 0 ? 'text-ynab-green' : 'text-ynab-red'}>
               {formatCurrency(stats().total)}
             </strong>
           </span>
         </div>
 
-        <div class="flex gap-2">
-          <Button variant="outline" size="sm" onclick={bulkAssignCategory}>
+        <div class="flex gap-2 items-center">
+          <!-- Filter dropdown -->
+          <select
+            class="h-8 text-sm rounded-md border border-input bg-background px-2"
+            bind:value={filterMode}
+          >
+            <option value="all">Todas</option>
+            <option value="pending">Sin categoría</option>
+            <option value="ready">Completas</option>
+            <option value="skipped">Omitidas</option>
+          </select>
+          
+          <Button variant="outline" size="sm" onclick={bulkAssignCategory} disabled={selectedIds.size === 0}>
             <Tag class="mr-1 h-4 w-4" />
-            Category
+            Categoría
           </Button>
-          <Button variant="outline" size="sm" onclick={bulkAssignPayee}>
+          <Button variant="outline" size="sm" onclick={bulkAssignPayee} disabled={selectedIds.size === 0}>
             <Tag class="mr-1 h-4 w-4" />
             Payee
           </Button>
@@ -760,7 +792,7 @@
       </div>
     {:else}
       <!-- Global header -->
-      <div class="flex items-center justify-between p-2 border-b bg-muted/50 sticky top-0 z-10">
+      <div class="flex items-center justify-between p-2 border-b bg-card sticky top-0 z-20">
         <div class="flex items-center gap-2">
           <input
             type="checkbox"
@@ -795,7 +827,7 @@
         {@const isExpanded = expandedGroups.has(groupKey)}
         
         <!-- Group Header -->
-        <div class="border-b bg-card sticky top-[41px] z-[5]">
+        <div class="border-b bg-card">
           <div class="flex items-center gap-3 p-2">
             <button 
               class="p-1 hover:bg-accent rounded"
@@ -826,40 +858,9 @@
               </div>
             </div>
             
-            <!-- Account selector and import button for this group -->
-            <div class="flex items-center gap-2">
-              {#if !groupAccountId}
-                <AlertTriangle class="h-4 w-4 text-amber-500" />
-              {/if}
-              <select
-                class="h-8 text-sm rounded-md border border-input bg-background px-2"
-                value={groupAccountId}
-                onchange={(e) => setGroupAccount(groupKey, (e.target as HTMLSelectElement).value)}
-              >
-                <option value="">Selecciona cuenta...</option>
-                {#each $accounts as account (account.id)}
-                  <option value={account.id}>{account.name}</option>
-                {/each}
-              </select>
-              
-              <Button 
-                size="sm" 
-                variant="ghost"
-                onclick={() => openCreateAccountDialog(groupKey)}
-                title="Crear nueva cuenta"
-              >
-                <Plus class="h-4 w-4" />
-              </Button>
-              
-              <Button 
-                size="sm" 
-                variant={groupAccountId && (groupStat?.ready || 0) > 0 ? 'default' : 'outline'}
-                disabled={!groupAccountId || (groupStat?.ready || 0) === 0}
-                onclick={() => importGroup(groupKey)}
-              >
-                <CheckCheck class="h-3 w-3 mr-1" />
-                Importar {groupStat?.ready || 0}
-              </Button>
+            <!-- Group actions (filter, etc) -->
+            <div class="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{groupStat?.count || 0} transacciones</span>
             </div>
           </div>
           
@@ -913,233 +914,7 @@
   onClose={() => { msiDialogOpen = false; msiTransaction = null; }}
 />
 
-<!-- Create Account Dialog -->
-{#if showCreateAccountDialog}
-  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-card rounded-lg shadow-xl max-w-md w-full mx-4">
-      <div class="p-4 border-b">
-        <h3 class="text-lg font-semibold">Crear Nueva Cuenta</h3>
-        {#if createAccountForGroup && createAccountForGroup !== '__default__'}
-          <p class="text-sm text-muted-foreground mt-1">
-            Para: {createAccountForGroup}
-          </p>
-        {/if}
-      </div>
-      
-      <div class="p-4 space-y-4">
-        <!-- Account Name -->
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Nombre de la cuenta</label>
-          <input
-            type="text"
-            class="w-full h-10 px-3 rounded-md border border-input bg-background"
-            bind:value={newAccountName}
-            placeholder="Ej: Cheques HSBC"
-          />
-        </div>
-        
-        <!-- Account Type -->
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Tipo de cuenta</label>
-          <div class="grid grid-cols-2 gap-2">
-            {#each ACCOUNT_TYPES as type}
-              {@const Icon = type.icon}
-              <button
-                type="button"
-                class="flex items-center gap-2 p-3 rounded-md border transition-colors {newAccountType === type.id ? 'border-primary bg-primary/10 text-primary' : 'border-input hover:bg-accent'}"
-                onclick={() => newAccountType = type.id}
-              >
-                <Icon class="h-4 w-4" />
-                <span class="text-sm">{type.label}</span>
-              </button>
-            {/each}
-          </div>
-        </div>
-        
-        <!-- Budget Status -->
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Estado del presupuesto</label>
-          <div class="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              class="p-3 rounded-md border text-left transition-colors {newAccountOnBudget ? 'border-primary bg-primary/10' : 'border-input hover:bg-accent'}"
-              onclick={() => newAccountOnBudget = true}
-            >
-              <div class="text-sm font-medium">En presupuesto</div>
-              <div class="text-xs text-muted-foreground">Gastos diarios</div>
-            </button>
-            <button
-              type="button"
-              class="p-3 rounded-md border text-left transition-colors {!newAccountOnBudget ? 'border-primary bg-primary/10' : 'border-input hover:bg-accent'}"
-              onclick={() => newAccountOnBudget = false}
-            >
-              <div class="text-sm font-medium">Fuera de presupuesto</div>
-              <div class="text-xs text-muted-foreground">Seguimiento</div>
-            </button>
-          </div>
-        </div>
-        
-        {#if !$isEditMode}
-          <div class="flex items-center gap-2 p-3 rounded-md bg-amber-500/10 text-amber-600 text-sm">
-            <AlertTriangle class="h-4 w-4" />
-            <span>Activa el modo edición para crear cuentas</span>
-          </div>
-        {/if}
-      </div>
-      
-      <div class="p-4 border-t flex justify-end gap-2">
-        <Button variant="outline" onclick={cancelCreateAccount}>
-          Cancelar
-        </Button>
-        <Button onclick={createAccount} disabled={!newAccountName.trim() || !$isEditMode}>
-          <Plus class="h-4 w-4 mr-1" />
-          Crear Cuenta
-        </Button>
-      </div>
-    </div>
-  </div>
-{/if}
-
-<!-- Confirmation Dialog -->
-{#if showConfirmDialog}
-  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-    <div class="bg-card rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
-      <!-- Dialog Header -->
-      <div class="p-4 border-b">
-        <h3 class="text-lg font-semibold">
-          {#if confirmStep === 'summary'}
-            Paso 1/3: Resumen de Importación
-          {:else if confirmStep === 'accounts'}
-            Paso 2/3: Verificar Cuentas
-          {:else}
-            Paso 3/3: Confirmar Importación
-          {/if}
-        </h3>
-        <div class="flex gap-1 mt-2">
-          <div class="h-1 flex-1 rounded {confirmStep === 'summary' ? 'bg-primary' : 'bg-muted'}"></div>
-          <div class="h-1 flex-1 rounded {confirmStep === 'accounts' ? 'bg-primary' : 'bg-muted'}"></div>
-          <div class="h-1 flex-1 rounded {confirmStep === 'final' ? 'bg-primary' : 'bg-muted'}"></div>
-        </div>
-      </div>
-      
-      <!-- Dialog Content -->
-      <div class="p-4 flex-1 overflow-auto">
-        {#if confirmStep === 'summary'}
-          <div class="space-y-4">
-            <p class="text-sm text-muted-foreground">
-              Vas a importar las siguientes transacciones:
-            </p>
-            
-            <div class="grid grid-cols-2 gap-4">
-              <div class="bg-muted/50 rounded-lg p-3">
-                <div class="text-2xl font-bold text-ynab-green">{stats().ready}</div>
-                <div class="text-xs text-muted-foreground">Transacciones listas</div>
-              </div>
-              <div class="bg-muted/50 rounded-lg p-3">
-                <div class="text-2xl font-bold {stats().total >= 0 ? 'text-ynab-green' : 'text-ynab-red'}">
-                  {formatCurrency(stats().total)}
-                </div>
-                <div class="text-xs text-muted-foreground">Monto neto</div>
-              </div>
-            </div>
-            
-            {#if stats().pending > 0}
-              <div class="flex items-center gap-2 text-amber-500 text-sm bg-amber-500/10 p-2 rounded">
-                <AlertTriangle class="h-4 w-4" />
-                <span>{stats().pending} transacciones pendientes no se importarán</span>
-              </div>
-            {/if}
-            
-            {#if stats().skipped > 0}
-              <div class="text-xs text-muted-foreground">
-                {stats().skipped} transacciones omitidas
-              </div>
-            {/if}
-          </div>
-          
-        {:else if confirmStep === 'accounts'}
-          <div class="space-y-4">
-            <p class="text-sm text-muted-foreground">
-              Verifica las cuentas destino para cada grupo:
-            </p>
-            
-            <div class="space-y-2">
-              {#each Array.from(transactionGroups.entries()) as [groupKey, groupTxs] (groupKey)}
-                {@const groupStat = groupStats.get(groupKey)}
-                {@const groupAccountId = getGroupAccountId(groupKey)}
-                {@const accountName = getAccountName(groupAccountId)}
-                
-                <div class="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div>
-                    <div class="font-medium">
-                      {groupKey === '__default__' ? 'Sin cuenta detectada' : groupKey}
-                    </div>
-                    <div class="text-xs text-muted-foreground">
-                      {groupStat?.ready || 0} transacciones → {formatCurrency(groupStat?.total || 0)}
-                    </div>
-                  </div>
-                  <div class="text-right">
-                    {#if accountName}
-                      <div class="font-medium text-primary">{accountName}</div>
-                    {:else}
-                      <div class="text-destructive">Sin asignar</div>
-                    {/if}
-                  </div>
-                </div>
-              {/each}
-            </div>
-          </div>
-          
-        {:else}
-          <div class="space-y-4">
-            <div class="text-center py-4">
-              <CheckCheck class="h-12 w-12 text-ynab-green mx-auto mb-2" />
-              <p class="text-lg font-medium">¿Confirmas la importación?</p>
-              <p class="text-sm text-muted-foreground mt-1">
-                Esta acción agregará {stats().ready} transacciones a tu presupuesto
-              </p>
-            </div>
-            
-            <div class="bg-muted/50 rounded-lg p-3 text-sm">
-              <div class="font-medium mb-2">Resumen final:</div>
-              <ul class="space-y-1 text-muted-foreground">
-                <li>• {stats().ready} transacciones a importar</li>
-                <li>• {transactionGroups.size} cuenta(s) destino</li>
-                <li>• Monto neto: <span class={stats().total >= 0 ? 'text-ynab-green' : 'text-ynab-red'}>{formatCurrency(stats().total)}</span></li>
-              </ul>
-            </div>
-          </div>
-        {/if}
-      </div>
-      
-      <!-- Dialog Footer -->
-      <div class="p-4 border-t flex justify-between">
-        <Button variant="outline" onclick={cancelImport}>
-          Cancelar
-        </Button>
-        
-        <div class="flex gap-2">
-          {#if confirmStep !== 'summary'}
-            <Button variant="outline" onclick={prevConfirmStep}>
-              Anterior
-            </Button>
-          {/if}
-          
-          {#if confirmStep === 'final'}
-            <Button onclick={executeImport}>
-              <CheckCheck class="mr-2 h-4 w-4" />
-              Importar
-            </Button>
-          {:else}
-            <Button onclick={nextConfirmStep}>
-              Siguiente
-            </Button>
-          {/if}
-        </div>
-      </div>
-    </div>
-  </div>
-{/if}
+<!-- No longer using Create Account Dialog or Confirmation Dialog in edit mode -->
 
 <style>
   .file-drop-zone {
@@ -1172,6 +947,16 @@
     align-items: center;
     gap: 0.5rem;
     text-align: center;
+  }
+  
+  /* Fix sticky header overlapping - give solid backgrounds */
+  :global(.import-editor) .sticky {
+    background-color: var(--card);
+  }
+  
+  /* Ensure group headers have solid background */
+  :global(.group-header) {
+    background-color: var(--card);
   }
 </style>
 
