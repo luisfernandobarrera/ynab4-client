@@ -15,7 +15,8 @@
     PlusCircle,
     Sun,
     Moon,
-    Monitor
+    Monitor,
+    Smartphone
   } from 'lucide-svelte';
   import { budgetInfo, currentView, resetBudget } from '$lib/stores/budget';
   import { isMobile, theme, type Theme } from '$lib/stores/ui';
@@ -71,6 +72,7 @@
     { id: 'payees', icon: Users, label: $t('nav.payees') },
     { id: 'import', icon: Upload, label: $t('nav.import') },
     { id: 'createAccount', icon: PlusCircle, label: $t('nav.createAccount') },
+    { id: 'devices', icon: Smartphone, label: $t('nav.devices') },
     { id: 'settings', icon: Settings, label: $t('nav.settings') },
   ]);
 

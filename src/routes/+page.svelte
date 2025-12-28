@@ -8,13 +8,13 @@
   import { TransactionEntrySheet } from '$lib/components/entry';
   import { ScheduledList } from '$lib/components/scheduled';
   import { ReportsView } from '$lib/components/reports';
-  import { SettingsView, ThemeToggle } from '$lib/components/settings';
+  import { SettingsView, ThemeToggle, DevicesView } from '$lib/components/settings';
   import { ReconciliationView } from '$lib/components/reconciliation';
   import { CashFlowView } from '$lib/components/cashflow';
   import { PayeesView } from '$lib/components/payees';
   import { EditModeWarning } from '$lib/components/edit-mode';
   import { CreateAccountView } from '$lib/components/accounts';
-  import { ImportEditor } from '$lib/components/import';
+  import { ImportView } from '$lib/components/import';
   import { budgetInfo, currentView, isLoading, loadFromLocal, loadFromDropbox } from '$lib/stores/budget';
   import { activeModal, openModal, closeModal, isMobile } from '$lib/stores/ui';
   import { DropboxAuth } from '$lib/utils/dropbox-auth';
@@ -357,9 +357,11 @@
   {:else if $currentView === 'payees'}
     <PayeesView />
   {:else if $currentView === 'import'}
-    <ImportEditor />
+    <ImportView />
   {:else if $currentView === 'createAccount'}
     <CreateAccountView />
+  {:else if $currentView === 'devices'}
+    <DevicesView />
   {:else if $currentView === 'settings'}
     <SettingsView />
   {:else}

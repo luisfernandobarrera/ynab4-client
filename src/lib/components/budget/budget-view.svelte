@@ -287,13 +287,12 @@
     return { budgeted: 0, activity: amount, available: 0 };
   }
 
-  // Get years with data - primarily from transactions, limited range from budgets
+  // Get years with data - based on transactions only (not empty budget months)
   const yearsWithData = $derived.by(() => {
     const transactionYears = new Set<number>();
-    const budgetYears = new Set<number>();
     const thisYear = currentDate.getFullYear();
     
-    // Get years from actual transactions
+    // Get years from actual transactions only
     $rawTransactions?.forEach(tx => {
       if (tx.date) {
         const year = parseInt(tx.date.slice(0, 4));
@@ -303,26 +302,18 @@
       }
     });
     
-    // Get years from monthly budgets (but limit to sensible range)
-    $monthlyBudgets?.forEach(mb => {
-      const monthStr = mb.month || '';
-      if (monthStr && monthStr.match(/^\d{4}-\d{2}/)) {
-        const year = parseInt(monthStr.slice(0, 4));
-        // Only include budget years within 2 years of transaction data or current year
-        if (!isNaN(year) && year > 1990 && year <= thisYear + 2) {
-          budgetYears.add(year);
-        }
-      }
-    });
-    
-    // Combine: all transaction years + budget years within sensible range
-    const years = new Set([...transactionYears, ...budgetYears]);
-    
-    if (years.size === 0) {
-      years.add(thisYear);
+    // Add current year if no transactions
+    if (transactionYears.size === 0) {
+      transactionYears.add(thisYear);
     }
     
-    return Array.from(years).sort((a, b) => b - a);
+    // Also include next year for planning
+    const maxYear = Math.max(...transactionYears);
+    if (maxYear === thisYear) {
+      transactionYears.add(thisYear + 1);
+    }
+    
+    return Array.from(transactionYears).sort((a, b) => b - a);
   });
 
   // Calculate budget data for all visible months

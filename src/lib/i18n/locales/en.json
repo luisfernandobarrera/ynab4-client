@@ -56,6 +56,7 @@
     "payees": "Payees",
     "import": "Import",
     "createAccount": "Create Account",
+    "devices": "Devices",
     "settings": "Settings",
     "accounts": "Accounts",
     "more": "More"
@@ -428,7 +429,22 @@
     "themeDescription": "Choose the app theme",
     "lightMode": "Light",
     "darkMode": "Dark",
-    "systemMode": "System"
+    "systemMode": "System",
+    "devices": {
+      "title": "Devices",
+      "description": "Explore devices registered in this budget",
+      "currentDevice": "Current Device",
+      "allDevices": "All Devices",
+      "registered": "Registered",
+      "notRegistered": "Not registered",
+      "highestKnowledge": "Highest Knowledge",
+      "current": "Current",
+      "fullKnowledge": "Full Knowledge",
+      "knowledgeTotal": "Knowledge Total",
+      "summary": "Summary",
+      "devicesCount": "Devices",
+      "withFullKnowledge": "With Full Knowledge"
+    }
   },
   "csvImport": {
     "title": "Import CSV",

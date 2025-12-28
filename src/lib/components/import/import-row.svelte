@@ -11,13 +11,25 @@
     transaction: ImportTransaction;
     selected?: boolean;
     expanded?: boolean;
+    showOriginalMemo?: boolean;
+    showReference?: boolean;
     onUpdate: (updates: Partial<ImportTransaction>) => void;
     onSelect?: () => void;
     onMSI?: () => void;
     onToggleExpand?: () => void;
   }
 
-  let { transaction, selected = false, expanded = false, onUpdate, onSelect, onMSI, onToggleExpand }: Props = $props();
+  let { 
+    transaction, 
+    selected = false, 
+    expanded = false, 
+    showOriginalMemo = false,
+    showReference = false,
+    onUpdate, 
+    onSelect, 
+    onMSI, 
+    onToggleExpand 
+  }: Props = $props();
 
   let editingPayee = $state(false);
   let editingMemo = $state(false);
@@ -143,8 +155,13 @@
     <!-- Date + Reference -->
     <div class="text-sm">
       <div class="font-medium font-mono tabular-nums">{formatDate(transaction.date)}</div>
-      {#if transaction.reference}
+      {#if showReference && transaction.reference}
         <div class="text-xs text-muted-foreground truncate">{transaction.reference}</div>
+      {/if}
+      {#if showOriginalMemo && transaction.originalMemo}
+        <div class="text-xs text-muted-foreground truncate max-w-[150px]" title={transaction.originalMemo}>
+          {transaction.originalMemo}
+        </div>
       {/if}
     </div>
 

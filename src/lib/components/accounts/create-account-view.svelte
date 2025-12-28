@@ -1,22 +1,22 @@
 <script lang="ts">
-  import { Wallet, CreditCard, PiggyBank, Landmark, DollarSign, Building, TrendingUp, Home } from 'lucide-svelte';
+  import { Wallet, CreditCard, PiggyBank, Landmark, DollarSign, Building, TrendingUp, Home, Banknote } from 'lucide-svelte';
   import { t } from '$lib/i18n';
   import { budgetInfo, accounts } from '$lib/stores/budget';
   import { isEditMode, addPendingChange, addToast } from '$lib/stores/ui';
 
-  // Account type definitions
+  // Account type definitions with translation keys
   const ACCOUNT_TYPES = [
-    { id: 'Checking', icon: Landmark, isLiability: false },
-    { id: 'Savings', icon: PiggyBank, isLiability: false },
-    { id: 'CreditCard', icon: CreditCard, isLiability: true },
-    { id: 'Cash', icon: Wallet, isLiability: false },
-    { id: 'LineOfCredit', icon: DollarSign, isLiability: true },
-    { id: 'PayPal', icon: DollarSign, isLiability: false },
-    { id: 'MerchantAccount', icon: Building, isLiability: true },
-    { id: 'InvestmentAccount', icon: TrendingUp, isLiability: false },
-    { id: 'Mortgage', icon: Home, isLiability: true },
-    { id: 'OtherAsset', icon: DollarSign, isLiability: false },
-    { id: 'OtherLiability', icon: DollarSign, isLiability: true },
+    { id: 'Checking', translationKey: 'checking', icon: Landmark, isLiability: false },
+    { id: 'Savings', translationKey: 'savings', icon: PiggyBank, isLiability: false },
+    { id: 'CreditCard', translationKey: 'creditCard', icon: CreditCard, isLiability: true },
+    { id: 'Cash', translationKey: 'cash', icon: Wallet, isLiability: false },
+    { id: 'LineOfCredit', translationKey: 'lineOfCredit', icon: DollarSign, isLiability: true },
+    { id: 'PayPal', translationKey: 'paypal', icon: Banknote, isLiability: false },
+    { id: 'MerchantAccount', translationKey: 'merchantAccount', icon: Building, isLiability: true },
+    { id: 'InvestmentAccount', translationKey: 'investmentAccount', icon: TrendingUp, isLiability: false },
+    { id: 'Mortgage', translationKey: 'mortgage', icon: Home, isLiability: true },
+    { id: 'OtherAsset', translationKey: 'otherAsset', icon: DollarSign, isLiability: false },
+    { id: 'OtherLiability', translationKey: 'otherLiability', icon: DollarSign, isLiability: true },
   ];
 
   // Form state
@@ -34,10 +34,12 @@
   const isLiability = $derived(selectedTypeInfo?.isLiability || false);
 
   function getAccountTypeLabel(typeId: string): string {
-    // Use translations
-    const key = `account.types.${typeId.charAt(0).toLowerCase()}${typeId.slice(1)}` as keyof typeof $t;
+    const typeInfo = ACCOUNT_TYPES.find(t => t.id === typeId);
+    if (!typeInfo) return typeId;
+    const key = `account.types.${typeInfo.translationKey}`;
     const translated = $t(key);
-    return translated || typeId;
+    // If translation returns the key itself, return the id
+    return translated && !translated.startsWith('account.types.') ? translated : typeId;
   }
 
   async function handleSubmit() {
