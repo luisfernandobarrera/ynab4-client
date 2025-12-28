@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, List, LayoutList, Grid3x3 } from 'lucide-svelte';
+  import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, Grid3x3, ChevronsUp } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
   import DateNavigation from './date-navigation.svelte';
@@ -130,7 +130,6 @@
   
   let columnSettings = $state<ColumnSettings>(loadColumnSettings());
   let showColumnSettings = $state(false);
-  let compactMode = $state(true); // Compact mode by default
   let showGrid = $state(true); // Show grid lines by default
   
   // Get column width
@@ -423,6 +422,39 @@
   // Use the store action for toggling sort order (saves to localStorage)
   function toggleSortOrder() {
     toggleTransactionSortOrder();
+  }
+  
+  // Scroll to most recent transaction
+  function scrollToMostRecent() {
+    if (!tableContainer) return;
+    
+    // Find the most recent transaction (first when sorted desc, last when sorted asc)
+    const sortedTxs = [...filteredTransactions].sort((a, b) => 
+      new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    
+    if (sortedTxs.length === 0) return;
+    
+    const mostRecentTx = sortedTxs[0];
+    
+    // If we're in reverse scroll mode, the most recent is at the bottom
+    if (isReverseScroll) {
+      tableContainer.scrollTop = tableContainer.scrollHeight;
+    } else {
+      // In normal mode, scroll to top if desc, or find the row if asc
+      if (sortOrder === 'desc') {
+        tableContainer.scrollTop = 0;
+      } else {
+        // Find and scroll to the most recent transaction row
+        const row = tableContainer.querySelector(`[data-tx-id="${mostRecentTx.id}"]`);
+        if (row) {
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          // If not visible, we might need to load more. For now, scroll to end
+          tableContainer.scrollTop = tableContainer.scrollHeight;
+        }
+      }
+    }
   }
   
   // Calculate date range from year/month selection
@@ -948,6 +980,24 @@
     }
   });
   
+  // Handle Escape to clear selection
+  function handleSelectionKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape' && selectedTxIds.size > 0) {
+      e.preventDefault();
+      clearSelection();
+    }
+  }
+  
+  // Add global keydown listener for selection
+  $effect(() => {
+    if (selectedTxIds.size > 0 && !editingTxId && !isEditing) {
+      document.addEventListener('keydown', handleSelectionKeydown);
+      return () => {
+        document.removeEventListener('keydown', handleSelectionKeydown);
+      };
+    }
+  });
+  
   function handleEditOutflow(e: Event) {
     if (!editTx) return;
     const value = (e.target as HTMLInputElement).value;
@@ -1089,25 +1139,22 @@
         
         <button 
           class="tx-icon-btn"
-          class:active={!compactMode}
-          onclick={() => compactMode = !compactMode}
-          title={compactMode ? 'Modo detallado' : 'Modo compacto'}
+          onclick={scrollToMostRecent}
+          title="Ir a la transacción más reciente"
         >
-          {#if compactMode}
-            <LayoutList class="h-4 w-4" />
-          {:else}
-            <List class="h-4 w-4" />
-          {/if}
+          <ChevronsUp class="h-4 w-4" />
         </button>
         
-        <button 
-          class="tx-icon-btn"
-          class:active={showGrid}
-          onclick={() => showGrid = !showGrid}
-          title={showGrid ? 'Ocultar grilla' : 'Mostrar grilla'}
-        >
-          <Grid3x3 class="h-4 w-4" />
-        </button>
+        {#if !$isMobile}
+          <button 
+            class="tx-icon-btn"
+            class:active={showGrid}
+            onclick={() => showGrid = !showGrid}
+            title={showGrid ? 'Ocultar grilla' : 'Mostrar grilla'}
+          >
+            <Grid3x3 class="h-4 w-4" />
+          </button>
+        {/if}
         
         <div class="column-settings-wrapper">
           <button 
@@ -1500,7 +1547,6 @@
               <tr 
                 class="tx-row"
                 class:has-splits={txHasSplits}
-                class:compact={compactMode}
                 class:needs-approval={txIndicator === 'needsApproval'}
                 class:selected={isTxSelected}
                 ondblclick={() => startEdit(tx)}
@@ -2229,18 +2275,19 @@
   /* Consistent font sizes across all columns */
   .col-date { 
     font-family: var(--font-family-mono);
-    font-size: 0.75rem; 
+    font-size: 0.8rem; 
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
   .col-account { 
-    font-size: 0.75rem; 
+    font-size: 0.8rem; 
     max-width: 100px;
     overflow: hidden; 
     text-overflow: ellipsis; 
     white-space: nowrap; 
   }
-  .col-payee { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .col-category { font-size: 0.75rem; overflow: hidden; }
+  .col-payee { font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-category { font-size: 0.8rem; overflow: hidden; }
   .col-memo { font-size: 0.7rem; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   
   /* Category cell */
@@ -2276,8 +2323,7 @@
   .cat-master {
     font-weight: 400;
     color: var(--muted-foreground);
-    opacity: 0.9;
-    font-size: 0.9em;
+    font-size: 0.75rem;
   }
   
   /* Transfer display */
@@ -2327,12 +2373,17 @@
   
   /* Transfer category styling */
   .transfer-category {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
   }
   
   .transfer-category strong {
     color: var(--foreground);
     font-weight: 600;
+  }
+  
+  .transfer-label {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
   }
   
   .transfer-label {
@@ -2343,7 +2394,8 @@
     text-align: right; 
     font-family: var(--font-family-mono);
     font-feature-settings: "tnum";
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
   }
   
   /* Status column - colored bar on right edge */
@@ -2681,10 +2733,6 @@
     color: var(--success);
   }
 
-  /* Compact mode row styling */
-  .tx-row.compact td {
-    padding: 0.375rem 0.375rem;
-  }
 
   /* Cards (Mobile) */
   .tx-cards-container {
@@ -2810,22 +2858,22 @@
   /* FAB */
   .tx-fab {
     position: fixed;
-    bottom: 1.25rem;
+    bottom: 5rem; /* Above the bottom navigation bar */
     left: 50%;
     transform: translateX(-50%);
     z-index: 30;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1.25rem;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
     border: none;
     border-radius: 9999px;
     background: var(--primary);
     color: var(--primary-foreground);
-    font-weight: 600;
-    font-size: 0.875rem;
+    font-weight: 500;
+    font-size: 0.8125rem;
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     transition: all 0.15s;
   }
 

@@ -71,7 +71,7 @@
     <span class="truncate flex-1">
       {transaction.category || 'No Category'}
     </span>
-    <span class="whitespace-nowrap">{formatDate(transaction.date)}</span>
+    <span class="whitespace-nowrap tabular-nums">{formatDate(transaction.date)}</span>
   </div>
 
   <!-- Bottom row: Account, Cleared, and Memo -->

@@ -129,6 +129,8 @@
   }
 
   // Classify accounts by type
+  // YNAB account types: Checking, Savings, CreditCard, Cash, LineOfCredit, Merchant/MerchantAccount, 
+  // InvestmentAccount, Mortgage, OtherAsset, OtherLiability
   const accountTypes = $derived.by(() => {
     const checking = new Set<string>();
     const savings = new Set<string>();
@@ -136,10 +138,30 @@
     
     $accounts.forEach(a => {
       const type = a.type?.toLowerCase() || '';
-      if (type.includes('checking')) checking.add(a.id);
-      else if (type.includes('savings')) savings.add(a.id);
-      // Credit cards AND Merchant (department stores) go to credit payments
-      else if (type.includes('credit') || type.includes('merchant')) creditCards.add(a.id);
+      
+      // Credit cards, Merchant (department stores), LineOfCredit - these are liabilities, not cash flow
+      // Use includes() for flexibility with variations like "MerchantAccount", "CreditCard", etc.
+      if (type.includes('credit') || type.includes('merchant') || type.includes('lineofcredit')) {
+        creditCards.add(a.id);
+      }
+      // Savings accounts
+      else if (type.includes('savings') || type === 'saving') {
+        savings.add(a.id);
+      }
+      // Off-budget account types - skip entirely
+      else if (type.includes('investment') || type.includes('mortgage') || 
+               type.includes('otherasset') || type.includes('otherliability')) {
+        // These are typically off-budget, skip them
+      }
+      // Checking accounts go to checking (liquid assets)
+      // Note: Cash accounts are excluded - treated as expense tracking, not liquid assets
+      else if (type.includes('checking')) {
+        checking.add(a.id);
+      }
+      // Unknown types that are on-budget - add to checking as fallback
+      else if (a.onBudget !== false && type !== '') {
+        checking.add(a.id);
+      }
     });
     
     return { checking, savings, creditCards };
@@ -652,7 +674,7 @@
           <div class="summary-row change">
             <span class="label">{$t('cashFlow.change')}</span>
             <span class="value" class:positive={totals.final - totals.initial >= 0} class:negative={totals.final - totals.initial < 0}>
-              {totals.final - totals.initial >= 0 ? '+' : ''}{formatAmount(totals.final - totals.initial)}
+              {totals.final - totals.initial >= 0 ? '+' : '-'}{formatAmount(totals.final - totals.initial)}
             </span>
           </div>
         {/if}
@@ -743,7 +765,7 @@
                   <span class="acc-balance">{formatAmount(acc.finalBalance)}</span>
                   {#if showChanges}
                     <span class="acc-change" class:positive={acc.change >= 0} class:negative={acc.change < 0}>
-                      {acc.change >= 0 ? '+' : ''}{formatAmount(acc.change)}
+                      {acc.change >= 0 ? '+' : '-'}{formatAmount(acc.change)}
                     </span>
                   {/if}
                 </div>
@@ -770,7 +792,7 @@
                   <span class="acc-balance">{formatAmount(acc.finalBalance)}</span>
                   {#if showChanges}
                     <span class="acc-change" class:positive={acc.change >= 0} class:negative={acc.change < 0}>
-                      {acc.change >= 0 ? '+' : ''}{formatAmount(acc.change)}
+                      {acc.change >= 0 ? '+' : '-'}{formatAmount(acc.change)}
                     </span>
                   {/if}
                 </div>
@@ -799,9 +821,43 @@
         </button>
       </div>
       
-      {#if filteredTransactions.length === 0}
+      {#if filteredTransactions.length === 0 && Math.abs(initialBalance) < 0.01}
         <div class="empty-state">
           <p>Sin transacciones en este período</p>
+        </div>
+      {:else if filteredTransactions.length === 0}
+        <!-- Show initial balance even when no transactions -->
+        <div class="table-container">
+          <table class="tx-table">
+            <thead>
+              <tr>
+                <th class="col-date">Fecha</th>
+                {#if !selectedAccountId}
+                  <th class="col-account">Cuenta</th>
+                {/if}
+                <th class="col-category">Categoría</th>
+                <th class="col-payee">Beneficiario</th>
+                <th class="col-outflow">Cargo</th>
+                <th class="col-inflow">Abono</th>
+                {#if showBalance}
+                  <th class="col-balance">Saldo</th>
+                {/if}
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="tx-row balance-row">
+                <td class="col-date">{formatDate(getDateRange().from)}</td>
+                {#if !selectedAccountId}<td class="col-account"></td>{/if}
+                <td class="col-category"><em>{$t('cashFlow.initialBalance')}</em></td>
+                <td class="col-payee"></td>
+                <td class="col-outflow"></td>
+                <td class="col-inflow"></td>
+                {#if showBalance}
+                  <td class="col-balance">{formatAmount(initialBalance)}</td>
+                {/if}
+              </tr>
+            </tbody>
+          </table>
         </div>
       {:else}
         <div class="table-container" bind:this={tableContainer} onscroll={handleTableScroll}>
@@ -828,6 +884,7 @@
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
                   <td class="col-category"><em>{$t('cashFlow.initialBalance')}</em></td>
+                  <td class="col-icon"></td>
                   <td class="col-payee"></td>
                   <td class="col-outflow"></td>
                   <td class="col-inflow"></td>
@@ -859,10 +916,8 @@
                   </td>
                   <td class="col-payee">
                     {#if isTransfer}
-                      <span class="transfer-display">
-                        <span class="transfer-icon">↔</span>
-                        {$accounts.find(a => a.id === transferTarget)?.name || getPayeeName(tx.payeeId)}
-                      </span>
+                      <span class="tx-icon transfer">↔</span>
+                      {$accounts.find(a => a.id === transferTarget)?.name || getPayeeName(tx.payeeId)}
                     {:else}
                       {getPayeeName(tx.payeeId)}
                     {/if}
@@ -883,6 +938,7 @@
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
                   <td class="col-category"><em>{$t('cashFlow.initialBalance')}</em></td>
+                  <td class="col-icon"></td>
                   <td class="col-payee"></td>
                   <td class="col-outflow"></td>
                   <td class="col-inflow"></td>
@@ -1111,12 +1167,16 @@
     font-family: var(--font-family-mono);
     font-weight: 500;
     color: var(--foreground);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
   }
 
   .summary-row.final { border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.25rem; }
   .summary-row.final .label { font-weight: 600; color: var(--foreground); }
   .summary-row.final .value { font-size: 0.85rem; font-weight: 600; }
   .summary-row.change { font-size: 0.75rem; }
+  .summary-row.change .value.positive { color: var(--success); }
+  .summary-row.change .value.negative { color: var(--destructive); }
 
   /* Categories Summary */
   .categories-summary {
@@ -1163,7 +1223,7 @@
   .cat-icon.interest { background: rgba(234, 179, 8, 0.15); color: #eab308; }
 
   .cat-label { flex: 1; color: var(--foreground); font-weight: 500; }
-  .cat-value { font-family: var(--font-family-mono); font-weight: 600; color: var(--foreground); }
+  .cat-value { font-family: var(--font-family-mono); font-weight: 600; color: var(--foreground); font-variant-numeric: tabular-nums; }
 
   /* Account List */
   .accounts-list {
@@ -1205,6 +1265,7 @@
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--foreground);
+    font-variant-numeric: tabular-nums;
   }
 
   .account-item {
@@ -1231,8 +1292,8 @@
   .acc-name { font-size: 0.75rem; font-weight: 500; color: var(--foreground); }
 
   .acc-amounts { display: flex; flex-direction: column; align-items: flex-end; gap: 0.125rem; }
-  .acc-balance { font-family: var(--font-family-mono); font-size: 0.75rem; font-weight: 500; color: var(--foreground); }
-  .acc-change { font-family: var(--font-family-mono); font-size: 0.7rem; }
+  .acc-balance { font-family: var(--font-family-mono); font-size: 0.75rem; font-weight: 500; color: var(--foreground); font-variant-numeric: tabular-nums; }
+  .acc-change { font-family: var(--font-family-mono); font-size: 0.7rem; font-variant-numeric: tabular-nums; }
   .positive { color: var(--success); }
   .negative { color: var(--destructive); }
 
@@ -1293,6 +1354,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.8125rem;
+    table-layout: auto;
   }
 
   .tx-table th {
@@ -1301,31 +1363,20 @@
     z-index: 5;
     background: var(--card);
     border-bottom: 2px solid var(--border);
-    border-right: 1px solid var(--border);
-    padding: 0.5rem 0.5rem;
+    padding: 0.5rem 0.375rem;
     text-align: left;
     font-weight: 600;
-    font-size: 0.7rem;
+    font-size: 0.6875rem;
     color: var(--muted-foreground);
     text-transform: uppercase;
-    letter-spacing: 0.025em;
+    letter-spacing: 0.05em;
     white-space: nowrap;
   }
 
-  .tx-table th:last-child {
-    border-right: none;
-  }
-
   .tx-table td {
-    padding: 0.5rem 0.5rem;
+    padding: 0.5rem 0.375rem;
     border-bottom: 1px solid var(--border);
-    border-right: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
     color: var(--foreground);
-    font-size: 0.75rem;
-  }
-
-  .tx-table td:last-child {
-    border-right: none;
   }
 
   .tx-row:hover { background: var(--accent); }
@@ -1341,20 +1392,38 @@
     width: 85px; 
     white-space: nowrap; 
     font-family: var(--font-family-mono);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
   }
-  .col-account { width: 100px; font-size: 0.7rem; }
-  .col-category { min-width: 140px; }
+  .col-account { 
+    width: 120px; 
+    min-width: 100px;
+    max-width: 140px;
+    font-size: 0.8rem; 
+    overflow: hidden; 
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .col-category { min-width: 140px; font-size: 0.8rem; }
   .col-category strong { font-weight: 600; }
-  .col-payee { min-width: 120px; color: var(--muted-foreground); font-size: 0.75rem; }
+  .tx-icon {
+    font-size: 0.75rem;
+    margin-right: 0.25rem;
+    font-weight: 600;
+  }
+  .tx-icon.transfer {
+    color: var(--muted-foreground);
+  }
+  .col-payee { min-width: 120px; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-outflow, .col-inflow, .col-balance { 
-    width: 85px; 
+    width: 90px; 
     text-align: right; 
     font-family: var(--font-family-mono);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
   }
 
-  /* Transfer styling */
+  /* Transfer styling - deprecated, using col-icon now */
   .transfer-display {
     display: flex;
     align-items: center;
@@ -1486,6 +1555,7 @@
     font-family: var(--font-family-mono);
     font-size: 0.875rem;
     font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
   
   .total-item.outflow .total-value {

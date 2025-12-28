@@ -367,6 +367,10 @@
     background: var(--muted);
     border-radius: 4px;
   }
+  
+  .tx-date {
+    font-variant-numeric: tabular-nums;
+  }
 
   .tx-card.overdue .tx-date {
     background: var(--destructive);

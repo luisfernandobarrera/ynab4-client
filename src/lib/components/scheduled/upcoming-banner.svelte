@@ -74,7 +74,7 @@
         <div class="flex items-center justify-between gap-4">
           <div class="flex-1 min-w-0">
             <span class="truncate">{payee?.name || 'Transaction'}</span>
-            <span class="text-muted-foreground ml-2">{formatDate(tx.dateNext)}</span>
+            <span class="text-muted-foreground ml-2 tabular-nums">{formatDate(tx.dateNext)}</span>
           </div>
           <span class={cn('amount font-medium', tx.amount > 0 ? 'text-ynab-green' : 'text-ynab-red')}>
             {formatCurrency(Math.abs(tx.amount))}

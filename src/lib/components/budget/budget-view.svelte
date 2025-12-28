@@ -2611,6 +2611,7 @@
     font-size: 0.7rem;
     color: var(--muted-foreground);
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
   .tx-mini-table th.col-amount,
@@ -2677,6 +2678,7 @@
     font-size: 0.75rem;
     color: var(--muted-foreground);
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
   .tx-mini-table .col-account {

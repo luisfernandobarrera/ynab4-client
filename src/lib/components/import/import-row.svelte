@@ -142,7 +142,7 @@
 
     <!-- Date + Reference -->
     <div class="text-sm">
-      <div class="font-medium">{formatDate(transaction.date)}</div>
+      <div class="font-medium font-mono tabular-nums">{formatDate(transaction.date)}</div>
       {#if transaction.reference}
         <div class="text-xs text-muted-foreground truncate">{transaction.reference}</div>
       {/if}

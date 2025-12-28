@@ -871,6 +871,7 @@
     display: block;
     color: var(--foreground);
     font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
   }
 
   .days-ago {
@@ -1237,6 +1238,7 @@
     font-size: 0.8rem;
     color: var(--muted-foreground);
     min-width: 80px;
+    font-variant-numeric: tabular-nums;
   }
 
   .tx-payee {

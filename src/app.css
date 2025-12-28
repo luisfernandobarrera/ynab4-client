@@ -297,6 +297,14 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-family-heading);
 }
 
+/* Tabular numbers for dates and amounts */
+.tabular-nums,
+[data-type="date"],
+[data-type="amount"],
+time {
+  font-variant-numeric: tabular-nums;
+}
+
 /* ========================================
    TYPOGRAPHY & NUMBERS
    ======================================== */
