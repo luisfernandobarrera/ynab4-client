@@ -216,7 +216,7 @@
       <h3>Todos los Dispositivos ({devices.length})</h3>
       
       <div class="devices-list">
-        {#each devices.sort((a, b) => calculateTotalKnowledge(b) - calculateTotalKnowledge(a)) as device}
+        {#each [...devices].sort((a, b) => calculateTotalKnowledge(b) - calculateTotalKnowledge(a)) as device}
           {@const DeviceIcon = getDeviceIcon(device.deviceType)}
           <div class="device-card" class:current={isCurrentDevice(device)} class:highest={isHighestKnowledge(device)}>
             <div class="device-header">

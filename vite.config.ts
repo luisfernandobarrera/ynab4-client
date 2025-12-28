@@ -14,7 +14,8 @@ export default defineConfig({
 		port: 8742
 	},
 	optimizeDeps: {
-		include: ['ynab-library', 'path-browserify'],
+		include: ['path-browserify'],
+		exclude: ['ynab-library'],
 	},
 	resolve: {
 		alias: {
