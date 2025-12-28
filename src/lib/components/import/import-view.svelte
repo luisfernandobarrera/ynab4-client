@@ -1605,6 +1605,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.8125rem;
+    font-family: 'Inter', var(--font-family), system-ui, sans-serif;
   }
 
   .tx-table th {
@@ -1613,8 +1614,11 @@
     background: var(--card);
     padding: 0.5rem 0.75rem;
     text-align: left;
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 0.75rem;
     text-transform: lowercase;
+    letter-spacing: 0.02em;
+    color: var(--muted-foreground);
     border-bottom: 2px solid var(--border);
     white-space: nowrap;
     z-index: 10;
@@ -1623,21 +1627,47 @@
   .tx-table td {
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border);
-    vertical-align: top;
+    vertical-align: middle;
+    font-size: 0.8125rem;
   }
 
   /* Column widths */
   .col-select { width: 2rem; text-align: center; }
   .col-flag { width: 4px; padding: 0 !important; }
-  .col-date { width: 90px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-  .col-account { width: 100px; }
-  .col-payee { min-width: 150px; }
-  .col-category { min-width: 180px; }
-  .col-outflow, .col-inflow { 
-    width: 90px; 
-    text-align: right; 
-    font-family: var(--font-mono);
+  .col-date { 
+    width: 95px;
+    min-width: 95px;
+    font-family: 'Inter', var(--font-family-mono), monospace;
+    font-size: 0.8125rem;
     font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    white-space: nowrap;
+    letter-spacing: -0.01em;
+  }
+  .col-account { 
+    width: 100px;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .col-payee { 
+    min-width: 150px;
+    font-size: 0.8125rem;
+  }
+  .col-category { 
+    min-width: 180px;
+    font-size: 0.8125rem;
+  }
+  .col-outflow, .col-inflow { 
+    width: 100px;
+    min-width: 90px;
+    text-align: right; 
+    font-family: 'Inter', var(--font-family-mono), monospace;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    white-space: nowrap;
   }
   .col-status { width: 50px; }
 
@@ -1669,8 +1699,25 @@
   .col-flag.flag-purple { background: var(--purple-500); }
 
   /* Outflow/Inflow colors */
-  .col-outflow { color: var(--ynab-red); }
-  .col-inflow { color: var(--ynab-green); }
+  .col-outflow { 
+    color: var(--ynab-red); 
+    font-weight: 500;
+  }
+  .col-inflow { 
+    color: var(--ynab-green); 
+    font-weight: 500;
+  }
+
+  .memo-text {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--muted-foreground);
+    margin-top: 0.125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+  }
 
   /* Editable cells */
   .editable-cell {
@@ -1681,6 +1728,8 @@
     border: none;
     padding: 0;
     cursor: text;
+    font-size: 0.8125rem;
+    color: var(--foreground);
   }
 
   .editable-cell:hover {
@@ -1690,23 +1739,18 @@
 
   .payee-name, .category-name {
     display: block;
+    font-size: 0.8125rem;
   }
 
   .suggested, .no-category {
     display: block;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--muted-foreground);
+    margin-top: 0.125rem;
   }
 
   .no-category {
     font-style: italic;
-  }
-
-  .memo-text {
-    display: block;
-    font-size: 0.75rem;
-    color: var(--muted-foreground);
-    margin-top: 0.125rem;
   }
 
   /* Inline edit */
