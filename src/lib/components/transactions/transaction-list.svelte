@@ -428,32 +428,20 @@
   function scrollToMostRecent() {
     if (!tableContainer) return;
     
-    // Find the most recent transaction (first when sorted desc, last when sorted asc)
-    const sortedTxs = [...filteredTransactions].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    
-    if (sortedTxs.length === 0) return;
-    
-    const mostRecentTx = sortedTxs[0];
-    
-    // If we're in reverse scroll mode, the most recent is at the bottom
-    if (isReverseScroll) {
-      tableContainer.scrollTop = tableContainer.scrollHeight;
+    // When sorted desc (default): most recent at top -> scroll to top
+    if (sortOrder === 'desc') {
+      tableContainer.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      // In normal mode, scroll to top if desc, or find the row if asc
-      if (sortOrder === 'desc') {
-        tableContainer.scrollTop = 0;
-      } else {
-        // Find and scroll to the most recent transaction row
-        const row = tableContainer.querySelector(`[data-tx-id="${mostRecentTx.id}"]`);
-        if (row) {
-          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else {
-          // If not visible, we might need to load more. For now, scroll to end
-          tableContainer.scrollTop = tableContainer.scrollHeight;
-        }
-      }
+      // When sorted asc: most recent at bottom
+      // First load all transactions, then scroll to bottom
+      visibleCount = transactionsWithBalance.length;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (tableContainer) {
+            tableContainer.scrollTo({ top: tableContainer.scrollHeight, behavior: 'smooth' });
+          }
+        });
+      });
     }
   }
   
@@ -984,7 +972,7 @@
   function handleSelectionKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape' && selectedTxIds.size > 0) {
       e.preventDefault();
-      clearSelection();
+      clearTxSelection();
     }
   }
   
@@ -2178,6 +2166,8 @@
     border: none;
     color: inherit;
     font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
     cursor: pointer;
     padding: 0;
   }
@@ -2247,6 +2237,7 @@
   .tx-row {
     cursor: pointer;
     transition: background 0.15s;
+    user-select: none;
   }
 
   .tx-row:hover {
@@ -2272,23 +2263,23 @@
 
   th.col-flag { background: transparent; }
 
-  /* Consistent font sizes across all columns */
+  /* Consistent font sizes across all columns - use 0.8125rem (13px) for all */
   .col-date { 
     font-family: var(--font-family-mono);
-    font-size: 0.8rem; 
+    font-size: 0.8125rem; 
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
   .col-account { 
-    font-size: 0.8rem; 
-    max-width: 100px;
+    font-size: 0.8125rem; 
+    max-width: 120px;
     overflow: hidden; 
     text-overflow: ellipsis; 
     white-space: nowrap; 
   }
-  .col-payee { font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .col-category { font-size: 0.8rem; overflow: hidden; }
-  .col-memo { font-size: 0.7rem; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-payee { font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .col-category { font-size: 0.8125rem; overflow: hidden; }
+  .col-memo { font-size: 0.75rem; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   
   /* Category cell */
   .category-cell {
@@ -2298,7 +2289,7 @@
   }
   
   .memo-below {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     color: var(--muted-foreground);
     opacity: 0.85;
     overflow: hidden;
@@ -2317,13 +2308,14 @@
   
   .cat-sub {
     font-weight: 600;
+    font-size: 0.8125rem;
     color: var(--foreground);
   }
   
   .cat-master {
     font-weight: 400;
-    color: var(--muted-foreground);
     font-size: 0.75rem;
+    color: var(--muted-foreground);
   }
   
   /* Transfer display */
@@ -2373,20 +2365,17 @@
   
   /* Transfer category styling */
   .transfer-category {
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
   }
   
   .transfer-category strong {
     color: var(--foreground);
     font-weight: 600;
+    font-size: 0.8125rem;
   }
   
   .transfer-label {
     font-size: 0.75rem;
-    color: var(--muted-foreground);
-  }
-  
-  .transfer-label {
     color: var(--muted-foreground);
     font-weight: 400;
   }
@@ -2394,7 +2383,7 @@
     text-align: right; 
     font-family: var(--font-family-mono);
     font-feature-settings: "tnum";
-    font-size: 0.8rem;
+    font-size: 0.8125rem;
     font-variant-numeric: tabular-nums;
   }
   
@@ -2696,7 +2685,7 @@
 
   /* Category display with master category */
   .category-display {
-    font-size: 0.7rem;
+    font-size: 0.8125rem;
     line-height: 1.3;
   }
 

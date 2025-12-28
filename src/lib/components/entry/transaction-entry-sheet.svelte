@@ -6,6 +6,7 @@
   import NumericKeypad from './numeric-keypad.svelte';
   import { cn, formatCurrency } from '$lib/utils';
   import { accounts, payees, categories } from '$lib/stores/budget';
+  import { t } from '$lib/i18n';
 
   interface Props {
     open: boolean;
@@ -156,17 +157,17 @@
 
 {#if open}
   <!-- Full screen overlay -->
-  <div class="fixed inset-0 z-50 flex flex-col bg-background">
+  <div class="entry-sheet">
     <!-- Header -->
-    <header class="flex h-14 items-center justify-between border-b px-4">
+    <header class="entry-header">
       <Button variant="ghost" size="icon" onclick={onClose}>
         <X class="h-5 w-5" />
       </Button>
-      <h2 class="font-heading font-semibold">
-        {editTransaction ? 'Edit Transaction' : 'New Transaction'}
+      <h2 class="entry-title">
+        {editTransaction ? $t('transactions.editTransaction') : $t('transactions.newTransaction')}
       </h2>
       <Button variant="ghost" onclick={handleSave} disabled={!amountString || amountString === '0'}>
-        Save
+        {$t('common.save')}
       </Button>
     </header>
 
@@ -212,65 +213,59 @@
     <div class="flex-1 overflow-y-auto px-4 space-y-4">
       <!-- Account -->
       <button
-        class={cn(
-          'flex w-full items-center justify-between rounded-lg border p-4 transition-colors',
-          activeField === 'account' && 'border-primary'
-        )}
+        class="entry-field"
+        class:active={activeField === 'account'}
         onclick={() => (activeField = 'account')}
       >
-        <span class="text-sm text-muted-foreground">Account</span>
-        <div class="flex items-center gap-2">
-          <span class="font-medium">{selectedAccount()?.name || 'Select account'}</span>
+        <span class="field-label">{$t('transactions.account')}</span>
+        <div class="field-value">
+          <span>{selectedAccount()?.name || $t('transactions.selectAccount')}</span>
           <ChevronDown class="h-4 w-4 text-muted-foreground" />
         </div>
       </button>
 
       <!-- Payee -->
       <button
-        class={cn(
-          'flex w-full items-center justify-between rounded-lg border p-4 transition-colors',
-          activeField === 'payee' && 'border-primary'
-        )}
+        class="entry-field"
+        class:active={activeField === 'payee'}
         onclick={() => (activeField = 'payee')}
       >
-        <span class="text-sm text-muted-foreground">Payee</span>
-        <div class="flex items-center gap-2">
-          <span class="font-medium">{selectedPayee?.name || payeeSearch || 'Select payee'}</span>
+        <span class="field-label">{$t('transactions.payee')}</span>
+        <div class="field-value">
+          <span>{selectedPayee?.name || payeeSearch || $t('transactions.selectPayee')}</span>
           <ChevronDown class="h-4 w-4 text-muted-foreground" />
         </div>
       </button>
 
       <!-- Category -->
       <button
-        class={cn(
-          'flex w-full items-center justify-between rounded-lg border p-4 transition-colors',
-          activeField === 'category' && 'border-primary'
-        )}
+        class="entry-field"
+        class:active={activeField === 'category'}
         onclick={() => (activeField = 'category')}
       >
-        <span class="text-sm text-muted-foreground">Category</span>
-        <div class="flex items-center gap-2">
-          <span class="font-medium">{selectedCategory()?.name || categorySearch || 'Select category'}</span>
+        <span class="field-label">{$t('transactions.category')}</span>
+        <div class="field-value">
+          <span>{selectedCategory()?.name || categorySearch || $t('transactions.selectCategory')}</span>
           <ChevronDown class="h-4 w-4 text-muted-foreground" />
         </div>
       </button>
 
       <!-- Date -->
-      <div class="flex items-center justify-between rounded-lg border p-4">
-        <span class="text-sm text-muted-foreground">Date</span>
+      <div class="entry-field">
+        <span class="field-label">{$t('transactions.date')}</span>
         <input
           type="date"
-          class="bg-transparent font-medium text-right outline-none"
+          class="date-input"
           bind:value={date}
         />
       </div>
 
       <!-- Memo -->
-      <div class="flex items-center justify-between rounded-lg border p-4">
-        <span class="text-sm text-muted-foreground">Memo</span>
+      <div class="entry-field">
+        <span class="field-label">{$t('transactions.memo')}</span>
         <Input
           type="text"
-          placeholder="Add memo..."
+          placeholder={$t('transactions.addMemo')}
           class="border-none bg-transparent text-right p-0 h-auto"
           bind:value={memo}
         />
@@ -279,16 +274,12 @@
       <!-- Cleared and Flag row -->
       <div class="flex items-center gap-4">
         <button
-          class={cn(
-            'flex flex-1 items-center justify-center gap-2 rounded-lg border p-4 transition-colors',
-            cleared && 'border-ynab-green bg-ynab-green/10'
-          )}
+          class="cleared-btn"
+          class:active={cleared}
           onclick={() => (cleared = !cleared)}
         >
-          <Check class={cn('h-5 w-5', cleared ? 'text-ynab-green' : 'text-muted-foreground')} />
-          <span class={cn('font-medium', cleared ? 'text-ynab-green' : 'text-muted-foreground')}>
-            Cleared
-          </span>
+          <Check class="h-5 w-5" />
+          <span>{$t('transactions.cleared')}</span>
         </button>
 
         <div class="flex items-center gap-2">
@@ -319,14 +310,14 @@
         <div class="space-y-2">
           <Input
             type="text"
-            placeholder="Search or enter payee..."
+            placeholder={$t('transactions.searchPayee')}
             bind:value={payeeSearch}
             autofocus
           />
           <div class="max-h-48 overflow-y-auto space-y-1">
             {#each filteredPayees as payee (payee.id)}
               <button
-                class="flex w-full items-center rounded-lg px-3 py-2 text-left hover:bg-accent"
+                class="select-option"
                 onclick={() => selectPayee(payee)}
               >
                 {payee.name}
@@ -338,14 +329,14 @@
         <div class="space-y-2">
           <Input
             type="text"
-            placeholder="Search category..."
+            placeholder={$t('transactions.searchCategory')}
             bind:value={categorySearch}
             autofocus
           />
           <div class="max-h-48 overflow-y-auto space-y-1">
             {#each filteredCategories as category (category.entityId)}
               <button
-                class="flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-accent"
+                class="select-option flex-col items-start"
                 onclick={() => selectCategory(category)}
               >
                 <span class="font-medium">{category.name}</span>
@@ -358,10 +349,8 @@
         <div class="max-h-64 overflow-y-auto space-y-1">
           {#each $accounts as account (account.id)}
             <button
-              class={cn(
-                'flex w-full items-center justify-between rounded-lg px-3 py-2 hover:bg-accent',
-                selectedAccountId === account.id && 'bg-accent'
-              )}
+              class="select-option justify-between"
+              class:selected={selectedAccountId === account.id}
               onclick={() => { selectedAccountId = account.id; activeField = 'payee'; }}
             >
               <span>{account.name}</span>
@@ -372,14 +361,120 @@
       {:else}
         <div class="flex gap-2">
           <Button variant="outline" class="flex-1" onclick={onClose}>
-            Cancel
+            {$t('common.cancel')}
           </Button>
           <Button class="flex-1" onclick={handleSave} disabled={!amountString || amountString === '0'}>
-            Save Transaction
+            {$t('common.save')}
           </Button>
         </div>
       {/if}
     </div>
   </div>
 {/if}
+
+<style>
+  .entry-sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    background: var(--card);
+  }
+  
+  .entry-header {
+    display: flex;
+    height: 56px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+  }
+  
+  .entry-title {
+    font-weight: 600;
+    color: var(--foreground);
+  }
+  
+  .entry-field {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: transparent;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  
+  .entry-field.active {
+    border-color: var(--primary);
+  }
+  
+  .field-label {
+    font-size: 0.875rem;
+    color: var(--muted-foreground);
+  }
+  
+  .field-value {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    color: var(--foreground);
+  }
+  
+  .date-input {
+    background: transparent;
+    font-weight: 500;
+    text-align: right;
+    outline: none;
+    color: var(--foreground);
+  }
+  
+  .cleared-btn {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  
+  .cleared-btn.active {
+    border-color: var(--success);
+    background: color-mix(in srgb, var(--success) 10%, transparent);
+    color: var(--success);
+  }
+  
+  .select-option {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    background: transparent;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    color: var(--foreground);
+  }
+  
+  .select-option:hover {
+    background: var(--accent);
+  }
+  
+  .select-option.selected {
+    background: var(--accent);
+  }
+</style>
 

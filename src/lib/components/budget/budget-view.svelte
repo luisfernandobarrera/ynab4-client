@@ -1904,6 +1904,7 @@
     width: 100%;
     border: none;
     text-align: left;
+    user-select: none;
   }
 
   .category-master:hover {
@@ -1945,6 +1946,8 @@
     color: var(--foreground);
     height: 28px;
     box-sizing: border-box;
+    user-select: none;
+    cursor: pointer;
   }
 
   .category-sub:hover {
@@ -2000,9 +2003,9 @@
   }
 
   .month-header-group {
-    flex: 0 0 auto;
-    width: 270px;
-    min-width: 220px;
+    flex: 1 1 auto;
+    min-width: 180px;
+    max-width: 320px;
     display: flex;
     flex-direction: column;
     border-right: 1px solid var(--border);
@@ -2037,7 +2040,8 @@
 
   .budget-data-scroll {
     flex: 1;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .data-group {
@@ -2047,6 +2051,8 @@
   .data-row {
     display: flex;
     height: 32px;
+    user-select: none;
+    cursor: pointer;
   }
 
   .data-row.master-row {
@@ -2082,9 +2088,9 @@
   /* Removed overspent row backgrounds - only the balance value shows red */
 
   .month-data {
-    flex: 0 0 auto;
-    width: 270px;
-    min-width: 220px;
+    flex: 1 1 auto;
+    min-width: 180px;
+    max-width: 320px;
     display: flex;
     align-items: center;
     border-right: 1px solid var(--border);
@@ -2578,6 +2584,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.75rem;
+    user-select: none;
   }
 
   .tx-mini-table th {
@@ -2639,6 +2646,7 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 0.8rem;
+    user-select: none;
   }
 
   .tx-mini-table thead {
@@ -2662,6 +2670,10 @@
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--border);
     vertical-align: top;
+  }
+
+  .tx-mini-table tr {
+    cursor: pointer;
   }
 
   .tx-mini-table tr:hover td {
@@ -2907,8 +2919,8 @@
     
     .month-header-group,
     .month-data {
-      width: 210px;
-      min-width: 180px;
+      min-width: 160px;
+      max-width: 280px;
     }
     
     .category-master {
@@ -2935,8 +2947,8 @@
     
     .month-header-group,
     .month-data {
-      width: 150px;
       min-width: 120px;
+      max-width: 200px;
     }
     
     .col-header {

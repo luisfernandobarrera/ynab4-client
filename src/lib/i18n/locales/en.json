@@ -55,7 +55,8 @@
     "import": "Import",
     "createAccount": "Create Account",
     "settings": "Settings",
-    "accounts": "Accounts"
+    "accounts": "Accounts",
+    "more": "More"
   },
   "sidebar": {
     "change": "Change",
@@ -159,6 +160,14 @@
     "type": "Type",
     "unknownAccount": "Unknown Account",
     "viewAccount": "View account",
+    "newTransaction": "New Transaction",
+    "editTransaction": "Edit Transaction",
+    "selectAccount": "Select account",
+    "selectPayee": "Select payee",
+    "selectCategory": "Select category",
+    "searchPayee": "Search payee...",
+    "searchCategory": "Search category...",
+    "addMemo": "Add memo...",
     "count": "Count",
     "working": "Working",
     "cleared": "Cleared",

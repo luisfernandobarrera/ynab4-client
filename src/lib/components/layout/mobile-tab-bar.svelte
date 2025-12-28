@@ -2,14 +2,15 @@
   import { Wallet, Receipt, Calendar, PieChart, Menu } from 'lucide-svelte';
   import { currentView, selectedAccountId } from '$lib/stores/budget';
   import { sidebarOpen } from '$lib/stores/ui';
+  import { t } from '$lib/i18n';
   import { cn } from '$lib/utils';
 
   const tabs = [
-    { id: 'budget', label: 'Budget', icon: Wallet },
-    { id: 'transactions', label: 'Accounts', icon: Receipt },
-    { id: 'scheduled', label: 'Scheduled', icon: Calendar },
-    { id: 'reports', label: 'Reports', icon: PieChart },
-    { id: 'menu', label: 'More', icon: Menu },
+    { id: 'budget', labelKey: 'nav.budget', icon: Wallet },
+    { id: 'transactions', labelKey: 'nav.accounts', icon: Receipt },
+    { id: 'scheduled', labelKey: 'nav.scheduled', icon: Calendar },
+    { id: 'reports', labelKey: 'nav.reports', icon: PieChart },
+    { id: 'menu', labelKey: 'nav.more', icon: Menu },
   ] as const;
 
   function handleTabClick(tabId: string) {
@@ -35,7 +36,7 @@
         onclick={() => handleTabClick(tab.id)}
       >
         <tab.icon class="h-5 w-5" />
-        <span class="text-xs">{tab.label}</span>
+        <span class="text-xs">{$t(tab.labelKey)}</span>
       </button>
     {/each}
   </div>

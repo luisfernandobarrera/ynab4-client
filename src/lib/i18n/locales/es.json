@@ -55,7 +55,8 @@
     "import": "Importar",
     "createAccount": "Crear Cuenta",
     "settings": "Configuración",
-    "accounts": "Cuentas"
+    "accounts": "Cuentas",
+    "more": "Más"
   },
   "sidebar": {
     "change": "Cambiar",
@@ -159,6 +160,15 @@
     "type": "Tipo",
     "unknownAccount": "Cuenta desconocida",
     "viewAccount": "Ver cuenta",
+    "newTransaction": "Nueva Transacción",
+    "editTransaction": "Editar Transacción",
+    "selectAccount": "Seleccionar cuenta",
+    "selectPayee": "Seleccionar beneficiario",
+    "selectCategory": "Seleccionar categoría",
+    "searchPayee": "Buscar beneficiario...",
+    "searchCategory": "Buscar categoría...",
+    "addMemo": "Agregar memo...",
+    "cleared": "Conciliada",
     "count": "Cantidad",
     "working": "Saldo",
     "cleared": "Liquidado",

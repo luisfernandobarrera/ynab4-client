@@ -35,11 +35,7 @@
       <Menu class="h-5 w-5" />
     </button>
     <div class="header-breadcrumb">
-      <span class="header-budget">{budgetName}</span>
-      {#if $budgetInfo.client}
-        <span class="header-separator">/</span>
-        <span class="header-view">{viewLabels[$currentView] || $currentView}</span>
-      {/if}
+      <span class="header-view">{viewLabels[$currentView] || budgetName}</span>
     </div>
   </div>
   
@@ -96,25 +92,13 @@
   .header-breadcrumb {
     display: flex;
     align-items: center;
-    gap: 0.375rem;
     min-width: 0;
   }
 
-  .header-budget {
-    font-weight: 600;
-    color: var(--foreground);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .header-separator {
-    color: var(--muted-foreground);
-  }
-
   .header-view {
-    color: var(--muted-foreground);
-    font-size: 0.875rem;
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--foreground);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
