@@ -41,7 +41,9 @@
     "showPanel": "Mostrar panel",
     "clear": "Limpiar",
     "loadMore": "Cargar más",
-    "remaining": "restantes"
+    "remaining": "restantes",
+    "back": "Atrás",
+    "next": "Siguiente"
   },
   "nav": {
     "transactions": "Transacciones",
@@ -84,6 +86,13 @@
     "selectFolderTitle": "Seleccionar carpeta para guardar",
     "selectLocationError": "Por favor selecciona una ubicación válida",
     "saveLocalDescription": "Guardar en disco local",
+    "step": "Paso",
+    "currency": "Moneda",
+    "dateFormat": "Formato de fecha",
+    "saveLocal": "Guardar en disco local",
+    "syncDropbox": "Sincronizar con Dropbox",
+    "connectDropboxFirst": "Conectar Dropbox primero",
+    "notConnected": "No conectado",
     "saveDropboxDescription": "Sincronizar con Dropbox",
     "createError": "Error al crear el presupuesto",
     "dragDropHint": "O arrastra una carpeta .ynab4 aquí",

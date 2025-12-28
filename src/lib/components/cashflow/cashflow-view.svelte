@@ -848,8 +848,7 @@
               <tr class="tx-row balance-row">
                 <td class="col-date">{formatDate(getDateRange().from)}</td>
                 {#if !selectedAccountId}<td class="col-account"></td>{/if}
-                <td class="col-category"><em>{$t('cashFlow.initialBalance')}</em></td>
-                <td class="col-payee"></td>
+                <td class="col-category" colspan="2"><em>{$t('cashFlow.initialBalance')}</em></td>
                 <td class="col-outflow"></td>
                 <td class="col-inflow"></td>
                 {#if showBalance}
@@ -883,9 +882,7 @@
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
-                  <td class="col-category"><em>{$t('cashFlow.initialBalance')}</em></td>
-                  <td class="col-icon"></td>
-                  <td class="col-payee"></td>
+                  <td class="col-category" colspan="2"><em>{$t('cashFlow.initialBalance')}</em></td>
                   <td class="col-outflow"></td>
                   <td class="col-inflow"></td>
                   <td class="col-balance">{formatAmount(initialBalance)}</td>
@@ -937,9 +934,7 @@
                 <tr class="tx-row balance-row">
                   <td class="col-date">{formatDate(getDateRange().from)}</td>
                   {#if !selectedAccountId}<td class="col-account"></td>{/if}
-                  <td class="col-category"><em>{$t('cashFlow.initialBalance')}</em></td>
-                  <td class="col-icon"></td>
-                  <td class="col-payee"></td>
+                  <td class="col-category" colspan="2"><em>{$t('cashFlow.initialBalance')}</em></td>
                   <td class="col-outflow"></td>
                   <td class="col-inflow"></td>
                   <td class="col-balance">{formatAmount(initialBalance)}</td>
@@ -1475,9 +1470,94 @@
       min-width: 140px;
     }
     
-    .col-account { display: none; }
-    .col-category { display: none; }
-    .col-type { display: none; }
+    /* Transaction table responsive */
+    .tx-table {
+      font-size: 0.75rem;
+    }
+    
+    .tx-table th,
+    .tx-table td {
+      padding: 0.375rem 0.25rem;
+    }
+    
+    .col-date {
+      width: 70px;
+      font-size: 0.7rem;
+    }
+    
+    .col-account { 
+      display: none; 
+    }
+    
+    .col-category { 
+      min-width: 80px;
+      font-size: 0.7rem;
+    }
+    
+    .col-payee {
+      min-width: 80px;
+      font-size: 0.7rem;
+      max-width: 100px;
+    }
+    
+    .col-outflow, .col-inflow, .col-balance { 
+      width: 65px;
+      min-width: 55px;
+      font-size: 0.7rem;
+    }
+    
+    /* Show combined amount column on mobile */
+    .table-container {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .cf-header {
+      padding: 0.5rem;
+    }
+    
+    .filter-btn {
+      padding: 0.375rem 0.5rem;
+      font-size: 0.7rem;
+    }
+    
+    .month-display {
+      padding: 0.375rem 1rem;
+    }
+    
+    .month-name {
+      font-size: 1rem;
+    }
+    
+    .accounts-panel {
+      max-height: 35vh;
+    }
+    
+    /* More compact table for very small screens */
+    .tx-table th,
+    .tx-table td {
+      padding: 0.25rem 0.15rem;
+    }
+    
+    .col-category {
+      display: none;
+    }
+    
+    .col-payee {
+      min-width: 60px;
+    }
+    
+    .col-outflow, .col-inflow {
+      width: 55px;
+      min-width: 50px;
+    }
+    
+    /* Hide balance on very small screens */
+    .col-balance {
+      display: none;
+    }
   }
 
   /* Selection styles */

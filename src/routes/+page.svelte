@@ -383,12 +383,27 @@
 <CreateBudgetDialog
   open={$activeModal === 'create-budget'}
   onClose={closeModal}
-  onCreated={async (path) => {
+  onCreated={async (path, source) => {
     closeModal();
-    if (accessToken && path.startsWith('/')) {
-      await loadFromDropbox(accessToken, path);
-    } else {
-      await loadFromLocal(path);
+    
+    // Refresh the budget list first
+    if (isDesktop) {
+      await loadLocalBudgetList();
+    }
+    if (source === 'dropbox' && accessToken) {
+      await loadDropboxBudgetList();
+    }
+    
+    // Then try to load the new budget
+    try {
+      if (source === 'dropbox' && accessToken) {
+        await loadFromDropbox(accessToken, path);
+      } else {
+        await loadFromLocal(path);
+      }
+    } catch (e) {
+      console.error('[CreateBudget] Error loading new budget:', e);
+      // Budget was created, list is refreshed, user can manually open it
     }
   }}
 />

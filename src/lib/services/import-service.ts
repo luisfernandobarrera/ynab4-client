@@ -10,6 +10,10 @@ export interface ImportTransaction {
   date: string;
   description: string; // Original description from source
   originalMemo: string; // Original memo from source (e.g., bank reference)
+  // Account fields (for multi-account import)
+  accountId: string | null;
+  accountName: string; // Detected or assigned account name
+  // Payee fields
   payeeId: string | null;
   payeeName: string;
   suggestedPayee: string; // Suggested payee (can be edited)
@@ -96,6 +100,9 @@ export interface ColumnMapping {
   category?: number;
   suggestedCategory?: number;
   flag?: number;
+  account?: number; // For multi-account imports
+  installments?: number; // Installments flag (TRUE/FALSE)
+  numInstallments?: number; // Number of installments/months
 }
 
 /**
@@ -132,6 +139,12 @@ export function detectColumns(headers: string[]): ColumnMapping {
       ? findColumn(['suggested category', 'categoría sugerida', 'categoria sugerida']) : undefined,
     flag: findColumn(['flag', 'bandera', 'marca', 'color']) >= 0
       ? findColumn(['flag', 'bandera', 'marca', 'color']) : undefined,
+    account: findColumn(['account', 'cuenta', 'tarjeta', 'card', 'bank']) >= 0
+      ? findColumn(['account', 'cuenta', 'tarjeta', 'card', 'bank']) : undefined,
+    installments: findColumn(['installments', 'msi', 'meses sin intereses']) >= 0
+      ? findColumn(['installments', 'msi', 'meses sin intereses']) : undefined,
+    numInstallments: findColumn(['numinstallments', 'num_installments', 'meses', 'months', 'plazo', 'cuotas']) >= 0
+      ? findColumn(['numinstallments', 'num_installments', 'meses', 'months', 'plazo', 'cuotas']) : undefined,
   };
 }
 
@@ -230,6 +243,7 @@ export function rowsToTransactions(
       }
 
       const description = row[mapping.description] || '';
+      const accountName = mapping.account !== undefined ? row[mapping.account] || '' : '';
       const payeeFromCol = mapping.payee !== undefined ? row[mapping.payee] || '' : '';
       const suggestedPayee = mapping.suggestedPayee !== undefined ? row[mapping.suggestedPayee] || '' : '';
       const categoryFromCol = mapping.category !== undefined ? row[mapping.category] || '' : '';
@@ -238,12 +252,20 @@ export function rowsToTransactions(
       const originalMemo = mapping.originalMemo !== undefined ? row[mapping.originalMemo] || '' : '';
       const reference = mapping.reference !== undefined ? row[mapping.reference] || '' : '';
       const flag = mapping.flag !== undefined ? row[mapping.flag] || null : null;
+      
+      // Installments (MSI) fields
+      const installmentsRaw = mapping.installments !== undefined ? row[mapping.installments] || '' : '';
+      const isMSI = installmentsRaw.toLowerCase() === 'true' || installmentsRaw === '1' || installmentsRaw.toLowerCase() === 'sí' || installmentsRaw.toLowerCase() === 'si' || installmentsRaw.toLowerCase() === 'yes';
+      const numInstallmentsRaw = mapping.numInstallments !== undefined ? row[mapping.numInstallments] || '' : '';
+      const msiMonths = parseInt(numInstallmentsRaw, 10) || 0;
 
       return {
         id: `import-${now}-${index}`,
         date: parseDate(row[mapping.date] || ''),
         description,
         originalMemo,
+        accountId: null,
+        accountName,
         payeeId: null,
         payeeName: payeeFromCol || suggestedPayee || '',
         suggestedPayee: suggestedPayee || payeeFromCol || description,
@@ -257,9 +279,9 @@ export function rowsToTransactions(
         reference,
         flag,
         cleared: false,
-        isMSI: false,
-        msiMonths: 0,
-        msiOriginalAmount: 0,
+        isMSI,
+        msiMonths,
+        msiOriginalAmount: isMSI ? amount : 0,
         status: 'pending' as const,
       };
     });
@@ -363,17 +385,20 @@ export function generateImportFilename(accountName: string): string {
  * Template columns specification
  */
 export const TEMPLATE_COLUMNS = [
-  { header: 'Fecha', key: 'date', width: 12, description: 'Fecha de la transacción (DD/MM/YYYY o YYYY-MM-DD)' },
-  { header: 'Descripción', key: 'description', width: 40, description: 'Descripción original del estado de cuenta' },
-  { header: 'Cargo', key: 'debit', width: 15, description: 'Monto de egreso (sin signo negativo)' },
-  { header: 'Abono', key: 'credit', width: 15, description: 'Monto de ingreso' },
-  { header: 'Referencia', key: 'reference', width: 20, description: 'Número de referencia o folio del banco' },
-  { header: 'Memo Original', key: 'originalMemo', width: 30, description: 'Información adicional del banco' },
-  { header: 'Payee', key: 'payee', width: 25, description: 'Beneficiario/Proveedor (autocompletado de YNAB)' },
-  { header: 'Payee Sugerido', key: 'suggestedPayee', width: 25, description: 'Payee sugerido (puedes editarlo)' },
-  { header: 'Categoría', key: 'category', width: 30, description: 'Categoría de YNAB (Master: SubCategoría)' },
-  { header: 'Memo', key: 'memo', width: 30, description: 'Notas adicionales para la transacción' },
-  { header: 'Bandera', key: 'flag', width: 10, description: 'Color: Red, Orange, Yellow, Green, Blue, Purple' },
+  { header: 'Account', key: 'account', width: 20, description: 'YNAB account name (for multi-account import)' },
+  { header: 'Date', key: 'date', width: 12, description: 'Transaction date (DD/MM/YYYY or YYYY-MM-DD)' },
+  { header: 'Description', key: 'description', width: 40, description: 'Original description from bank statement' },
+  { header: 'Outflow', key: 'debit', width: 15, description: 'Outflow amount (no negative sign)' },
+  { header: 'Inflow', key: 'credit', width: 15, description: 'Inflow amount' },
+  { header: 'Reference', key: 'reference', width: 20, description: 'Bank reference number' },
+  { header: 'Original Memo', key: 'originalMemo', width: 30, description: 'Additional bank information' },
+  { header: 'Payee', key: 'payee', width: 25, description: 'Payee (YNAB autocomplete)' },
+  { header: 'Suggested Payee', key: 'suggestedPayee', width: 25, description: 'Suggested payee (editable)' },
+  { header: 'Category', key: 'category', width: 30, description: 'YNAB category (Master: Subcategory)' },
+  { header: 'Memo', key: 'memo', width: 30, description: 'Additional notes' },
+  { header: 'Installments', key: 'installments', width: 12, description: 'Interest-free installments: TRUE or FALSE' },
+  { header: 'numInstallments', key: 'numInstallments', width: 14, description: 'Number of months (3, 6, 9, 12, 18, 24)' },
+  { header: 'Flag', key: 'flag', width: 10, description: 'Color: Red, Orange, Yellow, Green, Blue, Purple' },
 ] as const;
 
 /**
@@ -387,12 +412,15 @@ export function generateTemplateExcel(): ArrayBuffer {
   const headers = TEMPLATE_COLUMNS.map(col => col.header);
   
   // Sample data rows
+  // Sample data with all columns including Installments
+  // Account, Date, Description, Outflow, Inflow, Reference, Original Memo, Payee, Suggested Payee, Category, Memo, Installments, numInstallments, Flag
   const sampleData = [
-    ['15/01/2025', 'PAGO TARJETA DE CREDITO', '5000.00', '', 'REF123456', 'PAGO TDC BANAMEX', '', 'Pago TDC', 'Deudas: Tarjeta Crédito', 'Pago mensual', ''],
-    ['16/01/2025', 'TRANSFERENCIA SPEI', '', '25000.00', 'SPEI987654', 'NOMINA EMPRESA SA', '', 'Empresa SA', 'Ingreso: Salario', 'Quincena enero', 'Green'],
-    ['17/01/2025', 'COMPRA AMAZON', '1200.00', '', 'AMZ001234', 'AMAZON MEXICO', 'Amazon', 'Amazon', 'Hogar: Varios', 'Compra audífonos', 'Blue'],
-    ['18/01/2025', 'PAGO LUZ CFE', '850.50', '', 'CFE456789', 'CFE SUMINISTRADOR', 'CFE', 'CFE', 'Casa: Servicios', '', ''],
-    ['19/01/2025', 'LIVERPOOL MSI 12', '12000.00', '', 'LIV789012', 'LIVERPOOL TIENDA', 'Liverpool', 'Liverpool', 'Ropa: Varios', 'Ropa invierno - MSI 12 meses', 'Orange'],
+    ['Cheques HSBC', '15/01/2025', 'PAGO TARJETA DE CREDITO', '5000.00', '', 'REF123456', 'PAGO TDC BANAMEX', '', 'Pago TDC', 'Deudas: Tarjeta Crédito', 'Pago mensual', '', '', ''],
+    ['Cheques HSBC', '16/01/2025', 'TRANSFERENCIA SPEI', '', '25000.00', 'SPEI987654', 'NOMINA EMPRESA SA', '', 'Empresa SA', 'Ingreso: Salario', 'Quincena enero', '', '', 'Green'],
+    ['2Now', '17/01/2025', 'COMPRA AMAZON', '1200.00', '', 'AMZ001234', 'AMAZON MEXICO', 'Amazon', 'Amazon', 'Hogar: Varios', 'Compra audífonos', '', '', 'Blue'],
+    ['2Now', '18/01/2025', 'PAGO LUZ CFE', '850.50', '', 'CFE456789', 'CFE SUMINISTRADOR', 'CFE', 'CFE', 'Casa: Servicios', '', '', '', ''],
+    ['Platinum', '19/01/2025', 'LIVERPOOL MSI 12', '12000.00', '', 'LIV789012', 'LIVERPOOL TIENDA', 'Liverpool', 'Liverpool', 'Ropa: Varios', 'Ropa invierno', 'TRUE', '12', 'Orange'],
+    ['Platinum', '20/01/2025', 'SEARS MSI 6', '6000.00', '', 'SEARS001', 'SEARS TIENDA', 'Sears', 'Sears', 'Hogar: Electrodomésticos', 'Licuadora', 'TRUE', '6', 'Orange'],
   ];
   
   // Combine headers and data
@@ -409,22 +437,25 @@ export function generateTemplateExcel(): ArrayBuffer {
   
   // Create instructions sheet
   const instructionsData = [
-    ['INSTRUCCIONES DE USO'],
+    ['INSTRUCTIONS'],
     [''],
-    ['Este archivo es una plantilla para importar transacciones a YNAB4.'],
+    ['This is a template for importing transactions to YNAB4.'],
     [''],
-    ['COLUMNAS:'],
+    ['COLUMNS:'],
     ...TEMPLATE_COLUMNS.map(col => [`• ${col.header}: ${col.description}`]),
     [''],
-    ['NOTAS:'],
-    ['• Puedes usar Cargo/Abono separados O una columna Monto (positivo=ingreso, negativo=egreso)'],
-    ['• Las fechas pueden estar en formato DD/MM/YYYY, MM/DD/YYYY o YYYY-MM-DD'],
-    ['• Los montos pueden incluir comas como separador de miles'],
-    ['• Las categorías deben coincidir con las de tu presupuesto YNAB'],
-    ['• Para MSI, marca la transacción y usa la función MSI en el importador'],
+    ['NOTES:'],
+    ['• You can use separate Outflow/Inflow columns OR a single Amount column (positive=inflow, negative=outflow)'],
+    ['• Dates can be in DD/MM/YYYY, MM/DD/YYYY or YYYY-MM-DD format'],
+    ['• Amounts can include commas as thousands separators'],
+    ['• Categories must match your YNAB budget categories'],
+    ['• For installments (MSI), set Installments=TRUE and numInstallments to the number of months'],
     [''],
-    ['COLORES DE BANDERA:'],
-    ['Red, Orange, Yellow, Green, Blue, Purple (o vacío)'],
+    ['FLAG COLORS:'],
+    ['Red, Orange, Yellow, Green, Blue, Purple (or empty)'],
+    [''],
+    ['MULTI-LANGUAGE SUPPORT:'],
+    ['Column headers are also detected in Spanish: Cuenta, Fecha, Cargo, Abono, Categoría, Bandera, MSI, Meses'],
   ];
   
   const wsInstructions = XLSX.utils.aoa_to_sheet(instructionsData);
@@ -493,8 +524,8 @@ export async function downloadTemplate(): Promise<void> {
 /**
  * Download via browser (fallback)
  */
-function downloadViaBrowser(buffer: ArrayBuffer, filename: string): void {
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+function downloadViaBrowser(buffer: ArrayBuffer | string, filename: string, mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'): void {
+  const blob = new Blob([buffer], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -503,5 +534,75 @@ function downloadViaBrowser(buffer: ArrayBuffer, filename: string): void {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Generate sample CSV content - matches TEMPLATE_COLUMNS
+ */
+export function generateSampleCSV(): string {
+  // Use same headers as Excel template
+  const headers = TEMPLATE_COLUMNS.map(col => col.header);
+  
+  // Sample data with all columns:
+  // Account, Date, Description, Outflow, Inflow, Reference, Original Memo, Payee, Suggested Payee, Category, Memo, Installments, numInstallments, Flag
+  const rows = [
+    ['Cheques HSBC', '2025-01-15', 'PAGO TARJETA DE CREDITO', '5000.00', '', 'REF123456', 'PAGO TDC BANAMEX', '', 'Pago TDC', 'Deudas: Tarjeta Crédito', 'Pago mensual', '', '', ''],
+    ['Cheques HSBC', '2025-01-16', 'TRANSFERENCIA SPEI', '', '25000.00', 'SPEI987654', 'NOMINA EMPRESA SA', '', 'Empresa SA', 'Ingreso: Salario', 'Quincena enero', '', '', 'Green'],
+    ['2Now', '2025-01-17', 'COMPRA AMAZON', '1200.00', '', 'AMZ001234', 'AMAZON MEXICO', 'Amazon', 'Amazon', 'Hogar: Varios', 'Compra audífonos', '', '', 'Blue'],
+    ['2Now', '2025-01-18', 'PAGO LUZ CFE', '850.50', '', 'CFE456789', 'CFE SUMINISTRADOR', 'CFE', 'CFE', 'Casa: Servicios', '', '', '', ''],
+    ['2Now', '2025-01-19', 'RESTAURANTE SANBORNS', '450.00', '', 'SAN78901', 'SANBORNS REST', '', 'Sanborns', 'Comidas: Restaurantes', 'Comida con familia', '', '', ''],
+    ['Platinum', '2025-01-20', 'LIVERPOOL MSI 12', '12000.00', '', 'LIV789012', 'LIVERPOOL TIENDA', 'Liverpool', 'Liverpool', 'Ropa: Varios', 'Ropa invierno', 'TRUE', '12', 'Orange'],
+    ['Platinum', '2025-01-21', 'SEARS MSI 6', '6000.00', '', 'SEARS001', 'SEARS TIENDA', 'Sears', 'Sears', 'Hogar: Electrodomésticos', 'Licuadora', 'TRUE', '6', 'Orange'],
+    ['Platinum', '2025-01-22', 'UBER VIAJES', '350.00', '', 'UBER12345', 'UBER TRIP', 'Uber', 'Uber', 'Transporte: Uber', '', '', '', ''],
+    ['Platinum', '2025-01-23', 'NETFLIX', '199.00', '', 'NFLX001', 'NETFLIX.COM', 'Netflix', 'Netflix', 'Servicios: Streaming', '', '', '', ''],
+    ['Nu Cuenta', '2025-01-24', 'TRANSFERENCIA RECIBIDA', '', '5000.00', 'NU98765', 'TRANSFERENCIA DE HSBC', '', 'Transferencia Interna', '', 'De cuenta cheques', '', '', ''],
+    ['Nu Cuenta', '2025-01-25', 'INTERESES GANADOS', '', '125.50', 'INT001', 'INTERESES DEL MES', '', 'Intereses', 'Ahorro: Intereses', '', '', 'Green'],
+  ];
+  
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+  
+  return csvContent;
+}
+
+/**
+ * Download sample CSV file
+ */
+export async function downloadSampleCSV(): Promise<void> {
+  const csvContent = generateSampleCSV();
+  const filename = 'ejemplo-importacion-ynab.csv';
+
+  if (isTauriRuntime()) {
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { writeFile } = await import('@tauri-apps/plugin-fs');
+      
+      let filePath = await save({
+        defaultPath: filename,
+        filters: [{
+          name: 'CSV',
+          extensions: ['csv']
+        }]
+      });
+      
+      if (filePath) {
+        if (!filePath.toLowerCase().endsWith('.csv')) {
+          filePath = filePath + '.csv';
+        }
+        
+        const encoder = new TextEncoder();
+        const uint8Array = encoder.encode(csvContent);
+        await writeFile(filePath, uint8Array);
+        
+        alert(`CSV de ejemplo guardado en: ${filePath}`);
+      }
+    } catch (error) {
+      console.error('[ImportService] Error saving CSV in Tauri:', error);
+      alert(`Error al guardar: ${error}`);
+    }
+  } else {
+    downloadViaBrowser(csvContent, filename, 'text/csv;charset=utf-8');
+  }
 }
 

@@ -41,7 +41,9 @@
     "showPanel": "Show Panel",
     "clear": "Clear",
     "loadMore": "Load more",
-    "remaining": "remaining"
+    "remaining": "remaining",
+    "back": "Back",
+    "next": "Next"
   },
   "nav": {
     "transactions": "Transactions",
@@ -84,6 +86,13 @@
     "selectFolderTitle": "Select folder to save budget",
     "selectLocationError": "Please select a valid save location",
     "saveLocalDescription": "Save to local disk",
+    "step": "Step",
+    "currency": "Currency",
+    "dateFormat": "Date Format",
+    "saveLocal": "Save to local disk",
+    "syncDropbox": "Sync with Dropbox",
+    "connectDropboxFirst": "Connect Dropbox first",
+    "notConnected": "Not connected",
     "saveDropboxDescription": "Sync with Dropbox",
     "createError": "Failed to create budget",
     "dragDropHint": "Or drag & drop a .ynab4 folder here",
