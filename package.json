@@ -59,6 +59,6 @@
 		"chart.js": "^4.5.1",
 		"path-browserify": "^1.0.1",
 		"xlsx": "^0.18.5",
-		"ynab-library": "file:../../../personal/finance/ynab/ynab-library"
+		"ynab-library": "file:../ynab-library"
 	}
 }
