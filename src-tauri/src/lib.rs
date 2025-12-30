@@ -250,7 +250,7 @@ async fn dropbox_refresh_token(
 }
 
 // Android deep link redirect URI
-const ANDROID_REDIRECT_URI: &str = "ynab4viewer://oauth/callback";
+const ANDROID_REDIRECT_URI: &str = "ynab4client://oauth/callback";
 
 /// Open URL in browser (works on all platforms including Android)
 #[tauri::command]

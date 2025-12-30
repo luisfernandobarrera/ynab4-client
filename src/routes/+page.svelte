@@ -283,10 +283,45 @@
         {:else if filteredBudgets.length === 0}
           <div class="text-center py-16">
             <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-[var(--card)]">
-              <FolderOpen class="h-8 w-8 text-[var(--muted-foreground)]" />
+              {#if !isDropboxConnected}
+                <Cloud class="h-8 w-8 text-blue-500" />
+              {:else}
+                <FolderOpen class="h-8 w-8 text-[var(--muted-foreground)]" />
+              {/if}
             </div>
-            <p class="text-[var(--muted-foreground)] mb-2">{$t('budget.noBudgetsFound')}</p>
-            <p class="text-sm text-[var(--muted-foreground)]">{$t('welcome.getStarted')}</p>
+            
+            {#if !isDropboxConnected}
+              <!-- Not connected to Dropbox -->
+              <p class="text-[var(--foreground)] font-medium mb-2">{$t('budget.connectDropbox')}</p>
+              <p class="text-sm text-[var(--muted-foreground)] mb-6 max-w-sm mx-auto">
+                {$t('welcome.getStarted')}
+              </p>
+              <button 
+                onclick={connectDropbox} 
+                disabled={loadingDropbox}
+                class="inline-flex items-center gap-2 px-6 py-3 rounded-xl font-medium text-white transition-all hover:opacity-90 bg-blue-500"
+              >
+                {#if loadingDropbox}
+                  <Loader2 class="h-5 w-5 animate-spin" />
+                {:else}
+                  <Cloud class="h-5 w-5" />
+                {/if}
+                {$t('dropbox.connect')}
+              </button>
+            {:else if dropboxError}
+              <!-- Dropbox error -->
+              <p class="text-[var(--destructive)] mb-2">{dropboxError}</p>
+              <button 
+                onclick={loadDropboxBudgetList}
+                class="text-sm text-[var(--primary)] hover:underline"
+              >
+                {$t('common.retry')}
+              </button>
+            {:else}
+              <!-- Connected but no budgets found -->
+              <p class="text-[var(--muted-foreground)] mb-2">{$t('budget.noBudgetsFound')}</p>
+              <p class="text-sm text-[var(--muted-foreground)]">{$t('welcome.getStarted')}</p>
+            {/if}
           </div>
         {:else}
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
