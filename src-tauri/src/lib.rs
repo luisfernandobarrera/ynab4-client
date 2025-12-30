@@ -6,6 +6,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rand::Rng;
 use tokio::net::TcpListener;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tauri::Emitter;
 
 // Store PKCE verifier between auth steps
 #[allow(dead_code)]

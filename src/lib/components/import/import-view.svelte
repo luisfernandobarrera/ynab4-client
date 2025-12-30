@@ -470,8 +470,8 @@
           cmp = catA.localeCompare(catB);
           break;
         case 'status':
-          const statusOrder = { ready: 0, pending: 1, skipped: 2 };
-          cmp = (statusOrder[a.status || 'pending'] || 1) - (statusOrder[b.status || 'pending'] || 1);
+          const statusOrder: Record<string, number> = { ready: 0, pending: 1, skipped: 2, imported: 3 };
+          cmp = (statusOrder[a.status || 'pending'] ?? 1) - (statusOrder[b.status || 'pending'] ?? 1);
           break;
         case 'flag':
           const flagA = a.flag || 'zzz';
