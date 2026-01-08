@@ -12,7 +12,7 @@ import { browser } from '$app/environment';
 // Get app key from environment variable
 // Fallback for Tauri where env vars may not load
 const DROPBOX_CLIENT_ID = import.meta.env.PUBLIC_DROPBOX_APP_KEY || '6kbbvo2w2cnhn1q';
-const REDIRECT_URI = browser ? 'http://localhost:8742/callback' : '';
+const REDIRECT_URI = browser ? `${window.location.origin}/callback` : '';
 
 // Check if running in Tauri
 const IS_TAURI = browser && typeof (window as { __TAURI__?: unknown }).__TAURI__ !== 'undefined';

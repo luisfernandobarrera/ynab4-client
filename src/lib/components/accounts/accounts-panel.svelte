@@ -2,6 +2,7 @@
   import { ChevronRight, Settings2, X } from 'lucide-svelte';
   import { accounts, transactions, selectedAccountId } from '$lib/stores/budget';
   import { t } from '$lib/i18n';
+  import { AccountContextMenu, AccountDetailsDialog } from './index';
 
   // State
   let expandedGroups = $state<Set<string>>(new Set(['onBudget', 'offBudget', 'cash', 'checking', 'savings', 'creditCard', 'lineOfCredit', 'paypal', 'merchant', 'investment', 'mortgage', 'otherAsset', 'otherLiability']));
@@ -9,6 +10,49 @@
   let viewMode = $state<'dynamic' | 'normal' | 'showClosed'>('normal');
   let sortBy = $state<'ynab' | 'name' | 'balance'>('ynab');
   let showOptions = $state(false);
+
+  // Context menu state
+  let contextMenuOpen = $state(false);
+  let contextMenuX = $state(0);
+  let contextMenuY = $state(0);
+  let contextMenuAccount = $state<{
+    id: string;
+    name: string;
+    onBudget: boolean;
+    closed: boolean;
+    hidden: boolean;
+    note?: string;
+    balance: number;
+    transactionCount: number;
+  } | null>(null);
+
+  // Account details dialog state
+  let detailsDialogOpen = $state(false);
+  let detailsDialogAccount = $state<{
+    id: string;
+    name: string;
+    type: string;
+    onBudget: boolean;
+    closed: boolean;
+    hidden: boolean;
+    note?: string;
+    balance: number;
+    clearedBalance?: number;
+    unclearedBalance?: number;
+    lastReconciledDate?: string;
+    lastReconciledBalance?: number;
+  } | null>(null);
+
+  // Count transactions per account
+  const transactionCountByAccount = $derived.by(() => {
+    const counts: Record<string, number> = {};
+    for (const tx of $transactions) {
+      if (tx.accountId) {
+        counts[tx.accountId] = (counts[tx.accountId] || 0) + 1;
+      }
+    }
+    return counts;
+  });
 
   // Calculate balances from transactions
   const accountBalances = $derived.by(() => {
@@ -213,6 +257,68 @@
     return balance >= 0 ? 'positive' : 'negative';
   }
 
+  function handleContextMenu(account: typeof $accounts[0], event: MouseEvent) {
+    event.preventDefault();
+    const balance = accountBalances[account.id] || 0;
+    const txCount = transactionCountByAccount[account.id] || 0;
+    contextMenuAccount = {
+      id: account.id,
+      name: account.name,
+      onBudget: account.onBudget,
+      closed: account.closed || false,
+      hidden: account.hidden || false,
+      note: account.note,
+      balance,
+      transactionCount: txCount,
+    };
+    contextMenuX = event.clientX;
+    contextMenuY = event.clientY;
+    contextMenuOpen = true;
+  }
+
+  function handleShowDetails(account: { id: string }) {
+    // Find the full account data
+    const fullAccount = $accounts.find(a => a.id === account.id || a.entityId === account.id);
+    if (!fullAccount) return;
+
+    // Calculate balances
+    const balance = accountBalances[fullAccount.id] || 0;
+
+    // Calculate cleared/uncleared balances
+    let clearedBalance = 0;
+    let unclearedBalance = 0;
+    for (const tx of $transactions) {
+      if (tx.accountId === fullAccount.id || tx.accountId === fullAccount.entityId) {
+        if (tx.cleared === 'Reconciled' || tx.cleared === 'Cleared') {
+          clearedBalance += tx.amount;
+        } else {
+          unclearedBalance += tx.amount;
+        }
+      }
+    }
+
+    detailsDialogAccount = {
+      id: fullAccount.id || fullAccount.entityId || '',
+      name: fullAccount.name || fullAccount.accountName || '',
+      type: fullAccount.accountType || fullAccount.type || 'Checking',
+      onBudget: fullAccount.onBudget ?? true,
+      closed: fullAccount.closed ?? false,
+      hidden: fullAccount.hidden ?? false,
+      note: fullAccount.note,
+      balance,
+      clearedBalance,
+      unclearedBalance,
+      lastReconciledDate: fullAccount.lastReconciledDate,
+      lastReconciledBalance: fullAccount.lastReconciledBalance,
+    };
+    detailsDialogOpen = true;
+  }
+
+  function handleDetailsDialogClose() {
+    detailsDialogOpen = false;
+    detailsDialogAccount = null;
+  }
+
 </script>
 
 <div class="accounts-panel">
@@ -304,6 +410,7 @@
                 class:closed={isClosed}
                 class:inactive={isInactive}
                 onclick={() => selectAccount(account.id)}
+                oncontextmenu={(e) => handleContextMenu(account, e)}
               >
                 <span class="ap-account-name">{account.name}</span>
                 <span class="ap-account-balance {getBalanceClass(balance)}">
@@ -317,6 +424,23 @@
     {/each}
   </div>
 </div>
+
+<!-- Context Menu -->
+<AccountContextMenu
+  bind:open={contextMenuOpen}
+  x={contextMenuX}
+  y={contextMenuY}
+  account={contextMenuAccount}
+  onClose={() => contextMenuOpen = false}
+  onShowDetails={handleShowDetails}
+/>
+
+<!-- Account Details Dialog -->
+<AccountDetailsDialog
+  bind:open={detailsDialogOpen}
+  account={detailsDialogAccount}
+  onClose={handleDetailsDialogClose}
+/>
 
 <style>
   .accounts-panel {

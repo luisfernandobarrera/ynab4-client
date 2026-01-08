@@ -6,8 +6,7 @@
   import { BudgetPicker, BudgetView, CreateBudgetDialog } from '$lib/components/budget';
   import { TransactionList } from '$lib/components/transactions';
   import { TransactionEntrySheet } from '$lib/components/entry';
-  import { ScheduledList } from '$lib/components/scheduled';
-  import { ReportsView } from '$lib/components/reports';
+    import { ReportsView } from '$lib/components/reports';
   import { SettingsView, ThemeToggle, DevicesView } from '$lib/components/settings';
   import { ReconciliationView } from '$lib/components/reconciliation';
   import { CashFlowView } from '$lib/components/cashflow';
@@ -81,10 +80,10 @@
 
   async function loadDropboxBudgetList() {
     if (!accessToken) return;
-    
+
     loadingBudgetList = true;
     dropboxError = null;
-    
+
     try {
       dropboxBudgets = await BudgetLoader.listDropboxBudgets(accessToken);
       console.log('[Page] Found Dropbox budgets:', dropboxBudgets);
@@ -93,6 +92,26 @@
       console.error('[Page] Error loading Dropbox budgets:', e);
     } finally {
       loadingBudgetList = false;
+    }
+  }
+
+  // Check if error is token-related
+  const isTokenError = $derived(
+    dropboxError?.toLowerCase().includes('token') ||
+    dropboxError?.toLowerCase().includes('expired') ||
+    dropboxError?.toLowerCase().includes('reconnect') ||
+    dropboxError?.toLowerCase().includes('unauthorized')
+  );
+
+  // Handle retry - reconnect if token error, otherwise just reload
+  async function handleDropboxRetry() {
+    if (isTokenError) {
+      // Token expired - need to reconnect
+      disconnectDropbox();
+      await connectDropbox();
+    } else {
+      // Other error - just retry loading
+      await loadDropboxBudgetList();
     }
   }
 
@@ -311,11 +330,11 @@
             {:else if dropboxError}
               <!-- Dropbox error -->
               <p class="text-[var(--destructive)] mb-2">{dropboxError}</p>
-              <button 
-                onclick={loadDropboxBudgetList}
+              <button
+                onclick={handleDropboxRetry}
                 class="text-sm text-[var(--primary)] hover:underline"
               >
-                {$t('common.retry')}
+                {isTokenError ? $t('dropbox.connect') : $t('common.retry')}
               </button>
             {:else}
               <!-- Connected but no budgets found -->
@@ -383,8 +402,6 @@
     <BudgetView />
   {:else if $currentView === 'reconciliation'}
     <ReconciliationView />
-  {:else if $currentView === 'scheduled'}
-    <ScheduledList />
   {:else if $currentView === 'cashflow'}
     <CashFlowView />
   {:else if $currentView === 'reports'}

@@ -394,10 +394,6 @@
     color: white;
   }
 
-  .chevron {
-    opacity: 0.5;
-  }
-
   .scheduled-panel {
     position: absolute;
     top: calc(100% + 4px);
@@ -559,13 +555,6 @@
   .col-date.overdue-cell {
     color: var(--destructive);
     font-weight: 500;
-  }
-
-  .overdue-icon {
-    display: inline-block;
-    vertical-align: middle;
-    margin-left: 0.25rem;
-    color: var(--destructive);
   }
 
   .col-payee {

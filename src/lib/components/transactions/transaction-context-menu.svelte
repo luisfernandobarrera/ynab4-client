@@ -7,6 +7,7 @@
     Trash2,
     Copy,
     ArrowRight,
+    CalendarClock,
   } from 'lucide-svelte';
   import {
     ContextMenu,
@@ -14,19 +15,41 @@
     ContextMenuSeparator,
     ContextMenuSub,
   } from '$lib/components/ui/context-menu';
-  import { selectedTransactionIds, clearTransactionSelection, addToast } from '$lib/stores/ui';
-  import { categories, payees } from '$lib/stores/budget';
+  import { selectedTransactionIds, clearTransactionSelection, addToast, isEditMode, addPendingChange } from '$lib/stores/ui';
+  import { categories, payees, transactions } from '$lib/stores/budget';
+  import { t } from '$lib/i18n';
+
+  interface TransactionInfo {
+    entityId: string;
+    date: string;
+    amount: number;
+    payeeId?: string | null;
+    categoryId?: string | null;
+    accountId: string;
+    memo?: string;
+    flag?: string | null;
+  }
 
   interface Props {
     open?: boolean;
     x?: number;
     y?: number;
+    selectedTransactions?: TransactionInfo[];
     onClose?: () => void;
   }
 
-  let { open = $bindable(false), x = 0, y = 0, onClose }: Props = $props();
+  let { open = $bindable(false), x = 0, y = 0, selectedTransactions = [], onClose }: Props = $props();
 
-  const selectionCount = $derived($selectedTransactionIds.size);
+  const selectionCount = $derived(selectedTransactions.length || $selectedTransactionIds.size);
+
+  // Check if any selected transaction has a future date
+  const today = new Date().toISOString().split('T')[0];
+  const hasFutureDate = $derived(
+    selectedTransactions.some(tx => tx.date > today)
+  );
+  const allFutureDates = $derived(
+    selectedTransactions.length > 0 && selectedTransactions.every(tx => tx.date > today)
+  );
 
   const flagColors = [
     { name: 'Red', color: 'bg-red-500' },
@@ -82,6 +105,77 @@
 
   function duplicateTransactions() {
     handleAction('Duplicate');
+  }
+
+  // Convert transaction(s) to scheduled
+  function convertToScheduled() {
+    if (!$isEditMode) {
+      addToast({ type: 'warning', message: $t('common.enableEditMode') });
+      closeMenu();
+      return;
+    }
+
+    const futureTransactions = selectedTransactions.filter(tx => tx.date > today);
+
+    if (futureTransactions.length === 0) {
+      addToast({ type: 'warning', message: $t('scheduled.dateCannotBePast') });
+      closeMenu();
+      return;
+    }
+
+    for (const tx of futureTransactions) {
+      // Create scheduled transaction
+      const scheduledTxId = `scheduled_${tx.entityId}_${Date.now()}`;
+
+      addPendingChange({
+        type: 'scheduledTransaction',
+        action: 'create',
+        entityId: scheduledTxId,
+        entityName: getPayeeName(tx.payeeId),
+        data: {
+          entityId: scheduledTxId,
+          dateNext: tx.date,
+          date: tx.date,
+          frequency: 'Once',
+          amount: tx.amount,
+          payeeId: tx.payeeId,
+          categoryId: tx.categoryId,
+          accountId: tx.accountId,
+          memo: tx.memo || '',
+          flag: tx.flag,
+        },
+      });
+
+      // Delete original transaction
+      addPendingChange({
+        type: 'transaction',
+        action: 'delete',
+        entityId: tx.entityId,
+        entityName: getPayeeName(tx.payeeId),
+        data: { entityId: tx.entityId },
+      });
+    }
+
+    addToast({
+      type: 'success',
+      message: futureTransactions.length === 1
+        ? $t('scheduled.convertedToScheduled')
+        : `${futureTransactions.length} ${$t('scheduled.convertedToScheduled').toLowerCase()}`
+    });
+
+    closeMenu();
+  }
+
+  function getPayeeName(payeeId: string | null | undefined): string {
+    if (!payeeId) return 'Sin Beneficiario';
+    const p = $payees.find(p => p.entityId === payeeId || p.id === payeeId);
+    return p?.name || 'Sin Beneficiario';
+  }
+
+  function closeMenu() {
+    clearTransactionSelection();
+    open = false;
+    onClose?.();
   }
 </script>
 
@@ -160,6 +254,15 @@
     <Copy class="mr-2 h-4 w-4" />
     Duplicate
   </ContextMenuItem>
+
+  <!-- Convert to Scheduled (only for future-dated transactions) -->
+  {#if hasFutureDate}
+    <ContextMenuSeparator />
+    <ContextMenuItem onclick={convertToScheduled} disabled={!$isEditMode}>
+      <CalendarClock class="mr-2 h-4 w-4" />
+      {$t('scheduled.convertToScheduled')}
+    </ContextMenuItem>
+  {/if}
 
   <ContextMenuSeparator />
 

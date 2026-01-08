@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onDestroy } from 'svelte';
   import { computePosition, flip, shift, offset } from '@floating-ui/dom';
   import { cn } from '$lib/utils';
 
@@ -52,34 +52,68 @@
     }
   });
 
-  // Close on click outside
+  // Close handlers
+  function closeMenu() {
+    open = false;
+    onClose?.();
+  }
+
   function handleClickOutside(event: MouseEvent) {
     if (menuRef && !menuRef.contains(event.target as Node)) {
-      open = false;
-      onClose?.();
+      closeMenu();
     }
   }
 
-  // Close on escape
+  function handleContextMenuOutside(event: MouseEvent) {
+    // Close if right-clicking outside the menu
+    if (menuRef && !menuRef.contains(event.target as Node)) {
+      closeMenu();
+    }
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === 'Escape') {
-      open = false;
-      onClose?.();
+      closeMenu();
     }
   }
 
-  onMount(() => {
-    document.addEventListener('click', handleClickOutside);
-    document.addEventListener('keydown', handleKeydown);
+  function handleScroll() {
+    closeMenu();
+  }
+
+  // Add/remove event listeners when menu opens/closes
+  $effect(() => {
+    if (open) {
+      // Use setTimeout to avoid the current click event closing the menu immediately
+      setTimeout(() => {
+        document.addEventListener('click', handleClickOutside, true);
+        document.addEventListener('contextmenu', handleContextMenuOutside, true);
+        document.addEventListener('keydown', handleKeydown);
+        document.addEventListener('scroll', handleScroll, true);
+      }, 0);
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside, true);
+      document.removeEventListener('contextmenu', handleContextMenuOutside, true);
+      document.removeEventListener('keydown', handleKeydown);
+      document.removeEventListener('scroll', handleScroll, true);
+    };
   });
 
   onDestroy(() => {
-    document.removeEventListener('click', handleClickOutside);
+    document.removeEventListener('click', handleClickOutside, true);
+    document.removeEventListener('contextmenu', handleContextMenuOutside, true);
     document.removeEventListener('keydown', handleKeydown);
+    document.removeEventListener('scroll', handleScroll, true);
   });
 </script>
 
 {#if open}
+  <!-- Backdrop to catch clicks -->
+  <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+  <div class="context-menu-backdrop" onclick={closeMenu}></div>
+
   <div
     bind:this={menuRef}
     class={cn(
@@ -93,10 +127,15 @@
 {/if}
 
 <style>
+  .context-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+  }
+
   .context-menu-container {
     background-color: var(--popover);
     color: var(--popover-foreground);
     border-color: var(--border);
   }
 </style>
-

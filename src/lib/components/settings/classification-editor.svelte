@@ -45,8 +45,9 @@
 
   function addClassification() {
     if (!newLabel.trim()) return;
-    
-    const maxOrder = localClassifications.reduce((max, c) => Math.max(max, c.sortOrder), 0);
+
+    // Start from 2 because 1 is reserved for Income
+    const maxOrder = localClassifications.reduce((max, c) => Math.max(max, c.sortOrder), 1);
     localClassifications = [
       ...localClassifications,
       {
@@ -60,8 +61,8 @@
 
   function removeClassification(index: number) {
     localClassifications = localClassifications.filter((_, i) => i !== index);
-    // Re-sort
-    localClassifications = localClassifications.map((c, i) => ({ ...c, sortOrder: i + 1 }));
+    // Re-sort (start from 2, since 1 is reserved for Income)
+    localClassifications = localClassifications.map((c, i) => ({ ...c, sortOrder: i + 2 }));
   }
 
   function toggleMasterCategory(classificationIndex: number, masterCategoryId: string) {
@@ -90,13 +91,13 @@
   function handleDragOver(e: DragEvent, index: number) {
     e.preventDefault();
     if (draggedItem === null || draggedItem === index) return;
-    
+
     const newList = [...localClassifications];
     const [removed] = newList.splice(draggedItem, 1);
     newList.splice(index, 0, removed);
-    
-    // Update sort order
-    localClassifications = newList.map((c, i) => ({ ...c, sortOrder: i + 1 }));
+
+    // Update sort order (start from 2, since 1 is reserved for Income)
+    localClassifications = newList.map((c, i) => ({ ...c, sortOrder: i + 2 }));
     draggedItem = index;
   }
 
@@ -125,11 +126,16 @@
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto p-4 space-y-4">
+      <!-- Info note -->
+      <div class="text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
+        <strong>Nota:</strong> La clasificación <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-semibold bg-green-500/20 text-green-600 rounded">1</span> "Ingreso" está reservada y se muestra automáticamente. Las clasificaciones de gastos comienzan desde el número 2.
+      </div>
+
       <!-- Add new classification -->
       <div class="flex gap-2">
         <Input
           type="text"
-          placeholder="Nueva clasificación..."
+          placeholder="Nueva clasificación de gastos..."
           bind:value={newLabel}
           onkeydown={(e: KeyboardEvent) => e.key === 'Enter' && addClassification()}
         />
@@ -159,12 +165,15 @@
               <!-- Classification header -->
               <div class="flex items-center gap-2 mb-2">
                 <GripVertical class="h-4 w-4 text-muted-foreground cursor-grab" />
+                <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-semibold bg-primary/10 text-primary rounded">
+                  {classification.sortOrder}
+                </span>
                 <span class="font-medium flex-1">{classification.label}</span>
                 <span class="text-xs text-muted-foreground">
                   {classification.masterCategoryIds.length} categorías
                 </span>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="sm"
                   onclick={() => removeClassification(index)}
                 >

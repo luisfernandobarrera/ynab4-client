@@ -3,7 +3,8 @@
   import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, Grid3x3, ChevronsUp } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
-  import { ScheduledToggle } from '$lib/components/scheduled';
+  import { ScheduledPanel } from '$lib/components/scheduled';
+  import TransactionContextMenu from './transaction-context-menu.svelte';
   import DateNavigation from './date-navigation.svelte';
   import Autocomplete from '$lib/components/ui/autocomplete.svelte';
   import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories, budgetInfo } from '$lib/stores/budget';
@@ -320,7 +321,45 @@
   function selectAllTx() {
     selectedTxIds = new Set(visibleTransactions.map(t => t.id));
   }
-  
+
+  // Context menu state
+  let contextMenuOpen = $state(false);
+  let contextMenuX = $state(0);
+  let contextMenuY = $state(0);
+
+  // Get selected transactions for context menu
+  const selectedTransactionsForMenu = $derived.by(() => {
+    return visibleTransactions
+      .filter(tx => selectedTxIds.has(tx.id))
+      .map(tx => ({
+        entityId: tx.id,
+        date: tx.date || '',
+        amount: tx.amount,
+        payeeId: tx.payeeId,
+        categoryId: tx.categoryId,
+        accountId: tx.accountId || $selectedAccountId || '',
+        memo: tx.memo,
+        flag: tx.flag,
+      }));
+  });
+
+  function handleTxContextMenu(txId: string, e: MouseEvent) {
+    e.preventDefault();
+
+    // If right-clicked item is not in selection, select only it
+    if (!selectedTxIds.has(txId)) {
+      selectedTxIds = new Set([txId]);
+    }
+
+    contextMenuX = e.clientX;
+    contextMenuY = e.clientY;
+    contextMenuOpen = true;
+  }
+
+  function handleContextMenuClose() {
+    contextMenuOpen = false;
+  }
+
   // Autocomplete options for accounts
   const accountOptions = $derived(
     $accounts
@@ -1184,9 +1223,6 @@
           {/if}
         </div>
 
-        <!-- Scheduled Transactions Toggle -->
-        <ScheduledToggle accountId={$selectedAccountId} />
-
         <div class="tx-search">
           <Search class="h-4 w-4 tx-search-icon" />
           <input
@@ -1536,13 +1572,14 @@
               {@const txIndicator = getTxIndicator(tx)}
               {@const isTxSelected = selectedTxIds.has(tx.id)}
               <!-- Display row -->
-              <tr 
+              <tr
                 class="tx-row"
                 class:has-splits={txHasSplits}
                 class:needs-approval={txIndicator === 'needsApproval'}
                 class:selected={isTxSelected}
                 ondblclick={() => startEdit(tx)}
                 onclick={(e) => { toggleTxSelection(tx.id, e); if (txHasSplits && !e.ctrlKey && !e.metaKey && !e.shiftKey) toggleSplit(tx.id); }}
+                oncontextmenu={(e) => handleTxContextMenu(tx.id, e)}
               >
                 {#if isColumnVisible('flag')}
                   <td class="col-flag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : ''}"></td>
@@ -1880,6 +1917,9 @@
         </span>
       {/if}
     </div>
+
+    <!-- Scheduled Transactions Panel -->
+    <ScheduledPanel accountId={selectedAccount?.id} showAccountColumn={!selectedAccount} />
   </div>
 
   <!-- Mobile FAB -->
@@ -1890,6 +1930,15 @@
     </button>
   {/if}
 </div>
+
+<!-- Transaction Context Menu -->
+<TransactionContextMenu
+  bind:open={contextMenuOpen}
+  x={contextMenuX}
+  y={contextMenuY}
+  selectedTransactions={selectedTransactionsForMenu}
+  onClose={handleContextMenuClose}
+/>
 
 <style>
   .transactions-view {

@@ -1,11 +1,11 @@
 <script lang="ts">
   import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, X, ChevronsDownUp, ChevronsUpDown } from 'lucide-svelte';
   import { MonthlyBudgetCalculator } from 'ynab-library';
-  import { 
-    rawTransactions, 
+  import {
+    rawTransactions,
     transactions,
-    monthlyBudgets, 
-    rawCategories, 
+    monthlyBudgets,
+    rawCategories,
     rawMasterCategories,
     accounts,
     payees,
@@ -14,6 +14,8 @@
   } from '$lib/stores/budget';
   import { isMobile, isEditMode, addPendingChange, addToast } from '$lib/stores/ui';
   import { t, tArray } from '$lib/i18n';
+  import CategoryContextMenu from './category-context-menu.svelte';
+  import CategoryNoteDialog from './category-note-dialog.svelte';
 
   // Initialize calculator
   const budgetCalculator = new MonthlyBudgetCalculator();
@@ -49,6 +51,30 @@
     currentBudgeted: number;
     inputValue: string;
   } | null>(null);
+
+  // Context menu state
+  interface CategoryInfo {
+    id: string;
+    name: string;
+    masterCategoryId: string;
+    masterCategoryName: string;
+    budgeted: number;
+    activity: number;
+    available: number;
+    monthKey: string;
+    note?: string;
+    hidden?: boolean;
+    overspendingHandling?: 'Confined' | 'AffectsBuffer' | null;
+  }
+
+  let contextMenuOpen = $state(false);
+  let contextMenuX = $state(0);
+  let contextMenuY = $state(0);
+  let contextMenuCategory = $state<CategoryInfo | null>(null);
+
+  // Note dialog state
+  let noteDialogOpen = $state(false);
+  let noteDialogCategory = $state<CategoryInfo | null>(null);
 
   // Get months short/long names from translations
   const monthsShort = $derived($tArray('months.short'));
@@ -721,6 +747,74 @@
     }
   }
 
+  // Context menu handlers
+  function handleCategoryContextMenu(
+    categoryId: string,
+    categoryName: string,
+    masterCategoryId: string,
+    masterCategoryName: string,
+    monthKey: string,
+    e: MouseEvent
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Get category data for this month
+    const data = getCategoryData(categoryId, monthKey, false);
+    const categoryRaw = $rawCategories.find(c => c.entityId === categoryId);
+
+    contextMenuCategory = {
+      id: categoryId,
+      name: categoryName,
+      masterCategoryId,
+      masterCategoryName,
+      budgeted: data.budgeted,
+      activity: data.activity,
+      available: data.available,
+      monthKey,
+      note: data.note,
+      hidden: categoryRaw?.hidden,
+      overspendingHandling: data.overspendingHandling,
+    };
+    contextMenuX = e.clientX;
+    contextMenuY = e.clientY;
+    contextMenuOpen = true;
+  }
+
+  function handleContextMenuClose() {
+    contextMenuOpen = false;
+    contextMenuCategory = null;
+  }
+
+  function handleShowNote(category: CategoryInfo) {
+    noteDialogCategory = category;
+    noteDialogOpen = true;
+  }
+
+  function handleNoteDialogClose() {
+    noteDialogOpen = false;
+    noteDialogCategory = null;
+  }
+
+  function handleViewTransactions(category: CategoryInfo) {
+    // Select the category and show transactions panel
+    selection = {
+      type: 'category',
+      id: category.id,
+      monthKey: category.monthKey,
+      name: category.name,
+    };
+    showTransactions = true;
+  }
+
+  function handleQuickBudget(category: CategoryInfo, action: string) {
+    // TODO: Implement quick budget actions
+    addToast({
+      type: 'info',
+      message: `Quick budget: ${action} for ${category.name}`,
+    });
+  }
+
   // Start editing a budgeted amount
   function startBudgetEdit(categoryId: string, monthKey: string, currentBudgeted: number, e?: Event) {
     e?.stopPropagation();
@@ -1337,13 +1431,14 @@
                       {@const prevBalance = getPreviousMonthBalance(sub.id, key, false)}
                       {@const isSelected = isCellSelected('category', sub.id, key)}
                       {@const isOverspent = data.available < -0.01}
-                      <button 
+                      <button
                         class="month-data"
                         class:selected={isSelected}
                         class:overspent={isOverspent}
                         class:single-month={isSingleMonthMode}
                         class:spending-mode={viewMode === 'spending'}
                         onclick={(e) => handleCellClick('category', sub.id, key, sub.name, e)}
+                        oncontextmenu={(e) => handleCategoryContextMenu(sub.id, sub.name, master.id, master.name, key, e)}
                       >
                         {#if isSingleMonthMode && viewMode !== 'spending'}
                           <span class="cell previous" class:positive={prevBalance > 0.01} class:negative={prevBalance < -0.01}>
@@ -1501,6 +1596,25 @@
     {/if}
   </div>
 </div>
+
+<!-- Context Menu -->
+<CategoryContextMenu
+  bind:open={contextMenuOpen}
+  x={contextMenuX}
+  y={contextMenuY}
+  category={contextMenuCategory}
+  onClose={handleContextMenuClose}
+  onShowNote={handleShowNote}
+  onViewTransactions={handleViewTransactions}
+  onQuickBudget={handleQuickBudget}
+/>
+
+<!-- Note Dialog -->
+<CategoryNoteDialog
+  bind:open={noteDialogOpen}
+  category={noteDialogCategory}
+  onClose={handleNoteDialogClose}
+/>
 
 <style>
   .budget-view {

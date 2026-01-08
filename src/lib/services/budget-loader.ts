@@ -1,10 +1,14 @@
 /**
  * Budget Loader Service
  * Loads YNAB4 budgets from Dropbox or local filesystem
+ *
+ * Now integrates with InstallationConfig to use a persistent device GUID
+ * for proper sync registration in edit mode.
  */
 
 import { browser } from '$app/environment';
 import type { YnabClient } from 'ynab-library';
+import { installationConfig } from './installation-config';
 
 // Check if running in Tauri (v2 uses __TAURI_INTERNALS__)
 const isTauri = () => {
@@ -39,11 +43,12 @@ export class BudgetLoader {
 
   /**
    * Load budget from local filesystem (Tauri only)
+   * Uses the installation GUID to properly identify this client for sync
    */
   static async loadFromLocalPath(path: string): Promise<BudgetInfo> {
     console.log('[BudgetLoader] Loading from local path:', path);
     console.log('[BudgetLoader] isTauri:', isTauri());
-    
+
     if (!isTauri()) {
       throw new Error('Local file access requires desktop app');
     }
@@ -53,16 +58,28 @@ export class BudgetLoader {
     console.log('[BudgetLoader] Importing TauriIO...');
     const { TauriIO } = await import('./tauri-io');
 
-    // Create TauriIO instance
-    console.log('[BudgetLoader] Creating TauriIO...');
-    const io = new TauriIO(true); // readOnly = true for now
+    // Get installation config for device identification
+    const config = installationConfig.load();
+    const deviceGUID = config.deviceGUID;
+    const friendlyName = config.deviceShortName;
 
-    // Load in read-only mode
+    console.log('[BudgetLoader] Using device GUID:', deviceGUID);
+    console.log('[BudgetLoader] Friendly name:', friendlyName);
+
+    // Create TauriIO instance - not read-only so we can write sync data
+    console.log('[BudgetLoader] Creating TauriIO...');
+    const io = new TauriIO(false);
+
+    // Create client with device GUID for proper sync registration
     console.log('[BudgetLoader] Creating YnabClient...');
-    const client = new YnabClient(path, io, true); // readOnly = true
+    const client = new YnabClient(path, io, false, deviceGUID, {
+      friendlyName,
+      deviceType: config.deviceType,
+    });
     console.log('[BudgetLoader] Initializing client...');
     await client.initialize();
     console.log('[BudgetLoader] Client initialized');
+    console.log('[BudgetLoader] Device short ID:', client.getDeviceShortId());
 
     // Extract and clean budget name
     const rawName = path.split('/').pop()?.replace('.ynab4', '') || 'Budget';
@@ -83,14 +100,29 @@ export class BudgetLoader {
 
   /**
    * Load budget from Dropbox
+   * Uses the installation GUID to properly identify this client for sync
    */
   static async loadFromDropbox(accessToken: string, budgetPath = '/YNAB/Budget.ynab4'): Promise<BudgetInfo> {
     console.log('[BudgetLoader] Loading from Dropbox:', budgetPath);
 
     const { YnabClient, DropboxIO } = await import('ynab-library');
 
+    // Get installation config for device identification
+    const config = installationConfig.load();
+    const deviceGUID = config.deviceGUID;
+    const friendlyName = config.deviceShortName;
+
+    console.log('[BudgetLoader] Using device GUID:', deviceGUID);
+    console.log('[BudgetLoader] Friendly name:', friendlyName);
+
     const io = new DropboxIO(accessToken);
-    const client = new YnabClient(budgetPath, io, true); // readOnly = true
+
+    // Create client with device GUID for proper sync registration
+    // readOnly=false allows the client to write sync data when changes are made
+    const client = new YnabClient(budgetPath, io, false, deviceGUID, {
+      friendlyName,
+      deviceType: config.deviceType,
+    });
 
     await client.initialize();
     await client.pull(); // Sync from Dropbox
@@ -100,6 +132,7 @@ export class BudgetLoader {
     const budgetName = this.getCleanBudgetName(rawName);
 
     console.log('[BudgetLoader] Dropbox budget loaded:', budgetName);
+    console.log('[BudgetLoader] Device short ID:', client.getDeviceShortId());
 
     return {
       client,

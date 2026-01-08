@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { 
-    LayoutDashboard, 
-    ArrowRightLeft, 
-    CheckCircle2, 
-    Calendar, 
-    TrendingUp, 
+  import {
+    LayoutDashboard,
+    ArrowRightLeft,
+    CheckCircle2,
+    TrendingUp,
     BarChart3,
     Users,
     Upload,
@@ -66,7 +65,6 @@
     { id: 'transactions', icon: ArrowRightLeft, label: $t('nav.transactions') },
     { id: 'budget', icon: LayoutDashboard, label: $t('nav.budget') },
     { id: 'reconciliation', icon: CheckCircle2, label: $t('nav.reconciliation') },
-    { id: 'scheduled', icon: Calendar, label: $t('nav.scheduled') },
     { id: 'cashflow', icon: TrendingUp, label: $t('nav.cashFlow') },
     { id: 'reports', icon: BarChart3, label: $t('nav.reports') },
     { id: 'payees', icon: Users, label: $t('nav.payees') },

@@ -12,6 +12,7 @@ export interface Account {
   closed: boolean;
   hidden: boolean;
   balance: number;
+  note?: string;
   isTombstone?: boolean;
 }
 

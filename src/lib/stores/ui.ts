@@ -17,7 +17,7 @@ export const isDesktop = writable(false);
 
 export interface PendingChange {
   id: string;
-  type: 'transaction' | 'category' | 'account' | 'payee' | 'budget';
+  type: 'transaction' | 'category' | 'account' | 'payee' | 'budget' | 'scheduledTransaction' | 'monthlyCategoryBudget';
   action: 'create' | 'update' | 'delete';
   entityId: string;
   entityName?: string;
