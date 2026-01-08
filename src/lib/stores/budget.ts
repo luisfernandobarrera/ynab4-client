@@ -453,15 +453,15 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
       .filter((st) => !st.isTombstone)
       .map((st) => ({
         entityId: st.entityId as string,
-        date: st.date as string,
-        dateNext: st.date as string,
+        date: (st.dateFirst || st.dateNext) as string,
+        dateNext: st.dateNext as string,
         frequency: st.frequency as string,
         amount: (st.amount as number) || 0,
         payeeId: st.payeeId as string | null,
         categoryId: st.categoryId as string | null,
         accountId: st.accountId as string,
         memo: (st.memo as string) || '',
-        flag: st.flag as string | null,
+        flag: (st.flagColor || st.flag) as string | null,
       }))
   );
 

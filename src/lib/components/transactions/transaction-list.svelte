@@ -3,6 +3,7 @@
   import { Plus, Search, Lock, ChevronDown, ChevronUp, Save, X, PanelLeftClose, PanelLeft, Calendar, Flag, ArrowUpDown, Trash2, Split, Settings2, Eye, EyeOff, GripVertical, Grid3x3, ChevronsUp } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { AccountsPanel } from '$lib/components/accounts';
+  import { ScheduledToggle } from '$lib/components/scheduled';
   import DateNavigation from './date-navigation.svelte';
   import Autocomplete from '$lib/components/ui/autocomplete.svelte';
   import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories, budgetInfo } from '$lib/stores/budget';
@@ -1182,7 +1183,10 @@
             </div>
           {/if}
         </div>
-        
+
+        <!-- Scheduled Transactions Toggle -->
+        <ScheduledToggle accountId={$selectedAccountId} />
+
         <div class="tx-search">
           <Search class="h-4 w-4 tx-search-icon" />
           <input
@@ -1196,7 +1200,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- Date Navigation -->
     {#if showDateNav}
       <DateNavigation
