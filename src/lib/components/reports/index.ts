@@ -6,3 +6,4 @@ export { default as NetWorth } from './net-worth.svelte';
 export { default as ReportsView } from './reports-view.svelte';
 export { default as HierarchicalSpending } from './hierarchical-spending.svelte';
 export { default as ReportFilters } from './report-filters.svelte';
+export { default as BenfordDistribution } from './benford-distribution.svelte';

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PieChart, BarChart3, TrendingUp, Calendar, Table2, ChevronLeft, ChevronRight, Users } from 'lucide-svelte';
+  import { PieChart, BarChart3, TrendingUp, Calendar, Table2, ChevronLeft, ChevronRight, Users, Hash } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { Card, CardContent } from '$lib/components/ui/card';
   import SpendingByCategory from './spending-by-category.svelte';
@@ -9,8 +9,9 @@
   import NetWorth from './net-worth.svelte';
   import HierarchicalSpending from './hierarchical-spending.svelte';
   import ReportFilters from './report-filters.svelte';
+  import BenfordDistribution from './benford-distribution.svelte';
 
-  type ReportType = 'hierarchical' | 'spending-category' | 'spending-payee' | 'trends' | 'income-expense' | 'net-worth';
+  type ReportType = 'hierarchical' | 'spending-category' | 'spending-payee' | 'trends' | 'income-expense' | 'net-worth' | 'benford';
 
   let activeReport = $state<ReportType>('hierarchical');
 
@@ -144,6 +145,7 @@
     { id: 'trends' as const, label: 'Tendencias', icon: TrendingUp, showFilters: true },
     { id: 'income-expense' as const, label: 'Ingresos vs Gastos', icon: BarChart3, showFilters: false },
     { id: 'net-worth' as const, label: 'Patrimonio', icon: TrendingUp, showFilters: false },
+    { id: 'benford' as const, label: 'Benford', icon: Hash, showFilters: false },
   ];
 
   const currentReportConfig = $derived(() => reportTypes.find(r => r.id === activeReport) || reportTypes[0]);
@@ -246,6 +248,11 @@
           <IncomeVsExpense months={datePreset === 'thisMonth' ? 1 : datePreset === 'last3Months' ? 3 : 12} />
         {:else if activeReport === 'net-worth'}
           <NetWorth />
+        {:else if activeReport === 'benford'}
+          <BenfordDistribution
+            startDate={dateRanges().start}
+            endDate={dateRanges().end}
+          />
         {/if}
       </CardContent>
     </Card>
