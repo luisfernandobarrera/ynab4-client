@@ -1,7 +1,7 @@
 <script lang="ts">
   import { transactions, categories, accounts, payees } from '$lib/stores/budget';
   import { generateReport, REPORT_LABELS } from '$lib/services/report-service';
-  import { formatCurrency } from '$lib/utils';
+  import { formatCurrency, formatDateLong } from '$lib/utils';
   import { HelpCircle, CheckCircle, AlertCircle } from 'lucide-svelte';
   import type { UncategorizedTransactionsReport } from 'ynab-library';
 
@@ -38,16 +38,6 @@
       return null;
     }
   });
-
-  function formatDate(dateStr: string): string {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('es-MX', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  }
 
   function getAccountName(accountId: string): string {
     const account = $accounts.find((a) => a.entityId === accountId);
@@ -159,7 +149,7 @@
                   {tx.payeeName || 'Sin Beneficiario'}
                 </div>
                 <div class="text-sm text-muted-foreground">
-                  {getAccountName(tx.accountId)} • {formatDate(tx.date)}
+                  {getAccountName(tx.accountId)} • {formatDateLong(tx.date)}
                 </div>
                 {#if tx.memo}
                   <div class="text-sm text-muted-foreground mt-1 italic">
@@ -207,7 +197,7 @@
         <tbody>
           {#each report.transactions as tx}
             <tr class="border-b hover:bg-muted/50 transition-colors">
-              <td class="py-2 px-2">{formatDate(tx.date)}</td>
+              <td class="py-2 px-2">{formatDateLong(tx.date)}</td>
               <td class="py-2 px-2">{tx.payeeName || '-'}</td>
               <td class="py-2 px-2">{tx.accountName || getAccountName(tx.accountId)}</td>
               <td class="py-2 px-2 max-w-[200px] truncate">{tx.memo || '-'}</td>

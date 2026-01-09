@@ -69,7 +69,9 @@
     "devices": "Dispositivos",
     "settings": "Configuración",
     "accounts": "Cuentas",
-    "more": "Más"
+    "more": "Más",
+    "tools": "Herramientas",
+    "system": "Sistema"
   },
   "sidebar": {
     "change": "Cambiar",
@@ -177,7 +179,7 @@
     "showAll": "Todas",
     "noReconciled": "Sin conciliadas",
     "clearFilters": "Limpiar filtros",
-    "txCount": "{{count}} tx",
+    "txCount": "{count} tx",
     "accounts": "Cuentas",
     "allAccounts": "Todas las Cuentas",
     "onBudget": "En Presupuesto",
@@ -235,7 +237,7 @@
     "selectCategory": "Seleccionar categoría",
     "selectAccount": "Seleccionar cuenta",
     "searchPayee": "Buscar beneficiario...",
-    "createPayee": "Crear \"{{name}}\"",
+    "createPayee": "Crear \"{name}\"",
     "columnSettings": "Columnas",
     "visibleColumns": "Columnas visibles",
     "resizeHint": "Arrastra bordes de columnas para ajustar ancho",
@@ -248,9 +250,9 @@
   },
   "reconciliation": {
     "title": "Conciliación",
-    "accountsActive": "{{count}} cuentas",
-    "accountsClosed": "({{count}} cerradas)",
-    "needsAttention": "{{count}} necesitan atención",
+    "accountsActive": "{count} cuentas",
+    "accountsClosed": "({count} cerradas)",
+    "needsAttention": "{count} necesitan atención",
     "all": "Todas",
     "onBudget": "En Presupuesto",
     "offBudget": "Fuera",
@@ -341,7 +343,7 @@
     "cashWithdrawal": "Retiro de Efectivo",
     "ccPayment": "Pago TC",
     "expense": "Gasto",
-    "transactionsCount": "{{count}} transacciones",
+    "transactionsCount": "{count} transacciones",
     "initialBalance": "Saldo Inicial",
     "checkingTx": "Tx Cheques",
     "savingsTx": "Tx Ahorros",
@@ -508,6 +510,11 @@
     "lightMode": "Claro",
     "darkMode": "Oscuro",
     "systemMode": "Sistema",
+    "defaultMode": "Modo de Apertura",
+    "defaultModeDescription": "Define cómo se abren los presupuestos por defecto",
+    "openReadOnly": "Abrir en solo lectura",
+    "openReadOnlyDescription": "Los presupuestos se abrirán sin permitir cambios",
+    "defaultModeNote": "Puedes cambiar el modo de un presupuesto individual después de abrirlo.",
     "installation": "Instalación",
     "installationDescription": "Identificación única de esta instalación del cliente. Se usará para registrar cambios en los presupuestos.",
     "deviceName": "Nombre del Dispositivo",
@@ -632,12 +639,23 @@
     "expenses": "Gastos",
     "netIncome": "Ingreso Neto",
     "savingsRate": "Tasa de Ahorro",
+    "noData": "Sin datos para este período",
     "periods": {
       "thisMonth": "Este Mes",
       "lastMonth": "Mes Pasado",
       "last3Months": "Últimos 3 Meses",
       "thisYear": "Este Año",
       "lastYear": "Año Pasado"
+    },
+    "filters": {
+      "allAccounts": "Todas las Cuentas",
+      "allCategories": "Todas las Categorías",
+      "allPayees": "Todos los Beneficiarios",
+      "thisMonth": "Este Mes",
+      "last3Months": "Últimos 3 Meses",
+      "thisYear": "Este Año",
+      "lastYear": "Año Pasado",
+      "allDates": "Todas las Fechas"
     }
   },
   "payees": {

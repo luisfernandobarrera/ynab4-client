@@ -2,7 +2,11 @@
   import { ChevronDown, ChevronUp, Play, SkipForward, Trash2, Calendar, AlertCircle } from 'lucide-svelte';
   import { scheduledTransactions, payees, categories, accounts, transactions } from '$lib/stores/budget';
   import { isEditMode, addPendingChange, addToast } from '$lib/stores/ui';
-  import { formatCurrency } from '$lib/utils';
+  import {
+    formatCurrency,
+    getPayeeName as getPayeeNameUtil,
+    getCategoryName as getCategoryNameUtil
+  } from '$lib/utils';
   import { browser } from '$app/environment';
   import ScheduledContextMenu from './scheduled-context-menu.svelte';
   import ScheduledEditDialog from './scheduled-edit-dialog.svelte';
@@ -150,17 +154,16 @@
     filteredScheduled.filter(t => selectedIds.has(t.entityId))
   );
 
-  // Helpers
+  // Helpers - using centralized utilities
   function getPayeeName(payeeId: string | null): string {
-    if (!payeeId) return 'Sin Beneficiario';
-    const p = $payees.find(p => p.entityId === payeeId);
-    return p?.name || 'Sin Beneficiario';
+    return getPayeeNameUtil(payeeId, $payees);
   }
 
   function getCategoryName(categoryId: string | null): string {
     if (!categoryId) return '';
     const c = $categories.find(c => c.entityId === categoryId);
     if (!c) return '';
+    // This component shows category with master category, which is unique behavior
     const mc = $categories.find(mc => mc.entityId === c.masterCategoryId);
     return mc ? `${c.name} · ${mc.name}` : c.name;
   }
@@ -168,11 +171,6 @@
   function getAccountName(accountIdVal: string): string {
     const a = $accounts.find(a => a.id === accountIdVal);
     return a?.name || '';
-  }
-
-  function formatDate(dateStr: string): string {
-    if (!dateStr) return '';
-    return dateStr; // YYYY-MM-DD
   }
 
   const frequencyLabels: Record<string, string> = {

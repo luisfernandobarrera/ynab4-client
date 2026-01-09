@@ -3,6 +3,7 @@
   import { Chart, DoughnutController, ArcElement, Tooltip, Legend } from 'chart.js';
   import { transactions, categories, masterCategories } from '$lib/stores/budget';
   import { formatCurrency } from '$lib/utils';
+  import { t } from '$lib/i18n';
 
   Chart.register(DoughnutController, ArcElement, Tooltip, Legend);
 
@@ -118,12 +119,12 @@
 
 <div class="space-y-4">
   <div class="flex items-center justify-between">
-    <h3 class="font-heading font-semibold">Spending by Category</h3>
+    <h3 class="font-heading font-semibold">{$t('reports.spendingByCategory')}</h3>
     <span class="amount font-semibold">{formatCurrency(total)}</span>
   </div>
 
   {#if spendingData().length === 0}
-    <p class="text-sm text-muted-foreground text-center py-8">No spending data for this period</p>
+    <p class="text-sm text-muted-foreground text-center py-8">{$t('reports.noData')}</p>
   {:else}
     <div class="flex flex-col md:flex-row gap-6">
       <!-- Chart -->

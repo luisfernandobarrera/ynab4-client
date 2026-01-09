@@ -61,17 +61,36 @@
 
   let { open = true, onToggle }: Props = $props();
 
-  const menuItems = $derived([
-    { id: 'transactions', icon: ArrowRightLeft, label: $t('nav.transactions') },
-    { id: 'budget', icon: LayoutDashboard, label: $t('nav.budget') },
-    { id: 'reconciliation', icon: CheckCircle2, label: $t('nav.reconciliation') },
-    { id: 'cashflow', icon: TrendingUp, label: $t('nav.cashFlow') },
-    { id: 'reports', icon: BarChart3, label: $t('nav.reports') },
-    { id: 'payees', icon: Users, label: $t('nav.payees') },
-    { id: 'import', icon: Upload, label: $t('nav.import') },
-    { id: 'createAccount', icon: PlusCircle, label: $t('nav.createAccount') },
-    { id: 'devices', icon: Smartphone, label: $t('nav.devices') },
-    { id: 'settings', icon: Settings, label: $t('nav.settings') },
+  // Menu items organized by section for better navigation
+  type MenuItem = { id: string; icon: typeof ArrowRightLeft; label: string };
+  type MenuSection = { title: string; items: MenuItem[] };
+
+  const menuSections = $derived<MenuSection[]>([
+    {
+      title: '', // Principal - no title needed
+      items: [
+        { id: 'transactions', icon: ArrowRightLeft, label: $t('nav.transactions') },
+        { id: 'budget', icon: LayoutDashboard, label: $t('nav.budget') },
+        { id: 'reports', icon: BarChart3, label: $t('nav.reports') },
+      ],
+    },
+    {
+      title: $t('nav.tools') || 'Herramientas',
+      items: [
+        { id: 'reconciliation', icon: CheckCircle2, label: $t('nav.reconciliation') },
+        { id: 'cashflow', icon: TrendingUp, label: $t('nav.cashFlow') },
+        { id: 'payees', icon: Users, label: $t('nav.payees') },
+        { id: 'import', icon: Upload, label: $t('nav.import') },
+      ],
+    },
+    {
+      title: $t('nav.system') || 'Sistema',
+      items: [
+        { id: 'createAccount', icon: PlusCircle, label: $t('nav.createAccount') },
+        { id: 'devices', icon: Smartphone, label: $t('nav.devices') },
+        { id: 'settings', icon: Settings, label: $t('nav.settings') },
+      ],
+    },
   ]);
 
   function handleViewChange(view: string) {
@@ -124,23 +143,33 @@
 
   {#if $budgetInfo.client}
     <nav class="sidebar-nav">
-      <ul class="sidebar-menu">
-        {#each menuItems as item}
-          {@const Icon = item.icon}
-          <li>
-            <button
-              class="sidebar-menu-item"
-              class:active={$currentView === item.id}
-              onclick={() => handleViewChange(item.id)}
-            >
-              <span class="menu-icon">
-                <Icon class="h-5 w-5" />
-              </span>
-              <span class="menu-text">{item.label}</span>
-            </button>
-          </li>
-        {/each}
-      </ul>
+      {#each menuSections as section, sectionIndex}
+        <div class="menu-section">
+          {#if section.title && open}
+            <div class="section-title">{section.title}</div>
+          {:else if sectionIndex > 0}
+            <div class="section-divider"></div>
+          {/if}
+          <ul class="sidebar-menu">
+            {#each section.items as item}
+              {@const Icon = item.icon}
+              <li>
+                <button
+                  class="sidebar-menu-item"
+                  class:active={$currentView === item.id}
+                  onclick={() => handleViewChange(item.id)}
+                  title={!open ? item.label : undefined}
+                >
+                  <span class="menu-icon">
+                    <Icon class="h-5 w-5" />
+                  </span>
+                  <span class="menu-text">{item.label}</span>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/each}
     </nav>
   {/if}
 
@@ -276,6 +305,34 @@
     flex: 1;
     overflow-y: auto;
     padding: 0.5rem 0;
+  }
+
+  .menu-section {
+    margin-bottom: 0.25rem;
+  }
+
+  .section-title {
+    padding: 0.5rem 1rem 0.25rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-foreground);
+    opacity: 0.7;
+  }
+
+  .section-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.5rem 1rem;
+  }
+
+  .sidebar.collapsed .section-title {
+    display: none;
+  }
+
+  .sidebar.collapsed .section-divider {
+    margin: 0.5rem 0.75rem;
   }
 
   .sidebar-menu {

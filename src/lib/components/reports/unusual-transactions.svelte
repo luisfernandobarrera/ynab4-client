@@ -1,7 +1,7 @@
 <script lang="ts">
   import { transactions, categories, accounts, payees } from '$lib/stores/budget';
   import { generateReport, REPORT_LABELS } from '$lib/services/report-service';
-  import { formatCurrency } from '$lib/utils';
+  import { formatCurrency, formatDateLong } from '$lib/utils';
   import { AlertTriangle, TrendingUp, UserX, HelpCircle } from 'lucide-svelte';
   import type { UnusualTransactionsReport, UnusualTransaction } from 'ynab-library';
 
@@ -60,15 +60,6 @@
     large_deviation: 'text-orange-600 dark:text-orange-400',
   };
 
-  function formatDate(dateStr: string): string {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('es-MX', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  }
 </script>
 
 <div class="space-y-6">
@@ -153,7 +144,7 @@
                   {tx.payeeName || 'Sin Beneficiario'}
                 </div>
                 <div class="text-sm text-muted-foreground">
-                  {tx.categoryName || 'Sin Categoría'} • {formatDate(tx.date)}
+                  {tx.categoryName || 'Sin Categoría'} • {formatDateLong(tx.date)}
                 </div>
                 <div class="mt-1">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {reasonColors[tx.reason]} bg-muted">
@@ -199,7 +190,7 @@
         <tbody>
           {#each report.transactions as tx}
             <tr class="border-b hover:bg-muted/50 transition-colors">
-              <td class="py-2 px-2">{formatDate(tx.date)}</td>
+              <td class="py-2 px-2">{formatDateLong(tx.date)}</td>
               <td class="py-2 px-2">{tx.payeeName || '-'}</td>
               <td class="py-2 px-2">{tx.categoryName || '-'}</td>
               <td class="py-2 px-2">

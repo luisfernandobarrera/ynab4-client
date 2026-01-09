@@ -2,7 +2,12 @@
   import { AlertCircle, Plus, CalendarDays, Calendar, Clock, Play, SkipForward } from 'lucide-svelte';
   import { scheduledTransactions, payees, categories, accounts } from '$lib/stores/budget';
   import { t } from '$lib/i18n';
-  import { formatCurrency } from '$lib/utils';
+  import {
+    formatCurrency,
+    formatDateLong,
+    getPayeeName as getPayeeNameUtil,
+    getCategoryName as getCategoryNameUtil
+  } from '$lib/utils';
 
   interface Props {
     onAdd?: () => void;
@@ -15,27 +20,13 @@
     return new Date().toISOString().split('T')[0];
   }
 
-  function formatDate(dateStr: string): string {
-    if (!dateStr) return '';
-    try {
-      const d = new Date(dateStr + 'T12:00:00');
-      return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch {
-      return dateStr;
-    }
-  }
-
-  // Get display data
+  // Wrapper functions to use stores with centralized utilities
   function getPayeeName(payeeId: string | null): string {
-    if (!payeeId) return 'Sin Beneficiario';
-    const p = $payees.find(p => p.entityId === payeeId);
-    return p?.name || 'Sin Beneficiario';
+    return getPayeeNameUtil(payeeId, $payees);
   }
 
   function getCategoryName(categoryId: string | null): string {
-    if (!categoryId) return '';
-    const c = $categories.find(c => c.entityId === categoryId);
-    return c?.name || '';
+    return getCategoryNameUtil(categoryId, $categories, '');
   }
 
   function getAccountName(accountId: string): string {
@@ -125,7 +116,7 @@
                 <div class="tx-meta">
                   <span class="tx-date">
                     <Calendar class="h-3 w-3" />
-                    {formatDate(tx.dateNext)}
+                    {formatDateLong(tx.dateNext)}
                   </span>
                   <span class="tx-freq">
                     <Clock class="h-3 w-3" />
@@ -170,7 +161,7 @@
                 <div class="tx-meta">
                   <span class="tx-date">
                     <Calendar class="h-3 w-3" />
-                    {formatDate(tx.dateNext)}
+                    {formatDateLong(tx.dateNext)}
                   </span>
                   <span class="tx-freq">
                     <Clock class="h-3 w-3" />

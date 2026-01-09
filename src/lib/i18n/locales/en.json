@@ -69,7 +69,9 @@
     "devices": "Devices",
     "settings": "Settings",
     "accounts": "Accounts",
-    "more": "More"
+    "more": "More",
+    "tools": "Tools",
+    "system": "System"
   },
   "sidebar": {
     "change": "Change",
@@ -177,7 +179,7 @@
     "showAll": "All",
     "noReconciled": "No reconciled",
     "clearFilters": "Clear filters",
-    "txCount": "{{count}} tx",
+    "txCount": "{count} tx",
     "accounts": "Accounts",
     "allAccounts": "All Accounts",
     "onBudget": "On Budget",
@@ -234,7 +236,7 @@
     "selectCategory": "Select category",
     "selectAccount": "Select account",
     "searchPayee": "Search payee...",
-    "createPayee": "Create \"{{name}}\"",
+    "createPayee": "Create \"{name}\"",
     "columnSettings": "Columns",
     "visibleColumns": "Visible columns",
     "resizeHint": "Drag column borders to resize",
@@ -247,9 +249,9 @@
   },
   "reconciliation": {
     "title": "Reconciliation",
-    "accountsActive": "{{count}} accounts",
-    "accountsClosed": "({{count}} closed)",
-    "needsAttention": "{{count}} need attention",
+    "accountsActive": "{count} accounts",
+    "accountsClosed": "({count} closed)",
+    "needsAttention": "{count} need attention",
     "all": "All",
     "onBudget": "On Budget",
     "offBudget": "Off Budget",
@@ -340,7 +342,7 @@
     "cashWithdrawal": "Cash Withdrawal",
     "ccPayment": "CC Payment",
     "expense": "Expense",
-    "transactionsCount": "{{count}} transactions",
+    "transactionsCount": "{count} transactions",
     "initialBalance": "Initial Balance",
     "checkingTx": "Checking Tx",
     "savingsTx": "Savings Tx",
@@ -631,12 +633,23 @@
     "expenses": "Expenses",
     "netIncome": "Net Income",
     "savingsRate": "Savings Rate",
+    "noData": "No data for this period",
     "periods": {
       "thisMonth": "This Month",
       "lastMonth": "Last Month",
       "last3Months": "Last 3 Months",
       "thisYear": "This Year",
       "lastYear": "Last Year"
+    },
+    "filters": {
+      "allAccounts": "All Accounts",
+      "allCategories": "All Categories",
+      "allPayees": "All Payees",
+      "thisMonth": "This Month",
+      "last3Months": "Last 3 Months",
+      "thisYear": "This Year",
+      "lastYear": "Last Year",
+      "allDates": "All Dates"
     }
   },
   "payees": {

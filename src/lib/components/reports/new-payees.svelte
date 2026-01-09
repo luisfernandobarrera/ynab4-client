@@ -1,7 +1,7 @@
 <script lang="ts">
   import { transactions, categories, accounts, payees } from '$lib/stores/budget';
   import { generateReport, REPORT_LABELS } from '$lib/services/report-service';
-  import { formatCurrency } from '$lib/utils';
+  import { formatCurrency, formatDateLong } from '$lib/utils';
   import { UserPlus, Store } from 'lucide-svelte';
   import type { NewPayeesReport } from 'ynab-library';
 
@@ -39,15 +39,6 @@
     }
   });
 
-  function formatDate(dateStr: string): string {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString('es-MX', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  }
 </script>
 
 <div class="space-y-6">
@@ -107,7 +98,7 @@
               <div>
                 <div class="font-medium">{payee.payeeName}</div>
                 <div class="text-sm text-muted-foreground">
-                  Primera transacción: {formatDate(payee.firstTransactionDate)}
+                  Primera transacción: {formatDateLong(payee.firstTransactionDate)}
                 </div>
                 {#if payee.categories.length > 0}
                   <div class="flex flex-wrap gap-1 mt-2">
@@ -155,7 +146,7 @@
           {#each report.payees as payee}
             <tr class="border-b hover:bg-muted/50 transition-colors">
               <td class="py-2 px-2 font-medium">{payee.payeeName}</td>
-              <td class="py-2 px-2">{formatDate(payee.firstTransactionDate)}</td>
+              <td class="py-2 px-2">{formatDateLong(payee.firstTransactionDate)}</td>
               <td class="text-right py-2 px-2">{payee.transactionCount}</td>
               <td class="text-right py-2 px-2">{formatCurrency(Math.abs(payee.totalAmount))}</td>
               <td class="text-right py-2 px-2">{formatCurrency(Math.abs(payee.averageAmount))}</td>
