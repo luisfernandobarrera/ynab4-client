@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PieChart, BarChart3, TrendingUp, Calendar, Table2, Users, Hash, CalendarDays, AlertTriangle, UserPlus, HelpCircle, ArrowLeftRight } from 'lucide-svelte';
+  import { PieChart, BarChart3, TrendingUp, Calendar, Table2, Users, Hash, CalendarDays, AlertTriangle, UserPlus, HelpCircle, ArrowLeftRight, ChevronDown, Wallet, Clock, Search } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { Card, CardContent } from '$lib/components/ui/card';
   import DateRangePicker from '$lib/components/ui/date-range-picker.svelte';
@@ -18,6 +18,9 @@
   import UncategorizedTransactions from './uncategorized-transactions.svelte';
 
   type ReportType = 'hierarchical' | 'spending-category' | 'spending-payee' | 'trends' | 'income-expense' | 'net-worth' | 'benford' | 'day-of-week' | 'time-of-month' | 'unusual' | 'new-payees' | 'uncategorized';
+
+  // Report selector state
+  let showReportSelector = $state(false);
 
   type DatePreset =
     | 'today'
@@ -113,36 +116,134 @@
     return Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1);
   });
 
-  // Report types with their configurations
-  const reportTypes = [
-    { id: 'hierarchical' as const, label: 'Gastos e Ingresos', icon: Table2, showFilters: false, showComparison: false },
-    { id: 'spending-category' as const, label: 'Por Categoría', icon: PieChart, showFilters: true, showComparison: true },
-    { id: 'spending-payee' as const, label: 'Por Beneficiario', icon: Users, showFilters: true, showComparison: true },
-    { id: 'trends' as const, label: 'Tendencias', icon: TrendingUp, showFilters: true, showComparison: false },
-    { id: 'income-expense' as const, label: 'Ingresos vs Gastos', icon: BarChart3, showFilters: false, showComparison: true },
-    { id: 'net-worth' as const, label: 'Patrimonio', icon: TrendingUp, showFilters: false, showComparison: false },
-    { id: 'day-of-week' as const, label: 'Por Día', icon: Calendar, showFilters: false, showComparison: true },
-    { id: 'time-of-month' as const, label: 'Momento del Mes', icon: CalendarDays, showFilters: false, showComparison: true },
-    { id: 'unusual' as const, label: 'Inusuales', icon: AlertTriangle, showFilters: false, showComparison: false },
-    { id: 'new-payees' as const, label: 'Nuevos', icon: UserPlus, showFilters: false, showComparison: true },
-    { id: 'uncategorized' as const, label: 'Sin Categoría', icon: HelpCircle, showFilters: false, showComparison: false },
-    { id: 'benford' as const, label: 'Benford', icon: Hash, showFilters: false, showComparison: false },
+  // Report categories for organized access
+  type ReportConfig = {
+    id: ReportType;
+    label: string;
+    icon: typeof Table2;
+    showFilters: boolean;
+    showComparison: boolean;
+    description: string;
+  };
+
+  type ReportCategory = {
+    name: string;
+    icon: typeof Wallet;
+    reports: ReportConfig[];
+  };
+
+  const reportCategories: ReportCategory[] = [
+    {
+      name: 'Gastos',
+      icon: Wallet,
+      reports: [
+        { id: 'hierarchical', label: 'Gastos e Ingresos', icon: Table2, showFilters: false, showComparison: false, description: 'Vista jerárquica de gastos por categoría' },
+        { id: 'spending-category', label: 'Por Categoría', icon: PieChart, showFilters: true, showComparison: true, description: 'Distribución de gastos por categoría' },
+        { id: 'spending-payee', label: 'Por Beneficiario', icon: Users, showFilters: true, showComparison: true, description: 'Gastos agrupados por beneficiario' },
+        { id: 'trends', label: 'Tendencias', icon: TrendingUp, showFilters: true, showComparison: false, description: 'Evolución de gastos en el tiempo' },
+      ],
+    },
+    {
+      name: 'Finanzas',
+      icon: BarChart3,
+      reports: [
+        { id: 'income-expense', label: 'Ingresos vs Gastos', icon: BarChart3, showFilters: false, showComparison: true, description: 'Comparación de ingresos y gastos' },
+        { id: 'net-worth', label: 'Patrimonio', icon: TrendingUp, showFilters: false, showComparison: false, description: 'Evolución de tu patrimonio neto' },
+      ],
+    },
+    {
+      name: 'Patrones',
+      icon: Clock,
+      reports: [
+        { id: 'day-of-week', label: 'Por Día de Semana', icon: Calendar, showFilters: false, showComparison: true, description: 'Patrones de gasto por día' },
+        { id: 'time-of-month', label: 'Momento del Mes', icon: CalendarDays, showFilters: false, showComparison: true, description: 'Distribución de gastos en el mes' },
+      ],
+    },
+    {
+      name: 'Análisis',
+      icon: Search,
+      reports: [
+        { id: 'unusual', label: 'Transacciones Inusuales', icon: AlertTriangle, showFilters: false, showComparison: false, description: 'Detecta gastos fuera de lo común' },
+        { id: 'new-payees', label: 'Beneficiarios Nuevos', icon: UserPlus, showFilters: false, showComparison: true, description: 'Nuevos comercios o personas' },
+        { id: 'uncategorized', label: 'Sin Categoría', icon: HelpCircle, showFilters: false, showComparison: false, description: 'Transacciones sin categorizar' },
+        { id: 'benford', label: 'Ley de Benford', icon: Hash, showFilters: false, showComparison: false, description: 'Análisis estadístico de dígitos' },
+      ],
+    },
   ];
 
-  const currentReportConfig = $derived(() => reportTypes.find(r => r.id === activeReport) || reportTypes[0]);
+  // Flat list for lookup
+  const allReports = $derived(reportCategories.flatMap(c => c.reports));
+  const currentReportConfig = $derived(() => allReports.find(r => r.id === activeReport) || allReports[0]);
 
   // Check if current report supports comparison
   const showComparisonOption = $derived(() => currentReportConfig().showComparison);
+
+  // Select a report and close selector
+  function selectReport(id: ReportType) {
+    activeReport = id;
+    showReportSelector = false;
+  }
+
+  // Close selector when clicking outside
+  function handleClickOutside(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (!target.closest('.report-selector-container')) {
+      showReportSelector = false;
+    }
+  }
 </script>
 
-<div class="flex flex-col h-full">
+<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+<div class="flex flex-col h-full" onclick={handleClickOutside}>
   <!-- Header -->
-  <div class="sticky top-0 z-10 bg-background border-b p-4 space-y-4">
-    <div class="flex items-center justify-between">
-      <h2 class="text-xl font-heading font-semibold">Reportes</h2>
+  <div class="sticky top-0 z-10 bg-background border-b p-4 space-y-3">
+    <div class="flex items-center justify-between gap-3">
+      <!-- Report Selector -->
+      <div class="report-selector-container relative">
+        <button
+          class="report-selector-trigger"
+          onclick={() => showReportSelector = !showReportSelector}
+        >
+          {@const config = currentReportConfig()}
+          {@const Icon = config.icon}
+          <Icon class="h-5 w-5" />
+          <span class="report-selector-label">{config.label}</span>
+          <ChevronDown class="h-4 w-4 chevron" class:open={showReportSelector} />
+        </button>
+
+        {#if showReportSelector}
+          <div class="report-selector-dropdown">
+            {#each reportCategories as category}
+              {@const CategoryIcon = category.icon}
+              <div class="report-category">
+                <div class="category-header">
+                  <CategoryIcon class="h-4 w-4" />
+                  <span>{category.name}</span>
+                </div>
+                <div class="category-reports">
+                  {#each category.reports as report}
+                    {@const ReportIcon = report.icon}
+                    <button
+                      class="report-option"
+                      class:active={activeReport === report.id}
+                      onclick={() => selectReport(report.id)}
+                    >
+                      <ReportIcon class="h-4 w-4" />
+                      <div class="report-option-text">
+                        <span class="report-option-label">{report.label}</span>
+                        <span class="report-option-desc">{report.description}</span>
+                      </div>
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
 
       <!-- Date Range Picker -->
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
         <DateRangePicker
           bind:startDate
           bind:endDate
@@ -156,27 +257,12 @@
         />
 
         {#if comparisonType !== 'none' && comparisonStart && comparisonEnd}
-          <div class="flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-md text-xs text-muted-foreground">
+          <div class="flex items-center gap-1.5 px-2 py-1 bg-muted rounded-md text-xs text-muted-foreground">
             <ArrowLeftRight class="h-3 w-3" />
-            <span>Comparando</span>
+            <span class="hidden sm:inline">Comparando</span>
           </div>
         {/if}
       </div>
-    </div>
-
-    <!-- Report type tabs -->
-    <div class="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
-      {#each reportTypes as report}
-        <Button
-          variant={activeReport === report.id ? 'default' : 'outline'}
-          size="sm"
-          onclick={() => (activeReport = report.id)}
-          class="shrink-0"
-        >
-          <report.icon class="mr-2 h-4 w-4" />
-          {report.label}
-        </Button>
-      {/each}
     </div>
 
     <!-- Filters (shown for reports that support them) -->
@@ -312,3 +398,144 @@
     {/if}
   </div>
 </div>
+
+<style>
+  /* Report Selector Trigger */
+  .report-selector-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-weight: 500;
+    color: var(--foreground);
+  }
+
+  .report-selector-trigger:hover {
+    background: var(--accent);
+    border-color: var(--primary);
+  }
+
+  .report-selector-label {
+    font-size: 0.9rem;
+  }
+
+  .chevron {
+    transition: transform 0.2s;
+    color: var(--muted-foreground);
+  }
+
+  .chevron.open {
+    transform: rotate(180deg);
+  }
+
+  /* Dropdown */
+  .report-selector-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 320px;
+    max-height: 70vh;
+    overflow-y: auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    z-index: 100;
+    padding: 0.5rem;
+  }
+
+  /* Category */
+  .report-category {
+    margin-bottom: 0.5rem;
+  }
+
+  .report-category:last-child {
+    margin-bottom: 0;
+  }
+
+  .category-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-foreground);
+  }
+
+  .category-reports {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  /* Report Option */
+  .report-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.625rem 0.75rem;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+    color: var(--foreground);
+  }
+
+  .report-option:hover {
+    background: var(--accent);
+  }
+
+  .report-option.active {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .report-option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .report-option-label {
+    font-weight: 500;
+    font-size: 0.875rem;
+  }
+
+  .report-option-desc {
+    font-size: 0.7rem;
+    opacity: 0.7;
+    line-height: 1.3;
+  }
+
+  .report-option.active .report-option-desc {
+    opacity: 0.85;
+  }
+
+  /* Mobile adjustments */
+  @media (max-width: 640px) {
+    .report-selector-dropdown {
+      width: calc(100vw - 2rem);
+      max-width: 320px;
+    }
+
+    .report-selector-label {
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+</style>
