@@ -104,8 +104,12 @@ export class BudgetLoader {
    */
   static async loadFromDropbox(accessToken: string, budgetPath = '/YNAB/Budget.ynab4'): Promise<BudgetInfo> {
     console.log('[BudgetLoader] Loading from Dropbox:', budgetPath);
+    const totalStart = Date.now();
 
+    console.log('[BudgetLoader] Importing ynab-library...');
+    let stepStart = Date.now();
     const { YnabClient, DropboxIO } = await import('ynab-library');
+    console.log(`[BudgetLoader] Import took ${Date.now() - stepStart}ms`);
 
     // Get installation config for device identification
     const config = installationConfig.load();
@@ -115,17 +119,27 @@ export class BudgetLoader {
     console.log('[BudgetLoader] Using device GUID:', deviceGUID);
     console.log('[BudgetLoader] Friendly name:', friendlyName);
 
+    stepStart = Date.now();
     const io = new DropboxIO(accessToken);
+    console.log(`[BudgetLoader] DropboxIO creation took ${Date.now() - stepStart}ms`);
 
     // Create client with device GUID for proper sync registration
     // readOnly=false allows the client to write sync data when changes are made
+    stepStart = Date.now();
     const client = new YnabClient(budgetPath, io, false, deviceGUID, {
       friendlyName,
       deviceType: config.deviceType,
     });
+    console.log(`[BudgetLoader] YnabClient creation took ${Date.now() - stepStart}ms`);
 
+    stepStart = Date.now();
     await client.initialize();
+    console.log(`[BudgetLoader] client.initialize() took ${Date.now() - stepStart}ms`);
+
+    stepStart = Date.now();
     await client.pull(); // Sync from Dropbox
+    console.log(`[BudgetLoader] client.pull() took ${Date.now() - stepStart}ms`);
+    console.log(`[BudgetLoader] TOTAL Dropbox loading took ${Date.now() - totalStart}ms`);
 
     // Extract and clean budget name
     const rawName = budgetPath.split('/').pop()?.replace('.ynab4', '') || 'Budget';
@@ -205,20 +219,21 @@ export class BudgetLoader {
 
   /**
    * List available budgets in Dropbox
+   * Searches multiple paths in PARALLEL for faster loading
    */
   static async listDropboxBudgets(accessToken: string): Promise<DropboxBudget[]> {
     const { DropboxIO } = await import('ynab-library');
     const io = new DropboxIO(accessToken);
 
-    // Common YNAB budget locations
+    // Common YNAB budget locations - search in parallel
     const searchPaths = ['/YNAB', '/Apps/YNAB', '/Dropbox/YNAB', ''];
 
-    const allBudgets: DropboxBudget[] = [];
-    let lastError: Error | null = null;
-    let authError = false;
+    console.log('[BudgetLoader] Searching all paths in parallel...');
+    const startTime = Date.now();
 
-    for (const basePath of searchPaths) {
-      try {
+    // Search all paths in parallel
+    const results = await Promise.allSettled(
+      searchPaths.map(async (basePath) => {
         console.log(`[BudgetLoader] Searching: ${basePath || '/'}`);
         const files = await io.readdir(basePath);
 
@@ -236,10 +251,24 @@ export class BudgetLoader {
         if (budgets.length > 0) {
           console.log(`[BudgetLoader] Found ${budgets.length} budgets in ${basePath || '/'}`);
         }
-        allBudgets.push(...budgets);
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        console.warn(`[BudgetLoader] Error reading ${basePath || '/'}: ${errorMsg}`);
+        return budgets;
+      })
+    );
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[BudgetLoader] Parallel search completed in ${elapsed}ms`);
+
+    // Collect results and handle errors
+    const allBudgets: DropboxBudget[] = [];
+    let lastError: Error | null = null;
+    let authError = false;
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        allBudgets.push(...result.value);
+      } else {
+        const errorMsg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+        console.warn(`[BudgetLoader] Search error: ${errorMsg}`);
 
         if (
           errorMsg.includes('401') ||
@@ -249,9 +278,9 @@ export class BudgetLoader {
         ) {
           authError = true;
           lastError = new Error('Dropbox token expired. Please reconnect.');
-          break;
+        } else {
+          lastError = result.reason instanceof Error ? result.reason : new Error(String(result.reason));
         }
-        lastError = error instanceof Error ? error : new Error(String(error));
       }
     }
 

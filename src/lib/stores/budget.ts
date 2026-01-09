@@ -260,6 +260,8 @@ export async function loadFromLocal(path: string): Promise<void> {
  * Populate stores from loaded budget
  */
 async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
+  console.log('[Budget Store] Starting populateBudgetData...');
+  const populateStart = Date.now();
   const { client } = result;
 
   // Set budget info
@@ -466,6 +468,7 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
       }))
   );
 
+  console.log(`[Budget Store] populateBudgetData took ${Date.now() - populateStart}ms`);
   console.log('[Budget Store] Budget loaded:', result.budgetName);
 }
 

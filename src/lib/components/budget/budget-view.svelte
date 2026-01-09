@@ -30,6 +30,12 @@
   
   // View mode: 'budget' (normal) or 'spending' (only activity)
   let viewMode = $state<'budget' | 'spending'>('budget');
+
+  // Mobile data type toggle: which column to show in mobile single-column mode
+  let mobileDataType = $state<'budgeted' | 'activity' | 'available'>('available');
+
+  // Mobile view mode: 'summary' (fullscreen summary) or 'categories' (budget grid)
+  let mobileViewMode = $state<'summary' | 'categories'>('categories');
   
   // Expansion state
   let expandedMasters = $state<Set<string>>(new Set());
@@ -83,26 +89,29 @@
   // Calculate visible months range
   const monthRange = $derived.by(() => {
     const months: Array<{ month: number; year: number; key: string }> = [];
-    let startMonth = centerMonth - 1;
+
+    // For single month view (mobile), start at centerMonth
+    // For multi-month view (desktop), start at centerMonth - 1 to show context
+    let startMonth = visibleMonths === 1 ? centerMonth : centerMonth - 1;
     let startYear = selectedYear;
-    
+
     if (startMonth < 0) {
       startMonth += 12;
       startYear -= 1;
     }
-    
+
     for (let i = 0; i < visibleMonths; i++) {
       let m = startMonth + i;
       let y = startYear;
-      
+
       if (m >= 12) {
         m -= 12;
         y += 1;
       }
-      
+
       months.push({ month: m, year: y, key: `${y}-${String(m + 1).padStart(2, '0')}` });
     }
-    
+
     return months;
   });
 
@@ -999,18 +1008,24 @@
     // Track dependencies
     const _ = viewMode;
     const __ = showTransactions;
-    
+
     if (typeof window !== 'undefined') {
       // Use setTimeout to ensure state is updated
       setTimeout(() => {
+        // Mobile always shows 1 month
+        if ($isMobile) {
+          visibleMonths = 1;
+          return;
+        }
+
         const width = window.innerWidth;
         const sidebarWidth = 250;
         const categoriesWidth = 240;
         const panelWidth = showTransactions ? 400 : 0;
         const padding = 32;
-        
+
         const availableWidth = width - sidebarWidth - categoriesWidth - panelWidth - padding;
-        
+
         let minMonthWidth: number;
         if (viewMode === 'spending') {
           minMonthWidth = 90;
@@ -1019,10 +1034,10 @@
         } else {
           minMonthWidth = 180;
         }
-        
+
         const maxMonths = viewMode === 'spending' ? 12 : 6;
         const minMonths = showTransactions ? 1 : 2;
-        
+
         const calculatedMonths = Math.floor(availableWidth / minMonthWidth);
         visibleMonths = Math.max(minMonths, Math.min(maxMonths, calculatedMonths));
       }, 0);
@@ -1030,9 +1045,17 @@
   });
 
   // Initialize expanded masters (only on first load, not after user changes)
+  // On mobile: start collapsed for compact view
+  // On desktop: start expanded
   $effect(() => {
     if (allCategoryStructure.length > 0 && expandedMasters.size === 0 && !userManuallyChangedExpansion) {
-      expandedMasters = new Set(allCategoryStructure.map(m => m.id));
+      if ($isMobile) {
+        // Mobile: start collapsed for compactness
+        expandedMasters = new Set();
+      } else {
+        // Desktop: start expanded
+        expandedMasters = new Set(allCategoryStructure.map(m => m.id));
+      }
     }
   });
 
@@ -1054,7 +1077,7 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div class="budget-view" class:with-panel={showTransactions} class:mobile-view={$isMobile}>
+<div class="budget-view" class:with-panel={showTransactions} class:mobile-view={$isMobile} data-mobile-type={mobileDataType}>
   <!-- Navigation Bar -->
   <div class="budget-nav-bar">
     {#if $isMobile}
@@ -1066,6 +1089,54 @@
         </div>
         <button class="nav-arrow-lg" onclick={() => navigateMonth(1)}>›</button>
       </div>
+      <!-- Mobile View Toggle: Summary vs Categories -->
+      <div class="mobile-view-toggle">
+        <button
+          class="view-toggle-btn"
+          class:active={mobileViewMode === 'summary'}
+          onclick={() => mobileViewMode = 'summary'}
+        >
+          Resumen
+        </button>
+        <button
+          class="view-toggle-btn"
+          class:active={mobileViewMode === 'categories'}
+          onclick={() => mobileViewMode = 'categories'}
+        >
+          Categorías
+        </button>
+      </div>
+      <!-- Mobile Data Type Toggle (only show in categories mode) -->
+      {#if mobileViewMode === 'categories'}
+        <div class="mobile-data-toggle">
+          <button
+            class="data-toggle-btn"
+            class:active={mobileDataType === 'budgeted'}
+            onclick={() => mobileDataType = 'budgeted'}
+          >
+            Pres
+          </button>
+          <button
+            class="data-toggle-btn"
+            class:active={mobileDataType === 'activity'}
+            onclick={() => mobileDataType = 'activity'}
+          >
+            Gasto
+          </button>
+          <button
+            class="data-toggle-btn"
+            class:active={mobileDataType === 'available'}
+            onclick={() => mobileDataType = 'available'}
+          >
+            Saldo
+          </button>
+          <!-- Active filter toggle -->
+          <label class="mobile-active-filter">
+            <input type="checkbox" bind:checked={showOnlyActive} />
+            <span>Act</span>
+          </label>
+        </div>
+      {/if}
     {:else}
       <div class="budget-nav-years">
         {#each yearsWithData as year}
@@ -1120,18 +1191,22 @@
   </div>
 
   <!-- Budget Summary Header (hide in spending mode) -->
-  {#if viewMode !== 'spending'}
-  <div class="budget-summary-header" class:collapsed={!showSummary}>
-    <button class="summary-toggle" onclick={() => showSummary = !showSummary}>
-      {#if showSummary}
-        <ChevronUp class="h-4 w-4" />
-      {:else}
-        <ChevronDown class="h-4 w-4" />
-      {/if}
-      <span>{showSummary ? $t('budget.hideSummary') : $t('budget.showSummary')}</span>
-    </button>
-    
-    {#if showSummary}
+  <!-- On mobile: only show when mobileViewMode is 'summary', fullscreen -->
+  <!-- On desktop: show with collapse toggle -->
+  {#if viewMode !== 'spending' && (!$isMobile || mobileViewMode === 'summary')}
+  <div class="budget-summary-header" class:collapsed={!showSummary && !$isMobile} class:mobile-fullscreen={$isMobile && mobileViewMode === 'summary'}>
+    {#if !$isMobile}
+      <button class="summary-toggle" onclick={() => showSummary = !showSummary}>
+        {#if showSummary}
+          <ChevronUp class="h-4 w-4" />
+        {:else}
+          <ChevronDown class="h-4 w-4" />
+        {/if}
+        <span>{showSummary ? $t('budget.hideSummary') : $t('budget.showSummary')}</span>
+      </button>
+    {/if}
+
+    {#if showSummary || $isMobile}
       <div class="summary-content">
         <div class="summary-main">
           <div class="available-to-budget" class:negative={currentMonthSummary.availableToBudget < 0}>
@@ -1143,12 +1218,18 @@
             </span>
           </div>
         </div>
-        
+
         <div class="summary-breakdown">
           <div class="breakdown-row">
             <span class="breakdown-label">{$t('budget.incomeThisMonth')}</span>
             <span class="breakdown-value positive">{formatAmountFull(currentMonthSummary.income)}</span>
           </div>
+          {#if currentMonthSummary.deferredIncome > 0}
+            <div class="breakdown-row">
+              <span class="breakdown-label">Ingresos diferidos</span>
+              <span class="breakdown-value positive">{formatAmountFull(currentMonthSummary.deferredIncome)}</span>
+            </div>
+          {/if}
           <div class="breakdown-row">
             <span class="breakdown-label">{$t('budget.fromLastMonth')}</span>
             <span class="breakdown-value" class:positive={currentMonthSummary.fromLastMonth > 0}>
@@ -1168,11 +1249,33 @@
             </span>
           </div>
         </div>
+
+        <!-- Mobile: show quick category totals -->
+        {#if $isMobile}
+          <div class="mobile-summary-totals">
+            <div class="summary-total-row">
+              <span class="total-label">Total Presupuestado</span>
+              <span class="total-value">{formatAmountFull(currentMonthSummary.totalBudgeted)}</span>
+            </div>
+            <div class="summary-total-row">
+              <span class="total-label">Total Gastado</span>
+              <span class="total-value negative">{formatAmountFull(monthsData[currentMonthKey]?.totalActivity || 0)}</span>
+            </div>
+            <div class="summary-total-row">
+              <span class="total-label">Total Disponible</span>
+              <span class="total-value" class:positive={(monthsData[currentMonthKey]?.totalAvailable || 0) > 0} class:negative={(monthsData[currentMonthKey]?.totalAvailable || 0) < 0}>
+                {formatAmountFull(monthsData[currentMonthKey]?.totalAvailable || 0)}
+              </span>
+            </div>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
   {/if}
 
+  <!-- Hide main area in mobile summary mode -->
+  {#if !$isMobile || mobileViewMode === 'categories'}
   <div class="budget-main-area" class:detail-mode={isSingleMonthMode} class:spending-mode={viewMode === 'spending'}>
     <!-- Budget Grid -->
     <div class="budget-grid-container">
@@ -1595,6 +1698,7 @@
       </div>
     {/if}
   </div>
+  {/if}
 </div>
 
 <!-- Context Menu -->
@@ -2950,6 +3054,196 @@
     color: var(--muted-foreground);
   }
 
+  /* Mobile View Toggle (Summary vs Categories) */
+  .mobile-view-toggle {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    padding: 0.25rem 1rem;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .view-toggle-btn {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .view-toggle-btn:first-child {
+    border-radius: 6px 0 0 6px;
+  }
+
+  .view-toggle-btn:last-child {
+    border-radius: 0 6px 6px 0;
+  }
+
+  .view-toggle-btn:hover {
+    color: var(--foreground);
+  }
+
+  .view-toggle-btn.active {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  /* Mobile Data Toggle */
+  .mobile-data-toggle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0;
+    padding: 0.25rem 0.5rem;
+    background: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .data-toggle-btn {
+    flex: 1;
+    padding: 0.4rem 0.5rem;
+    border: none;
+    background: transparent;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-bottom: 2px solid transparent;
+  }
+
+  .data-toggle-btn:hover {
+    color: var(--foreground);
+  }
+
+  .data-toggle-btn.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    background: var(--background);
+  }
+
+  /* Mobile Active Filter */
+  .mobile-active-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.4rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    border-left: 1px solid var(--border);
+    margin-left: 0.25rem;
+  }
+
+  .mobile-active-filter input {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: var(--primary);
+  }
+
+  .mobile-active-filter span {
+    white-space: nowrap;
+  }
+
+  /* Mobile Fullscreen Summary */
+  .budget-summary-header.mobile-fullscreen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+    overflow-y: auto;
+  }
+
+  .budget-summary-header.mobile-fullscreen .summary-content {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .budget-summary-header.mobile-fullscreen .summary-main {
+    width: 100%;
+  }
+
+  .budget-summary-header.mobile-fullscreen .available-to-budget {
+    padding: 1.5rem;
+    border-radius: 12px;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .budget-summary-header.mobile-fullscreen .atb-label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .budget-summary-header.mobile-fullscreen .atb-amount {
+    font-size: 2.5rem;
+    font-weight: 700;
+  }
+
+  .budget-summary-header.mobile-fullscreen .summary-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: var(--card);
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  .budget-summary-header.mobile-fullscreen .breakdown-row {
+    font-size: 0.9rem;
+  }
+
+  .budget-summary-header.mobile-fullscreen .breakdown-value {
+    min-width: 100px;
+  }
+
+  /* Mobile Summary Totals */
+  .mobile-summary-totals {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: var(--muted);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-top: 0.5rem;
+  }
+
+  .summary-total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .total-label {
+    font-size: 0.85rem;
+    color: var(--muted-foreground);
+  }
+
+  .total-value {
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: var(--font-family-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .total-value.positive {
+    color: var(--success);
+  }
+
+  .total-value.negative {
+    color: var(--destructive);
+  }
+
   /* Mobile View */
   .budget-view.mobile-view .budget-categories-column {
     width: 50%;
@@ -3021,49 +3315,210 @@
       width: 140px;
       min-width: 120px;
     }
-    
+
     .month-header-group,
     .month-data {
-      min-width: 160px;
-      max-width: 280px;
+      min-width: 100px;
+      max-width: none;
+      flex: 1;
     }
-    
+
     .category-master {
       font-size: 0.75rem;
       padding: 0.375rem 0.25rem;
     }
-    
+
     .category-sub {
       font-size: 0.75rem;
       padding-left: 1rem;
     }
-    
-    .cell {
+
+    /* Mobile single-column mode: hide column headers */
+    .budget-view.mobile-view .month-columns {
+      display: none !important;
+    }
+
+    /* Mobile single-column mode: hide non-selected cells */
+    .budget-view.mobile-view .cell.budgeted,
+    .budget-view.mobile-view .cell.outflows,
+    .budget-view.mobile-view .cell.balance,
+    .budget-view.mobile-view .cell.previous {
+      display: none !important;
+    }
+
+    /* Show only the selected type - BUDGETED */
+    .budget-view.mobile-view[data-mobile-type="budgeted"] .cell.budgeted {
+      display: flex !important;
+      flex: 1;
+      font-size: 1.1rem;
+      font-weight: 600;
+      text-align: right;
+      justify-content: flex-end;
+      align-items: center;
+      padding-right: 0.75rem;
+    }
+
+    /* Show only the selected type - ACTIVITY (Gasto) */
+    .budget-view.mobile-view[data-mobile-type="activity"] .cell.outflows {
+      display: flex !important;
+      flex: 1;
+      font-size: 1.1rem;
+      font-weight: 600;
+      text-align: right;
+      justify-content: flex-end;
+      align-items: center;
+      padding-right: 0.75rem;
+    }
+
+    /* Show only the selected type - AVAILABLE (Saldo) */
+    .budget-view.mobile-view[data-mobile-type="available"] .cell.balance {
+      display: flex !important;
+      flex: 1;
+      font-size: 1.1rem;
+      font-weight: 600;
+      text-align: right;
+      justify-content: flex-end;
+      align-items: center;
+      padding-right: 0.75rem;
+    }
+
+    /* Month header in mobile - hide it, we have nav already */
+    .budget-view.mobile-view .month-header-group {
+      display: none;
+    }
+
+    /* Simpler month-data in mobile - single value */
+    .budget-view.mobile-view .month-data {
+      padding: 0.25rem 0;
+    }
+
+    /* Compact mobile navigation */
+    .budget-view.mobile-view .budget-nav-bar {
+      padding: 0;
+    }
+
+    .budget-view.mobile-view .budget-nav-mobile {
+      padding: 0.5rem 0.25rem;
+      justify-content: center;
+      gap: 0;
+    }
+
+    .budget-view.mobile-view .nav-arrow-lg {
+      padding: 0.5rem 0.75rem;
+      font-size: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .budget-view.mobile-view .current-month-display {
+      flex-direction: row;
+      gap: 0.5rem;
+      padding: 0.25rem 0.5rem;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .budget-view.mobile-view .month-name {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .budget-view.mobile-view .year-name {
+      font-size: 0.9rem;
+      opacity: 0.7;
+    }
+
+    /* Compact toggle */
+    .budget-view.mobile-view .mobile-data-toggle {
+      padding: 0.25rem 0.5rem;
+      gap: 0.25rem;
+    }
+
+    .budget-view.mobile-view .data-toggle-btn {
+      padding: 0.35rem 0.5rem;
       font-size: 0.75rem;
-      padding: 0 0.25rem;
+    }
+
+    /* Compact summary - single line */
+    .budget-view.mobile-view .budget-summary-header {
+      padding: 0.5rem;
+    }
+
+    .budget-view.mobile-view .summary-toggle {
+      display: none;
+    }
+
+    .budget-view.mobile-view .summary-content {
+      flex-direction: row;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .budget-view.mobile-view .summary-main {
+      flex: none;
+    }
+
+    .budget-view.mobile-view .available-to-budget {
+      padding: 0.5rem 0.75rem;
+      flex-direction: row;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .budget-view.mobile-view .atb-label {
+      font-size: 0.65rem;
+    }
+
+    .budget-view.mobile-view .atb-amount {
+      font-size: 1.1rem;
+    }
+
+    /* Hide breakdown in mobile - just show available */
+    .budget-view.mobile-view .summary-breakdown {
+      display: none;
+    }
+
+    /* Compact categories header */
+    .budget-view.mobile-view .categories-header {
+      padding: 0.25rem 0.5rem;
+    }
+
+    .budget-view.mobile-view .header-label-row {
+      font-size: 0.7rem;
+    }
+
+    .budget-view.mobile-view .header-controls {
+      display: none;
+    }
+
+    /* Compact category rows */
+    .budget-view.mobile-view .category-master,
+    .budget-view.mobile-view .category-sub {
+      padding: 0.35rem 0.5rem;
+      font-size: 0.8rem;
+    }
+
+    .budget-view.mobile-view .category-sub {
+      padding-left: 0.75rem;
+    }
+
+    .budget-view.mobile-view .data-row {
+      min-height: 32px;
+    }
+
+    /* Larger, more readable amounts */
+    .budget-view.mobile-view .cell {
+      font-size: 0.9rem !important;
+      font-family: system-ui, -apple-system, sans-serif;
     }
   }
 
   @media (max-width: 480px) {
-    .budget-categories-column {
-      width: 100px;
-      min-width: 80px;
-    }
-    
-    .month-header-group,
-    .month-data {
-      min-width: 120px;
-      max-width: 200px;
-    }
-    
-    .col-header {
-      font-size: 0.6rem;
-    }
-    
     .budget-view.with-panel .budget-grid-container {
       display: none;
     }
-    
+
     .budget-transactions-panel {
       width: 100%;
       min-width: 100%;
