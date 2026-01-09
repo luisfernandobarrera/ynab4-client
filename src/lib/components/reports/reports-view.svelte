@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { PieChart, BarChart3, TrendingUp, Calendar, Table2, Users, Hash, CalendarDays, AlertTriangle, UserPlus, HelpCircle, ArrowLeftRight, ChevronDown, Wallet, Clock, Search } from 'lucide-svelte';
+  import { PieChart, BarChart3, TrendingUp, Calendar, Table2, Users, Hash, CalendarDays, AlertTriangle, UserPlus, HelpCircle, ArrowLeftRight, ChevronDown, ChevronUp, Wallet, Clock, Search, LayoutGrid } from 'lucide-svelte';
+  import { browser } from '$app/environment';
   import { Button } from '$lib/components/ui/button';
   import { Card, CardContent } from '$lib/components/ui/card';
   import DateRangePicker from '$lib/components/ui/date-range-picker.svelte';
@@ -19,8 +20,14 @@
 
   type ReportType = 'hierarchical' | 'spending-category' | 'spending-payee' | 'trends' | 'income-expense' | 'net-worth' | 'benford' | 'day-of-week' | 'time-of-month' | 'unusual' | 'new-payees' | 'uncategorized';
 
-  // Report selector state
-  let showReportSelector = $state(false);
+  // Report panel state - persisted
+  let showReportPanel = $state(browser ? localStorage.getItem('showReportPanel') !== 'false' : true);
+
+  $effect(() => {
+    if (browser) {
+      localStorage.setItem('showReportPanel', String(showReportPanel));
+    }
+  });
 
   type DatePreset =
     | 'today'
@@ -178,68 +185,78 @@
   // Check if current report supports comparison
   const showComparisonOption = $derived(() => currentReportConfig().showComparison);
 
-  // Select a report and close selector
+  // Select a report
   function selectReport(id: ReportType) {
     activeReport = id;
-    showReportSelector = false;
-  }
-
-  // Close selector when clicking outside
-  function handleClickOutside(e: MouseEvent) {
-    const target = e.target as HTMLElement;
-    if (!target.closest('.report-selector-container')) {
-      showReportSelector = false;
-    }
   }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="flex flex-col h-full" onclick={handleClickOutside}>
-  <!-- Header -->
-  <div class="sticky top-0 z-10 bg-background border-b p-4 space-y-3">
-    <div class="flex items-center justify-between gap-3">
-      <!-- Report Selector -->
-      <div class="report-selector-container relative">
-        <button
-          class="report-selector-trigger"
-          onclick={() => showReportSelector = !showReportSelector}
-        >
-          {@const config = currentReportConfig()}
+<div class="flex flex-col h-full">
+  <!-- Report Panel (Collapsible) -->
+  <div class="report-panel" class:collapsed={!showReportPanel}>
+    <button class="panel-header" onclick={() => showReportPanel = !showReportPanel}>
+      <div class="panel-header-left">
+        <LayoutGrid class="h-4 w-4" />
+        <span class="panel-title">Reportes</span>
+        {@const config = currentReportConfig()}
+        <span class="current-report-badge">
           {@const Icon = config.icon}
-          <Icon class="h-5 w-5" />
-          <span class="report-selector-label">{config.label}</span>
-          <ChevronDown class="h-4 w-4 chevron" class:open={showReportSelector} />
-        </button>
-
-        {#if showReportSelector}
-          <div class="report-selector-dropdown">
-            {#each reportCategories as category}
-              {@const CategoryIcon = category.icon}
-              <div class="report-category">
-                <div class="category-header">
-                  <CategoryIcon class="h-4 w-4" />
-                  <span>{category.name}</span>
-                </div>
-                <div class="category-reports">
-                  {#each category.reports as report}
-                    {@const ReportIcon = report.icon}
-                    <button
-                      class="report-option"
-                      class:active={activeReport === report.id}
-                      onclick={() => selectReport(report.id)}
-                    >
-                      <ReportIcon class="h-4 w-4" />
-                      <div class="report-option-text">
-                        <span class="report-option-label">{report.label}</span>
-                        <span class="report-option-desc">{report.description}</span>
-                      </div>
-                    </button>
-                  {/each}
-                </div>
-              </div>
-            {/each}
-          </div>
+          <Icon class="h-3 w-3" />
+          {config.label}
+        </span>
+      </div>
+      <div class="panel-header-right">
+        {#if showReportPanel}
+          <ChevronUp class="h-4 w-4" />
+        {:else}
+          <ChevronDown class="h-4 w-4" />
         {/if}
+      </div>
+    </button>
+
+    {#if showReportPanel}
+      <div class="panel-content">
+        <div class="report-grid">
+          {#each reportCategories as category}
+            <div class="report-category-section">
+              {@const CategoryIcon = category.icon}
+              <div class="category-label">
+                <CategoryIcon class="h-3.5 w-3.5" />
+                <span>{category.name}</span>
+              </div>
+              <div class="report-tiles">
+                {#each category.reports as report}
+                  {@const ReportIcon = report.icon}
+                  <button
+                    class="report-tile"
+                    class:active={activeReport === report.id}
+                    onclick={() => selectReport(report.id)}
+                    title={report.description}
+                  >
+                    <ReportIcon class="tile-icon" />
+                    <span class="tile-label">{report.label}</span>
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </div>
+    {/if}
+  </div>
+
+  <!-- Header with Date Controls -->
+  <div class="sticky top-0 z-10 bg-background border-b p-3">
+    <div class="flex items-center justify-between gap-3">
+      <!-- Current Report Info -->
+      <div class="current-report-info">
+        {@const config = currentReportConfig()}
+        {@const Icon = config.icon}
+        <Icon class="h-5 w-5 text-primary" />
+        <div>
+          <h2 class="report-title">{config.label}</h2>
+          <p class="report-desc">{config.description}</p>
+        </div>
       </div>
 
       <!-- Date Range Picker -->
@@ -267,15 +284,17 @@
 
     <!-- Filters (shown for reports that support them) -->
     {#if currentReportConfig().showFilters}
-      <ReportFilters
-        bind:selectedAccounts
-        bind:selectedCategories
-        bind:selectedPayees
-        showAccounts={true}
-        showCategories={activeReport !== 'spending-payee'}
-        showPayees={activeReport !== 'spending-category'}
-        showDatePresets={false}
-      />
+      <div class="mt-3">
+        <ReportFilters
+          bind:selectedAccounts
+          bind:selectedCategories
+          bind:selectedPayees
+          showAccounts={true}
+          showCategories={activeReport !== 'spending-payee'}
+          showPayees={activeReport !== 'spending-category'}
+          showDatePresets={false}
+        />
+      </div>
     {/if}
   </div>
 
@@ -400,142 +419,171 @@
 </div>
 
 <style>
-  /* Report Selector Trigger */
-  .report-selector-trigger {
+  /* Report Panel */
+  .report-panel {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.625rem 1rem;
+    background: var(--muted);
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .panel-header:hover {
+    background: color-mix(in srgb, var(--muted) 90%, var(--foreground) 10%);
+  }
+
+  .panel-header-left {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    background: var(--muted);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-weight: 500;
     color: var(--foreground);
   }
 
-  .report-selector-trigger:hover {
-    background: var(--accent);
-    border-color: var(--primary);
+  .panel-title {
+    font-weight: 600;
+    font-size: 0.85rem;
   }
 
-  .report-selector-label {
-    font-size: 0.9rem;
+  .current-report-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 500;
   }
 
-  .chevron {
-    transition: transform 0.2s;
+  .panel-header-right {
     color: var(--muted-foreground);
   }
 
-  .chevron.open {
-    transform: rotate(180deg);
+  .panel-content {
+    padding: 0.75rem 1rem;
+    background: var(--background);
   }
 
-  /* Dropdown */
-  .report-selector-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    width: 320px;
-    max-height: 70vh;
-    overflow-y: auto;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
-    z-index: 100;
-    padding: 0.5rem;
+  /* Report Grid */
+  .report-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
   }
 
-  /* Category */
-  .report-category {
-    margin-bottom: 0.5rem;
+  .report-category-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
-  .report-category:last-child {
-    margin-bottom: 0;
-  }
-
-  .category-header {
+  .category-label {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.7rem;
+    gap: 0.375rem;
+    font-size: 0.65rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--muted-foreground);
+    padding: 0 0.25rem;
   }
 
-  .category-reports {
+  .report-tiles {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 0.25rem;
   }
 
-  /* Report Option */
-  .report-option {
+  .report-tile {
     display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    width: 100%;
-    padding: 0.625rem 0.75rem;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.625rem;
+    background: var(--muted);
+    border: 1px solid transparent;
+    border-radius: 6px;
     cursor: pointer;
-    text-align: left;
     transition: all 0.15s;
+    text-align: left;
     color: var(--foreground);
+    font-size: 0.8rem;
   }
 
-  .report-option:hover {
+  .report-tile:hover {
     background: var(--accent);
+    border-color: var(--border);
   }
 
-  .report-option.active {
+  .report-tile.active {
     background: var(--primary);
     color: var(--primary-foreground);
+    border-color: var(--primary);
   }
 
-  .report-option-text {
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-    min-width: 0;
-    flex: 1;
+  .report-tile :global(.tile-icon) {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
   }
 
-  .report-option-label {
+  .tile-label {
     font-weight: 500;
-    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .report-option-desc {
-    font-size: 0.7rem;
-    opacity: 0.7;
+  /* Current Report Info */
+  .current-report-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .report-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .report-desc {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    margin: 0;
     line-height: 1.3;
   }
 
-  .report-option.active .report-option-desc {
-    opacity: 0.85;
+  /* Responsive */
+  @media (max-width: 1024px) {
+    .report-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
   }
 
-  /* Mobile adjustments */
   @media (max-width: 640px) {
-    .report-selector-dropdown {
-      width: calc(100vw - 2rem);
-      max-width: 320px;
+    .report-grid {
+      grid-template-columns: 1fr;
     }
 
-    .report-selector-label {
-      max-width: 120px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .current-report-info {
+      display: none;
+    }
+
+    .report-desc {
+      display: none;
     }
   }
 </style>
