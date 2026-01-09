@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PieChart, BarChart3, TrendingUp, Calendar, Table2, ChevronLeft, ChevronRight, Users, Hash } from 'lucide-svelte';
+  import { PieChart, BarChart3, TrendingUp, Calendar, Table2, ChevronLeft, ChevronRight, Users, Hash, CalendarDays, AlertTriangle, UserPlus, HelpCircle } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { Card, CardContent } from '$lib/components/ui/card';
   import SpendingByCategory from './spending-by-category.svelte';
@@ -10,8 +10,13 @@
   import HierarchicalSpending from './hierarchical-spending.svelte';
   import ReportFilters from './report-filters.svelte';
   import BenfordDistribution from './benford-distribution.svelte';
+  import SpendingByDayOfWeek from './spending-by-day-of-week.svelte';
+  import SpendingByTimeOfMonth from './spending-by-time-of-month.svelte';
+  import UnusualTransactions from './unusual-transactions.svelte';
+  import NewPayees from './new-payees.svelte';
+  import UncategorizedTransactions from './uncategorized-transactions.svelte';
 
-  type ReportType = 'hierarchical' | 'spending-category' | 'spending-payee' | 'trends' | 'income-expense' | 'net-worth' | 'benford';
+  type ReportType = 'hierarchical' | 'spending-category' | 'spending-payee' | 'trends' | 'income-expense' | 'net-worth' | 'benford' | 'day-of-week' | 'time-of-month' | 'unusual' | 'new-payees' | 'uncategorized';
 
   let activeReport = $state<ReportType>('hierarchical');
 
@@ -145,6 +150,11 @@
     { id: 'trends' as const, label: 'Tendencias', icon: TrendingUp, showFilters: true },
     { id: 'income-expense' as const, label: 'Ingresos vs Gastos', icon: BarChart3, showFilters: false },
     { id: 'net-worth' as const, label: 'Patrimonio', icon: TrendingUp, showFilters: false },
+    { id: 'day-of-week' as const, label: 'Por Día', icon: Calendar, showFilters: false },
+    { id: 'time-of-month' as const, label: 'Momento del Mes', icon: CalendarDays, showFilters: false },
+    { id: 'unusual' as const, label: 'Inusuales', icon: AlertTriangle, showFilters: false },
+    { id: 'new-payees' as const, label: 'Nuevos', icon: UserPlus, showFilters: false },
+    { id: 'uncategorized' as const, label: 'Sin Categoría', icon: HelpCircle, showFilters: false },
     { id: 'benford' as const, label: 'Benford', icon: Hash, showFilters: false },
   ];
 
@@ -248,6 +258,31 @@
           <IncomeVsExpense months={datePreset === 'thisMonth' ? 1 : datePreset === 'last3Months' ? 3 : 12} />
         {:else if activeReport === 'net-worth'}
           <NetWorth />
+        {:else if activeReport === 'day-of-week'}
+          <SpendingByDayOfWeek
+            startDate={dateRanges().start}
+            endDate={dateRanges().end}
+          />
+        {:else if activeReport === 'time-of-month'}
+          <SpendingByTimeOfMonth
+            startDate={dateRanges().start}
+            endDate={dateRanges().end}
+          />
+        {:else if activeReport === 'unusual'}
+          <UnusualTransactions
+            startDate={dateRanges().start}
+            endDate={dateRanges().end}
+          />
+        {:else if activeReport === 'new-payees'}
+          <NewPayees
+            startDate={dateRanges().start}
+            endDate={dateRanges().end}
+          />
+        {:else if activeReport === 'uncategorized'}
+          <UncategorizedTransactions
+            startDate={dateRanges().start}
+            endDate={dateRanges().end}
+          />
         {:else if activeReport === 'benford'}
           <BenfordDistribution
             startDate={dateRanges().start}

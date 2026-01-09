@@ -7,3 +7,8 @@ export { default as ReportsView } from './reports-view.svelte';
 export { default as HierarchicalSpending } from './hierarchical-spending.svelte';
 export { default as ReportFilters } from './report-filters.svelte';
 export { default as BenfordDistribution } from './benford-distribution.svelte';
+export { default as SpendingByDayOfWeek } from './spending-by-day-of-week.svelte';
+export { default as SpendingByTimeOfMonth } from './spending-by-time-of-month.svelte';
+export { default as UnusualTransactions } from './unusual-transactions.svelte';
+export { default as NewPayees } from './new-payees.svelte';
+export { default as UncategorizedTransactions } from './uncategorized-transactions.svelte';
