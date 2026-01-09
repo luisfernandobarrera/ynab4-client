@@ -198,12 +198,14 @@
       <div class="panel-header-left">
         <LayoutGrid class="h-4 w-4" />
         <span class="panel-title">Reportes</span>
-        {@const config = currentReportConfig()}
-        <span class="current-report-badge">
+        {#if true}
+          {@const config = currentReportConfig()}
           {@const Icon = config.icon}
-          <Icon class="h-3 w-3" />
-          {config.label}
-        </span>
+          <span class="current-report-badge">
+            <Icon class="h-3 w-3" />
+            {config.label}
+          </span>
+        {/if}
       </div>
       <div class="panel-header-right">
         {#if showReportPanel}
@@ -218,8 +220,8 @@
       <div class="panel-content">
         <div class="report-grid">
           {#each reportCategories as category}
+            {@const CategoryIcon = category.icon}
             <div class="report-category-section">
-              {@const CategoryIcon = category.icon}
               <div class="category-label">
                 <CategoryIcon class="h-3.5 w-3.5" />
                 <span>{category.name}</span>
@@ -250,13 +252,15 @@
     <div class="flex items-center justify-between gap-3">
       <!-- Current Report Info -->
       <div class="current-report-info">
-        {@const config = currentReportConfig()}
-        {@const Icon = config.icon}
-        <Icon class="h-5 w-5 text-primary" />
-        <div>
-          <h2 class="report-title">{config.label}</h2>
-          <p class="report-desc">{config.description}</p>
-        </div>
+        {#if true}
+          {@const config = currentReportConfig()}
+          {@const Icon = config.icon}
+          <Icon class="h-5 w-5 text-primary" />
+          <div>
+            <h2 class="report-title">{config.label}</h2>
+            <p class="report-desc">{config.description}</p>
+          </div>
+        {/if}
       </div>
 
       <!-- Date Range Picker -->
