@@ -7,7 +7,8 @@
   import TransactionContextMenu from './transaction-context-menu.svelte';
   import DateNavigation from './date-navigation.svelte';
   import Autocomplete from '$lib/components/ui/autocomplete.svelte';
-  import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories, budgetInfo } from '$lib/stores/budget';
+  import SplitEditor from './split-editor.svelte';
+  import { selectedAccountTransactions, selectedAccountId, accounts, transactions, payees, categories, budgetInfo, refreshTransactions } from '$lib/stores/budget';
   import { isMobile, isEditMode, addPendingChange, addToast, transactionSortOrder, toggleTransactionSortOrder, reverseScroll, toggleReverseScroll } from '$lib/stores/ui';
   import { formatCurrency } from '$lib/utils';
   import { t } from '$lib/i18n';
@@ -204,9 +205,10 @@
   interface Props {
     onAddTransaction?: () => void;
     onEditTransaction?: (id: string) => void;
+    canWrite?: boolean;
   }
 
-  let { onAddTransaction, onEditTransaction }: Props = $props();
+  let { onAddTransaction, onEditTransaction, canWrite = true }: Props = $props();
 
   let searchQuery = $state('');
   let hideReconciled = $state(false);
@@ -254,6 +256,19 @@
   let entryOutflow = $state('');
   let entryInflow = $state('');
   let entryFlag = $state<string | null>(null);
+
+  // Split mode state
+  let isSplitMode = $state(false);
+  let entrySplits = $state<Array<{
+    id: string;
+    amount: string;
+    categoryId: string | null;
+    categoryName: string;
+    memo: string;
+    isTransfer: boolean;
+    transferAccountId: string | null;
+    transferAccountName: string;
+  }>>([]);
   
   // Editing existing transaction
   let editingTxId = $state<string | null>(null);
@@ -368,13 +383,22 @@
       .sort((a, b) => a.label.localeCompare(b.label))
   );
 
-  // Autocomplete options for payees
-  const payeeOptions = $derived(
-    $payees
+  // Autocomplete options for payees (including transfer accounts)
+  const payeeOptions = $derived.by(() => {
+    const regularPayees = $payees
       .filter(p => p.name && !p.isTombstone)
-      .map(p => ({ value: p.name, label: p.name }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-  );
+      .map(p => ({ value: p.name, label: p.name, group: 'Payees' }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    // Add transfer accounts (exclude current account)
+    const currentAccountId = selectedAccount?.id || $selectedAccountId;
+    const transferAccounts = $accounts
+      .filter(a => !a.closed && !a.hidden && a.id !== currentAccountId)
+      .map(a => ({ value: `Transfer : ${a.name}`, label: `Transfer : ${a.name}`, group: 'Transfers' }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+
+    return [...transferAccounts, ...regularPayees];
+  });
   
   // Autocomplete options for categories (grouped by master category)
   const categoryOptions = $derived.by(() => {
@@ -752,6 +776,11 @@
 
   // Start new entry
   function startEntry() {
+    // Don't allow new entries in read-only mode
+    if (!canWrite) {
+      addToast({ type: 'warning', message: 'Budget is in read-only mode' });
+      return;
+    }
     // Cancel any existing edit first
     cancelEdit();
     isEditing = true;
@@ -791,6 +820,9 @@
       return;
     }
 
+    // Trim payee name
+    const payeeName = entryPayee?.trim() || '';
+
     // Parse amounts
     const outflowAmount = entryOutflow ? parseFloat(entryOutflow) : 0;
     const inflowAmount = entryInflow ? parseFloat(entryInflow) : 0;
@@ -799,53 +831,117 @@
     // Parse date (support flexible formats)
     const parsedDate = parseDateInput(entryDate);
 
-    // Find or create payee
-    let payeeId: string | undefined;
-    if (entryPayee) {
-      const existingPayee = $payees.find(p => p.name === entryPayee);
-      payeeId = existingPayee?.entityId;
-      // If payee doesn't exist, it will be created when syncing
-    }
-
-    // Find category
-    let categoryId: string | undefined;
-    if (entryCategory) {
-      const cat = $categories.find(c => c.name === entryCategory);
-      categoryId = cat?.entityId;
-    }
-
     try {
-      // Create the transaction via YnabClient
-      const txData = {
-        date: parsedDate,
-        amount,
-        accountId,
-        payeeId,
-        categoryId,
-        memo: entryMemo || undefined,
-        flagColor: entryFlag || undefined,
-        cleared: 'Uncleared' as const
-      };
+      // Handle split mode
+      if (isSplitMode && entrySplits.length > 0) {
+        // Calculate total amount from splits
+        const totalSplitAmount = entrySplits.reduce((sum, s) => {
+          return sum + (parseFloat(s.amount) || 0);
+        }, 0);
 
-      client.createTransaction(txData);
+        // Build splits array for createTransactionWithSplits
+        const splits = entrySplits.map(s => {
+          const splitAmount = parseFloat(s.amount) || 0;
+          return {
+            amount: splitAmount,
+            categoryId: s.categoryId || undefined,
+            categoryName: s.categoryName || undefined,
+            memo: s.memo || undefined,
+            transferAccountId: s.isTransfer ? s.transferAccountId || undefined : undefined
+          };
+        });
 
-      // Track as pending change
-      addPendingChange({
-        type: 'transaction',
-        action: 'create',
-        entityId: 'new-' + Date.now(),
-        entityName: entryPayee || 'New Transaction',
-        data: txData
-      });
+        // Create split transaction
+        client.createTransactionWithSplits({
+          date: parsedDate,
+          amount: -totalSplitAmount, // Outflow is negative
+          accountId,
+          payeeName: payeeName || undefined,
+          memo: entryMemo || undefined,
+          flagColor: entryFlag || undefined,
+          cleared: 'Uncleared',
+          splits
+        });
 
-      addToast({ type: 'success', message: 'Transaction added' });
+        // Track as pending change
+        addPendingChange({
+          type: 'transaction',
+          action: 'create',
+          entityId: 'new-split-' + Date.now(),
+          entityName: payeeName || 'Split Transaction',
+          data: { date: parsedDate, amount: -totalSplitAmount, accountId, splits: entrySplits.length }
+        });
+
+        addToast({ type: 'success', message: `Split transaction created with ${entrySplits.length} splits` });
+      } else {
+        // Check if this is a transfer (payee starts with "Transfer : ")
+        const isTransfer = payeeName?.startsWith('Transfer : ');
+
+        if (isTransfer) {
+          // Extract destination account name from "Transfer : AccountName"
+          const destAccountName = payeeName.replace('Transfer : ', '');
+          const destAccount = $accounts.find(a => a.name === destAccountName);
+
+          if (!destAccount) {
+            addToast({ type: 'error', message: `Account not found: ${destAccountName}` });
+            return;
+          }
+
+          // Create transfer using createTransfer
+          client.createTransfer({
+            date: parsedDate,
+            amount: Math.abs(amount), // createTransfer expects positive amount
+            sourceAccountId: accountId,
+            destinationAccountId: destAccount.id,
+            memo: entryMemo || undefined,
+            cleared: 'Uncleared'
+          });
+
+          // Track as pending change (use 'transaction' type for transfer)
+          addPendingChange({
+            type: 'transaction',
+            action: 'create',
+            entityId: 'new-transfer-' + Date.now(),
+            entityName: payeeName,
+            data: { date: parsedDate, amount, accountId, destAccountId: destAccount.id, isTransfer: true }
+          });
+
+          addToast({ type: 'success', message: 'Transfer created' });
+        } else {
+          // Create regular transaction via YnabClient
+          // Pass payeeName and categoryName - the library handles lookup/creation
+          const txData = {
+            date: parsedDate,
+            amount,
+            accountId,
+            payeeName: payeeName || undefined,
+            categoryName: entryCategory || undefined,
+            memo: entryMemo || undefined,
+            flagColor: entryFlag || undefined,
+            cleared: 'Uncleared' as const
+          };
+
+          client.createTransaction(txData);
+
+          // Track as pending change
+          addPendingChange({
+            type: 'transaction',
+            action: 'create',
+            entityId: 'new-' + Date.now(),
+            entityName: payeeName || 'New Transaction',
+            data: txData
+          });
+
+          addToast({ type: 'success', message: 'Transaction added' });
+        }
+      }
+
+      // Refresh transactions in the store (same as mobile)
+      refreshTransactions();
 
       // Reset form
       resetEntry();
       isEditing = false;
-
-      // Refresh transactions from store (client already updated the data)
-      // In a real implementation, we would reload from the client
     } catch (error) {
       console.error('Failed to create transaction:', error);
       addToast({ type: 'error', message: 'Failed to add transaction' });
@@ -860,10 +956,17 @@
     entryOutflow = '';
     entryInflow = '';
     entryFlag = null;
+    isSplitMode = false;
+    entrySplits = [];
   }
   
   // Start editing an existing transaction
   function startEdit(tx: typeof visibleTransactions[number]) {
+    // Don't allow editing in read-only mode
+    if (!canWrite) {
+      addToast({ type: 'warning', message: 'Budget is in read-only mode' });
+      return;
+    }
     // Cancel any new entry first
     isEditing = false;
     editingTxId = tx.id;
@@ -888,12 +991,14 @@
   }
   
   function saveEdit() {
-    if (!editingTxId || !editTx) return;
-    
+    if (!editingTxId || !editTx) {
+      return;
+    }
+
     // Store local reference to avoid null checks
     const txId = editingTxId;
     const txData = editTx;
-    
+
     // Check if edit mode is enabled
     if (!$isEditMode) {
       addToast({ type: 'warning', message: 'Enable edit mode to edit transactions' });
@@ -914,62 +1019,36 @@
     // Parse date
     const parsedDate = parseDateInput(txData.date);
 
-    // Find payee
-    let payeeId: string | undefined;
-    if (txData.payee) {
-      const existingPayee = $payees.find(p => p.name === txData.payee);
-      payeeId = existingPayee?.entityId;
-    }
-
-    // Find category
-    let categoryId: string | undefined;
-    if (txData.category) {
-      const cat = $categories.find(c => c.name === txData.category);
-      categoryId = cat?.entityId;
-    }
+    // Get payee name (trimmed)
+    const payeeName = txData.payee?.trim() || undefined;
 
     try {
-      // Get the transaction from the client
-      const allTx = client.getTransactions() as Array<{
-        entityId: string;
-        date: string;
-        amount: number;
-        payeeId?: string;
-        categoryId?: string;
-        memo?: string;
-        flagColor?: string;
-        accountId?: string;
-      }>;
-      const tx = allTx.find(t => t.entityId === txId);
-      
-      if (tx) {
-        // Update transaction properties
-        (tx as any).date = parsedDate;
-        (tx as any).amount = amount;
-        (tx as any).payeeId = payeeId;
-        (tx as any).categoryId = categoryId;
-        (tx as any).memo = txData.memo;
-        (tx as any).flagColor = txData.flag;
+      // Use client.updateTransaction() - same pattern as mobile (+page.svelte)
+      // Pass payeeName and categoryName, let the library handle payee lookup/creation
+      const updateData = {
+        date: parsedDate,
+        amount,
+        payeeName,
+        categoryName: txData.category || undefined,
+        memo: txData.memo || undefined,
+        flagColor: txData.flag || undefined,
+      };
 
-        // Track as pending change
-        addPendingChange({
-          type: 'transaction',
-          action: 'update',
-          entityId: txId,
-          entityName: txData.payee || 'Transaction',
-          data: {
-            date: parsedDate,
-            amount,
-            payeeId,
-            categoryId,
-            memo: txData.memo,
-            flagColor: txData.flag
-          }
-        });
+      client.updateTransaction(txId, updateData);
 
-        addToast({ type: 'success', message: 'Transaction updated' });
-      }
+      // Refresh transactions in the store to show the changes (same as mobile)
+      refreshTransactions();
 
+      // Track as pending change
+      addPendingChange({
+        type: 'transaction',
+        action: 'update',
+        entityId: txId,
+        entityName: payeeName || 'Transaction',
+        data: updateData
+      });
+
+      addToast({ type: 'success', message: 'Transaction updated' });
       cancelEdit();
     } catch (error) {
       console.error('Failed to update transaction:', error);
@@ -1205,7 +1284,7 @@
                 </button>
               </div>
               <div class="column-settings-list">
-                {#each COLUMNS.filter(c => c.canHide) as col (col.id)}
+                {#each COLUMNS.filter(c => c.canHide && c.id !== 'account') as col (col.id)}
                   <label class="column-toggle">
                     <input 
                       type="checkbox" 
@@ -1269,7 +1348,7 @@
               <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
               <div class="resize-handle" role="separator" aria-orientation="vertical" onmousedown={(e) => startResize(e, 'date')}></div>
             </th>
-            {#if !selectedAccount && isColumnVisible('account')}
+            {#if !selectedAccount}
               <th class="col-account resizable" style="width: {getColumnWidth('account')}px">
                 {$t('transactions.account')}
                 <!-- svelte-ignore a11y_no_static_element_interactions a11y_no_noninteractive_element_interactions -->
@@ -1352,7 +1431,7 @@
                     onkeydown={handleEntryKeydown}
                   />
                 </td>
-                {#if !selectedAccount && isColumnVisible('account')}
+                {#if !selectedAccount}
                   <td class="col-account">
                     <Autocomplete
                       options={accountOptions}
@@ -1369,44 +1448,58 @@
                     value={entryPayee}
                     placeholder={$t('transactions.payee')}
                     onSelect={(v) => entryPayee = v}
-                    onCreate={(v) => entryPayee = v}
                   />
                 </td>
                 <td class="col-category">
                   <div class="category-entry">
-                    <Autocomplete
-                      options={categoryOptions}
-                      value={entryCategory}
-                      placeholder={$t('transactions.category')}
-                      onSelect={(v) => entryCategory = v}
-                    />
-                    <input 
-                      type="text" 
-                      class="inline-input memo-input" 
-                      placeholder={$t('transactions.memo')}
-                      bind:value={entryMemo}
-                      onkeydown={handleEntryKeydown}
-                    />
+                    {#if !isSplitMode}
+                      <Autocomplete
+                        options={categoryOptions}
+                        value={entryCategory}
+                        placeholder={$t('transactions.category')}
+                        onSelect={(v) => entryCategory = v}
+                      />
+                      <input
+                        type="text"
+                        class="inline-input memo-input"
+                        placeholder={$t('transactions.memo')}
+                        bind:value={entryMemo}
+                        onkeydown={handleEntryKeydown}
+                      />
+                    {:else}
+                      <span class="split-indicator">{$t('transactions.splits')}: {entrySplits.length}</span>
+                    {/if}
+                    <button
+                      class="split-toggle-btn"
+                      class:active={isSplitMode}
+                      onclick={() => isSplitMode = !isSplitMode}
+                      title={isSplitMode ? $t('transactions.exitSplitMode') : $t('transactions.enterSplitMode')}
+                      type="button"
+                    >
+                      <Split class="h-3 w-3" />
+                    </button>
                   </div>
                 </td>
                 <td class="col-outflow">
-                  <input 
-                    type="text" 
-                    class="inline-input amount-input" 
+                  <input
+                    type="text"
+                    class="inline-input amount-input"
                     placeholder=""
                     value={entryOutflow}
                     oninput={handleOutflowInput}
                     onkeydown={handleEntryKeydown}
+                    disabled={isSplitMode}
                   />
                 </td>
                 <td class="col-inflow">
-                  <input 
-                    type="text" 
-                    class="inline-input amount-input" 
+                  <input
+                    type="text"
+                    class="inline-input amount-input"
                     placeholder=""
                     value={entryInflow}
                     oninput={handleInflowInput}
                     onkeydown={handleEntryKeydown}
+                    disabled={isSplitMode}
                   />
                 </td>
                 {#if selectedAccount}
@@ -1423,6 +1516,19 @@
                   </div>
                 </td>
               </tr>
+              <!-- Split editor row (top) -->
+              {#if isSplitMode}
+                <tr class="tx-split-editor-row">
+                  <td colspan="100%">
+                    <SplitEditor
+                      totalAmount={parseFloat(entryOutflow || '0') - parseFloat(entryInflow || '0')}
+                      currentAccountId={entryAccount || selectedAccount?.id || $accounts[0]?.id || ''}
+                      bind:splits={entrySplits}
+                      onSplitsChange={(splits) => entrySplits = splits}
+                    />
+                  </td>
+                </tr>
+              {/if}
             {:else}
               <!-- Add transaction row (discrete) TOP -->
               <tr class="tx-add-row">
@@ -1434,7 +1540,7 @@
                 <td class="col-date">
                   <button class="add-btn add-text" onclick={startEntry}>{$t('transactions.addTransaction')}</button>
                 </td>
-                {#if !selectedAccount && isColumnVisible('account')}
+                {#if !selectedAccount}
                   <td class="col-account"></td>
                 {/if}
                 <td class="col-icon"></td>
@@ -1497,7 +1603,7 @@
                     onkeydown={handleEditKeydown}
                   />
                 </td>
-                {#if !selectedAccount && isColumnVisible('account')}
+                {#if !selectedAccount}
                   <td class="col-account">{tx.accountName}</td>
                 {/if}
                 <td class="col-icon">
@@ -1509,7 +1615,6 @@
                     value={editTx!.payee}
                     placeholder={$t('transactions.payee')}
                     onSelect={(v) => { if (editTx) editTx.payee = v; }}
-                    onCreate={(v) => { if (editTx) editTx.payee = v; }}
                   />
                 </td>
                 <td class="col-category">
@@ -1585,7 +1690,7 @@
                   <td class="col-flag {tx.flag ? `flag-${tx.flag.toLowerCase()}` : ''}"></td>
                 {/if}
                 <td class="col-date">{formatDate(tx.date)}</td>
-                {#if !selectedAccount && isColumnVisible('account')}
+                {#if !selectedAccount}
                   <td class="col-account">{tx.accountName}</td>
                 {/if}
                 <td class="col-icon">
@@ -1725,7 +1830,7 @@
                     onkeydown={handleEntryKeydown}
                   />
                 </td>
-                {#if !selectedAccount && isColumnVisible('account')}
+                {#if !selectedAccount}
                   <td class="col-account">
                     <Autocomplete
                       options={accountOptions}
@@ -1742,44 +1847,58 @@
                     value={entryPayee}
                     placeholder={$t('transactions.payee')}
                     onSelect={(v) => entryPayee = v}
-                    onCreate={(v) => entryPayee = v}
                   />
                 </td>
                 <td class="col-category">
                   <div class="category-entry">
-                    <Autocomplete
-                      options={categoryOptions}
-                      value={entryCategory}
-                      placeholder={$t('transactions.category')}
-                      onSelect={(v) => entryCategory = v}
-                    />
-                    <input 
-                      type="text" 
-                      class="inline-input memo-input" 
-                      placeholder={$t('transactions.memo')}
-                      bind:value={entryMemo}
-                      onkeydown={handleEntryKeydown}
-                    />
+                    {#if !isSplitMode}
+                      <Autocomplete
+                        options={categoryOptions}
+                        value={entryCategory}
+                        placeholder={$t('transactions.category')}
+                        onSelect={(v) => entryCategory = v}
+                      />
+                      <input
+                        type="text"
+                        class="inline-input memo-input"
+                        placeholder={$t('transactions.memo')}
+                        bind:value={entryMemo}
+                        onkeydown={handleEntryKeydown}
+                      />
+                    {:else}
+                      <span class="split-indicator">{$t('transactions.splits')}: {entrySplits.length}</span>
+                    {/if}
+                    <button
+                      class="split-toggle-btn"
+                      class:active={isSplitMode}
+                      onclick={() => isSplitMode = !isSplitMode}
+                      title={isSplitMode ? $t('transactions.exitSplitMode') : $t('transactions.enterSplitMode')}
+                      type="button"
+                    >
+                      <Split class="h-3 w-3" />
+                    </button>
                   </div>
                 </td>
                 <td class="col-outflow">
-                  <input 
-                    type="text" 
-                    class="inline-input amount-input" 
+                  <input
+                    type="text"
+                    class="inline-input amount-input"
                     placeholder=""
                     value={entryOutflow}
                     oninput={handleOutflowInput}
                     onkeydown={handleEntryKeydown}
+                    disabled={isSplitMode}
                   />
                 </td>
                 <td class="col-inflow">
-                  <input 
-                    type="text" 
-                    class="inline-input amount-input" 
+                  <input
+                    type="text"
+                    class="inline-input amount-input"
                     placeholder=""
                     value={entryInflow}
                     oninput={handleInflowInput}
                     onkeydown={handleEntryKeydown}
+                    disabled={isSplitMode}
                   />
                 </td>
                 {#if selectedAccount}
@@ -1796,6 +1915,19 @@
                   </div>
                 </td>
               </tr>
+              <!-- Split editor row (bottom) -->
+              {#if isSplitMode}
+                <tr class="tx-split-editor-row">
+                  <td colspan="100%">
+                    <SplitEditor
+                      totalAmount={parseFloat(entryOutflow || '0') - parseFloat(entryInflow || '0')}
+                      currentAccountId={entryAccount || selectedAccount?.id || $accounts[0]?.id || ''}
+                      bind:splits={entrySplits}
+                      onSplitsChange={(splits) => entrySplits = splits}
+                    />
+                  </td>
+                </tr>
+              {/if}
             {:else}
               <!-- Add transaction row (discrete) at bottom -->
               <tr class="tx-add-row">
@@ -1807,7 +1939,7 @@
                 <td class="col-date">
                   <button class="add-btn add-text" onclick={startEntry}>{$t('transactions.addTransaction')}</button>
                 </td>
-                {#if !selectedAccount && isColumnVisible('account')}
+                {#if !selectedAccount}
                   <td class="col-account"></td>
                 {/if}
                 <td class="col-icon"></td>
@@ -1860,7 +1992,7 @@
       </div>
     {/if}
 
-    <!-- Cards (Mobile) -->
+    <!-- Cards (Mobile) - YNAB4 style -->
     <div class="tx-cards-container">
       {#each groupedTransactions as [date, txs]}
         <div class="tx-date-group">
@@ -1871,8 +2003,14 @@
               class="tx-card"
               onclick={() => onEditTransaction?.(tx.id)}
             >
-              <div class="tx-card-status {getStatusClass(tx.cleared)}"></div>
-              <div class="tx-card-main">
+              <!-- Cleared status circle -->
+              <div class="tx-card-cleared {getStatusClass(tx.cleared)}"></div>
+              <!-- Flag indicator -->
+              {#if tx.flag}
+                <div class="tx-card-flag tx-card-flag-{tx.flag.toLowerCase()}"></div>
+              {/if}
+              <!-- Left side: Payee + Account -->
+              <div class="tx-card-left">
                 <div class="tx-card-payee">
                   {#if tx.transferAccountId}
                     <span class="transfer-payee" class:outgoing={isOutflow} class:incoming={!isOutflow}>
@@ -1882,12 +2020,18 @@
                     {tx.payee || $t('payees.unknown')}
                   {/if}
                 </div>
+                <div class="tx-card-account">
+                  {tx.accountName}
+                </div>
+              </div>
+              <!-- Right side: Amount + Category -->
+              <div class="tx-card-right">
+                <div class="tx-card-amount" class:negative={isOutflow} class:positive={!isOutflow}>
+                  {isOutflow ? '-' : ''}{formatCurrency(Math.abs(tx.amount))}
+                </div>
                 <div class="tx-card-category">
                   {tx.category || '-'}
                 </div>
-              </div>
-              <div class="tx-card-amount" class:negative={isOutflow} class:positive={!isOutflow}>
-                {isOutflow ? '-' : '+'}{formatAmount(tx.amount)}
               </div>
             </button>
           {/each}
@@ -1922,8 +2066,8 @@
     <ScheduledPanel accountId={selectedAccount?.id} showAccountColumn={!selectedAccount} />
   </div>
 
-  <!-- Mobile FAB -->
-  {#if $isMobile && onAddTransaction}
+  <!-- Mobile FAB - only show if canWrite and onAddTransaction is defined -->
+  {#if $isMobile && onAddTransaction && canWrite}
     <button class="tx-fab" onclick={onAddTransaction}>
       <Plus class="h-6 w-6" />
       <span>{$t('transactions.addTransaction')}</span>
@@ -1938,6 +2082,7 @@
   y={contextMenuY}
   selectedTransactions={selectedTransactionsForMenu}
   onClose={handleContextMenuClose}
+  {canWrite}
 />
 
 <style>
@@ -2332,6 +2477,14 @@
   }
   .col-payee { font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .col-category { font-size: 0.8125rem; overflow: hidden; }
+
+  /* Allow dropdowns to overflow in edit rows */
+  .tx-edit-row .col-payee,
+  .tx-edit-row .col-category,
+  .tx-entry-row .col-payee,
+  .tx-entry-row .col-category {
+    overflow: visible;
+  }
   .col-memo { font-size: 0.75rem; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   
   /* Category cell */
@@ -2688,12 +2841,61 @@
     display: flex;
     flex-direction: column;
     gap: 0;
+    position: relative;
   }
 
   .memo-input {
     font-size: 0.7rem;
     font-style: normal;
     color: var(--foreground);
+  }
+
+  /* Split toggle button */
+  .split-toggle-btn {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--background);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: all 0.15s;
+    z-index: 1;
+  }
+
+  .split-toggle-btn:hover {
+    background: var(--accent);
+    color: var(--foreground);
+    border-color: var(--primary);
+  }
+
+  .split-toggle-btn.active {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-color: var(--primary);
+  }
+
+  .split-indicator {
+    font-size: 0.75rem;
+    color: var(--primary);
+    font-weight: 500;
+    padding: 0.25rem 0;
+  }
+
+  /* Split editor row */
+  .tx-split-editor-row {
+    background: var(--muted);
+  }
+
+  .tx-split-editor-row td {
+    padding: 0.5rem 0.75rem;
   }
 
   .amount-input {
@@ -2804,7 +3006,7 @@
     display: flex;
     align-items: center;
     width: 100%;
-    padding: 0.625rem 0.75rem;
+    padding: 0.75rem 0.875rem;
     border: none;
     background: var(--card);
     border-bottom: 1px solid var(--border);
@@ -2818,32 +3020,65 @@
     background: var(--accent);
   }
 
-  .tx-card-status {
-    width: 3px;
-    height: 28px;
-    border-radius: 2px;
+  /* Cleared status circle (YNAB4 style) */
+  .tx-card-cleared {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
     flex-shrink: 0;
+    border: 1.5px solid var(--muted-foreground);
   }
 
-  .tx-card-status.reconciled { background: var(--success); }
-  .tx-card-status.cleared { background: var(--success); opacity: 0.5; }
-  .tx-card-status.uncleared { background: var(--muted-foreground); opacity: 0.3; }
+  .tx-card-cleared.reconciled {
+    background: var(--success);
+    border-color: var(--success);
+  }
+  .tx-card-cleared.cleared {
+    background: var(--success);
+    border-color: var(--success);
+    opacity: 0.6;
+  }
+  .tx-card-cleared.uncleared {
+    background: transparent;
+    border-color: var(--muted-foreground);
+    opacity: 0.4;
+  }
 
-  .tx-card-main {
+  /* Flag indicator (YNAB4 style - vertical bar) */
+  .tx-card-flag {
+    width: 3px;
+    height: 32px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    margin-left: -0.25rem;
+  }
+
+  .tx-card-flag-red { background: #ef4444; }
+  .tx-card-flag-orange { background: #f97316; }
+  .tx-card-flag-yellow { background: #eab308; }
+  .tx-card-flag-green { background: #22c55e; }
+  .tx-card-flag-blue { background: #3b82f6; }
+  .tx-card-flag-purple { background: #a855f7; }
+
+  /* Left side: Payee + Account */
+  .tx-card-left {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
   }
 
   .tx-card-payee {
     font-weight: 500;
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     color: var(--foreground);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .tx-card-category {
+  .tx-card-account {
     font-size: 0.75rem;
     color: var(--muted-foreground);
     white-space: nowrap;
@@ -2851,16 +3086,33 @@
     text-overflow: ellipsis;
   }
 
+  /* Right side: Amount + Category */
+  .tx-card-right {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.125rem;
+  }
+
   .tx-card-amount {
     font-family: var(--font-family-mono);
-    font-size: 0.875rem;
+    font-size: 0.9375rem;
     font-weight: 600;
     font-feature-settings: "tnum";
-    flex-shrink: 0;
   }
 
   .tx-card-amount.positive { color: var(--success); }
   .tx-card-amount.negative { color: var(--destructive); }
+
+  .tx-card-category {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+  }
 
   /* Status Bar */
   .tx-status-bar {
