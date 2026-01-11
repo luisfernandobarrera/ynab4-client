@@ -15,9 +15,8 @@
   } from 'lucide-svelte';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
-  import { payees, categories, masterCategories, transactions } from '$lib/stores/budget';
+  import { payees, categories, masterCategories, transactions, type Payee } from '$lib/stores/budget';
   import { formatCurrency } from '$lib/utils';
-  import type { Payee, Category } from 'ynab-library';
 
   interface Props {
     visible?: boolean;

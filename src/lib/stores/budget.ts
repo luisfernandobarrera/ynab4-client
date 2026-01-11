@@ -14,6 +14,13 @@ export interface Account {
   balance: number;
   note?: string;
   isTombstone?: boolean;
+  // Additional properties for compatibility with library
+  accountName?: string;
+  accountType?: string;
+  lastReconciledDate?: string;
+  lastReconciledBalance?: number;
+  clearedBalance?: number;
+  unclearedBalance?: number;
 }
 
 export interface Transaction {
@@ -218,13 +225,16 @@ export function resetBudget() {
 
 /**
  * Load budget from Dropbox
+ * @param accessToken - Dropbox access token
+ * @param budgetPath - Path to the .ynab4 budget in Dropbox
+ * @param readOnly - If true, open in read-only mode (no sync registration, no writes)
  */
-export async function loadFromDropbox(accessToken: string, budgetPath: string): Promise<void> {
+export async function loadFromDropbox(accessToken: string, budgetPath: string, readOnly: boolean = false): Promise<void> {
   isLoading.set(true);
   loadError.set(null);
 
   try {
-    const result = await BudgetLoader.loadFromDropbox(accessToken, budgetPath);
+    const result = await BudgetLoader.loadFromDropbox(accessToken, budgetPath, readOnly);
     await populateBudgetData(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load budget';
@@ -238,13 +248,15 @@ export async function loadFromDropbox(accessToken: string, budgetPath: string): 
 
 /**
  * Load budget from local filesystem
+ * @param path - Path to the .ynab4 budget folder
+ * @param readOnly - If true, open in read-only mode (no sync registration, no writes)
  */
-export async function loadFromLocal(path: string): Promise<void> {
+export async function loadFromLocal(path: string, readOnly: boolean = false): Promise<void> {
   isLoading.set(true);
   loadError.set(null);
 
   try {
-    const result = await BudgetLoader.loadFromLocalPath(path);
+    const result = await BudgetLoader.loadFromLocalPath(path, readOnly);
     await populateBudgetData(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load budget';
@@ -470,5 +482,77 @@ async function populateBudgetData(result: LoaderBudgetInfo): Promise<void> {
 
   console.log(`[Budget Store] populateBudgetData took ${Date.now() - populateStart}ms`);
   console.log('[Budget Store] Budget loaded:', result.budgetName);
+}
+
+/**
+ * Refresh transactions from the current client
+ * Call this after creating/updating/deleting transactions
+ */
+export function refreshTransactions(): void {
+  const info = get(budgetInfo);
+  if (!info.client) return;
+
+  const client = info.client;
+
+  // Get fresh data from client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const txList: any[] = client.getTransactions() || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payeeList: any[] = client.getPayees() || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const accountList: any[] = client.getAccounts() || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const categoryList: any[] = client.getCategories() || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const masterCatList: any[] = client.getMasterCategories() || [];
+
+  const payeeMap = new Map(payeeList.map((p) => [p.entityId, p.name]));
+  const accountMap = new Map(accountList.map((a) => [a.entityId, a.accountName]));
+  const masterCatMap = new Map(masterCatList.map((mc) => [mc.entityId, mc.name]));
+  const categoryMap = new Map(categoryList.map((c) => {
+    const masterId = c.categoryGroupId || c.masterCategoryId;
+    const masterName = masterCatMap.get(masterId);
+    const fullName = masterName ? `${masterName}: ${c.name}` : c.name;
+    return [c.entityId, fullName];
+  }));
+
+  transactions.set(
+    txList
+      .filter((tx) => !tx.isTombstone)
+      .map((tx) => {
+        const payeeName = (payeeMap.get(tx.payeeId as string) as string) || '';
+        const categoryName = (categoryMap.get(tx.categoryId as string) as string) || '';
+
+        return {
+          id: tx.entityId as string,
+          entityId: tx.entityId as string,
+          date: tx.date as string,
+          amount: (tx.amount as number) || 0,
+          payee: payeeName,
+          payeeId: tx.payeeId as string | null,
+          category: categoryName,
+          categoryId: tx.categoryId as string | null,
+          memo: (tx.memo as string) || '',
+          cleared: tx.cleared as string,
+          flag: (tx.flagColor || tx.flag) as string | null,
+          accountId: tx.accountId as string,
+          accountName: (accountMap.get(tx.accountId as string) as string) || '',
+          transferAccountId: tx.transferAccountId as string | null,
+        };
+      })
+  );
+
+  // Also refresh payees in case new ones were created
+  payees.set(
+    payeeList
+      .filter((p) => !p.isTombstone)
+      .map((p) => ({
+        id: p.entityId as string,
+        entityId: p.entityId as string,
+        name: p.name as string,
+      }))
+  );
+
+  console.log('[Budget Store] Transactions refreshed:', txList.filter((tx) => !tx.isTombstone).length);
 }
 

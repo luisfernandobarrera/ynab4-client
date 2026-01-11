@@ -105,20 +105,21 @@
     <div class="py-1">
       {#each menuOptions as { option, icon: Icon, color }}
         {@const value = preview[option] ?? 0}
-        {@const isZero = value === 0 && option !== 'zero'}
+        {@const isZeroOption = option === 'zero'}
+        {@const isDisabled = value === 0 && !isZeroOption}
         {@const isSame = value === currentBudgeted}
 
         <button
-          class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-accent transition-colors {isZero ? 'opacity-50' : ''}"
+          class="w-full flex items-center gap-3 px-3 py-2 text-sm hover:bg-accent transition-colors {isDisabled ? 'opacity-50' : ''}"
           onclick={() => handleSelect(option)}
-          disabled={isZero && option !== 'zero'}
+          disabled={isDisabled}
         >
           <Icon class="h-4 w-4 shrink-0 {color || ''}" />
           <span class="flex-1 text-left">{QUICK_BUDGET_LABELS[option]}</span>
           <span class="amount font-medium {isSame ? 'text-muted-foreground' : ''}">
             {formatCurrency(value)}
           </span>
-          {#if !isZero && !isSame}
+          {#if !isDisabled && !isSame}
             <span class="text-xs {value > currentBudgeted ? 'text-green-500' : 'text-red-500'}">
               {formatDiff(value)}
             </span>

@@ -14,15 +14,17 @@
     onSelect: (value: string) => void;
     onCreate?: (value: string) => void;
     class?: string;
+    disabled?: boolean;
   }
 
-  let { 
-    options, 
-    value = '', 
-    placeholder = '', 
-    onSelect, 
+  let {
+    options,
+    value = '',
+    placeholder = '',
+    onSelect,
     onCreate,
-    class: className = ''
+    class: className = '',
+    disabled = false
   }: Props = $props();
 
   let inputValue = $state('');
@@ -30,17 +32,23 @@
   let highlightedIndex = $state(-1);
   let inputRef = $state<HTMLInputElement | null>(null);
   let listRef = $state<HTMLDivElement | null>(null);
-  
-  // Sync inputValue when value prop changes
+  let dropdownStyle = $state('');
+  let lastExternalValue = $state(value);
+
+  // Sync inputValue only when the external value changes (not when user is typing)
   $effect(() => {
-    inputValue = value;
+    if (value !== lastExternalValue) {
+      lastExternalValue = value;
+      const match = options.find(o => o.value === value);
+      inputValue = match?.label || value;
+    }
   });
 
   // Filter options based on input
   const filteredOptions = $derived.by(() => {
-    if (!inputValue.trim()) return options;
-    const query = inputValue.toLowerCase();
-    return options.filter(opt => 
+    const query = inputValue.trim().toLowerCase();
+    if (!query) return options;
+    return options.filter(opt =>
       opt.label.toLowerCase().includes(query) ||
       opt.value.toLowerCase().includes(query)
     );
@@ -74,7 +82,24 @@
     highlightedIndex = 0;
   }
 
+  function updateDropdownPosition() {
+    if (!inputRef) return;
+    const rect = inputRef.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const maxHeight = Math.min(250, spaceBelow - 10);
+
+    dropdownStyle = `
+      position: fixed;
+      top: ${rect.bottom + 2}px;
+      left: ${rect.left}px;
+      width: ${rect.width + 24}px;
+      max-height: ${maxHeight > 100 ? maxHeight : 250}px;
+    `;
+  }
+
   function handleFocus() {
+    updateDropdownPosition();
     isOpen = true;
   }
 
@@ -83,15 +108,15 @@
     setTimeout(() => {
       if (!listRef?.contains(document.activeElement)) {
         isOpen = false;
-        // If value doesn't match any option, either create or revert
-        const match = options.find(o => o.label.toLowerCase() === inputValue.toLowerCase());
+        const trimmedValue = inputValue.trim();
+        // If value matches an option, select it; otherwise keep typed value
+        const match = options.find(o => o.label.toLowerCase() === trimmedValue.toLowerCase());
         if (match) {
           selectOption(match);
-        } else if (inputValue.trim() && onCreate) {
-          onCreate(inputValue.trim());
-        } else if (inputValue.trim()) {
-          // Keep the typed value as-is
-          onSelect(inputValue.trim());
+        } else if (trimmedValue) {
+          // Keep the typed value as-is (payee will be created on save)
+          onSelect(trimmedValue);
+          onCreate?.(trimmedValue);
         }
       }
     }, 150);
@@ -128,11 +153,9 @@
         if (highlightedIndex >= 0 && flatOptions[highlightedIndex]) {
           selectOption(flatOptions[highlightedIndex]);
         } else if (inputValue.trim()) {
-          if (onCreate) {
-            onCreate(inputValue.trim());
-          } else {
-            onSelect(inputValue.trim());
-          }
+          const trimmedValue = inputValue.trim();
+          onSelect(trimmedValue);
+          onCreate?.(trimmedValue);
           isOpen = false;
         }
         break;
@@ -156,13 +179,6 @@
     }
   }
 
-  // Sync external value changes
-  $effect(() => {
-    if (value !== inputValue) {
-      const match = options.find(o => o.value === value);
-      inputValue = match?.label || value;
-    }
-  });
 </script>
 
 <div class="autocomplete {className}">
@@ -172,6 +188,7 @@
       bind:this={inputRef}
       bind:value={inputValue}
       {placeholder}
+      {disabled}
       oninput={handleInput}
       onfocus={handleFocus}
       onblur={handleBlur}
@@ -179,18 +196,19 @@
       class="autocomplete-input"
       autocomplete="off"
     />
-    <button 
-      type="button" 
+    <button
+      type="button"
       class="autocomplete-toggle"
-      onclick={() => { isOpen = !isOpen; inputRef?.focus(); }}
+      onclick={() => { if (!disabled) { isOpen = !isOpen; inputRef?.focus(); } }}
       tabindex="-1"
+      {disabled}
     >
       <ChevronDown class="h-3 w-3 {isOpen ? 'rotated' : ''}" />
     </button>
   </div>
   
-  {#if isOpen && (filteredOptions.length > 0 || (inputValue.trim() && onCreate))}
-    <div class="autocomplete-dropdown" bind:this={listRef}>
+  {#if isOpen && filteredOptions.length > 0}
+    <div class="autocomplete-dropdown" bind:this={listRef} style={dropdownStyle}>
       {#if groupedOptions.ungrouped.length > 0}
         {#each groupedOptions.ungrouped as option, i}
           {@const globalIndex = filteredOptions.indexOf(option)}
@@ -226,15 +244,6 @@
         </div>
       {/each}
       
-      {#if inputValue.trim() && !filteredOptions.some(o => o.label.toLowerCase() === inputValue.toLowerCase()) && onCreate}
-        <button
-          type="button"
-          class="autocomplete-option autocomplete-create"
-          onmousedown={() => onCreate(inputValue.trim())}
-        >
-          + Crear "{inputValue}"
-        </button>
-      {/if}
     </div>
   {/if}
 </div>
@@ -302,10 +311,6 @@
   }
 
   .autocomplete-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
     z-index: 9999;
     max-height: 250px;
     overflow-y: auto;
@@ -313,7 +318,6 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-    margin-top: 2px;
   }
 
   .autocomplete-option {
@@ -351,10 +355,5 @@
     background: var(--muted);
   }
 
-  .autocomplete-create {
-    color: var(--primary);
-    font-style: italic;
-    border-top: 1px solid var(--border);
-  }
 </style>
 
